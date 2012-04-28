@@ -1,5 +1,6 @@
 import inspect
 import os
+import hashlib
 
 class Config(object):
     def __init__(self):
@@ -16,9 +17,12 @@ class Config(object):
         self.key_path = os.path.join(self.data_path, 'openstack-test.key')
         self.guest_user = 'ubuntu'
 
+    def hostname_to_id(self, hostname):
+        return hashlib.sha224(hostname).hexdigest()
+
     def id_to_hostname(self, id):
         for host in self.hosts:
-            if hostname_to_id(host) == id:
+            if self.hostname_to_id(host) == id:
                 return host
         raise KeyError(id)
 

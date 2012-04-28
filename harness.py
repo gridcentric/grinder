@@ -74,7 +74,7 @@ class SecureShell(object):
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
 
-def wait_for(message, condition, duration=15, interval=0.5):
+def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)
     start = time.time()
     while True:
