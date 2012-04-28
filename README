@@ -1,0 +1,7 @@
+To install py.test:
+
+    easy_install -U pytest
+
+Run with py.test:
+
+    py.test --capture=no -vvv
