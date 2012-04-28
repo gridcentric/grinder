@@ -5,3 +5,10 @@ To install py.test:
 Run with py.test:
 
     py.test --capture=no -vvv
+
+For the brave & well (cluster) endowed:
+
+    easy_install -U pytest-xdist && py.test -n 6
+
+The above command will fork and run 6 test in parallel. Because of increased
+load, latency increases and some test operations will timeout. YMMV.
