@@ -3,6 +3,7 @@ import os
 import hashlib
 
 class Config(object):
+
     def __init__(self):
         # Path to the git repo for openstack-test.
         self.data_path = os.path.dirname(inspect.getfile(inspect.currentframe()))
