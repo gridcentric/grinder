@@ -15,7 +15,7 @@ class TestMigration(unittest.TestCase):
         self.config = default_config
         self.client = harness.create_client()
         self.server = harness.boot(self.client, 'TestMigration', self.config)
-        self.ip = self.server.networks['base_network'][0]
+        self.ip = self.server.networks.values()[0][0]
         self.shell = harness.SecureShell(self.ip, self.config)
         self.breadcrumbs = harness.Breadcrumbs(self.shell)
         self.breadcrumbs.add('booted %s' % self.server.name)
@@ -33,7 +33,7 @@ class TestMigration(unittest.TestCase):
         self.server.get()
         assert self.server.hostId == self.config.hostname_to_id(host)
         assert self.server.status == 'ACTIVE'
-        harness.wait_for_ping(self.server, duration=5)
+        harness.wait_for_ping(self.ip, duration=5)
         harness.wait_for_ssh(self.shell, duration=5)
         self.breadcrumbs.add('alive on host %s' % host)
 

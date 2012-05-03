@@ -95,8 +95,8 @@ def wait_for_build(server):
     wait_for('BUILD on ID %s to finish' % str(server.id),
              condition, duration=60)
 
-def wait_for_ping(server, duration=15):
-    ip = server.networks['base_network'][0]
+def wait_for_ping(ip, duration=15):
+    ip = server.networks.values()[0][0]
     wait_for('ping %s to respond' % ip,
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0,
              duration=duration)
@@ -124,7 +124,7 @@ def boot(client, name_prefix, config):
 def assert_boot_ok(server):
     wait_for_build(server)
     assert server.status == 'ACTIVE'
-    ip = server.networks['base_network'][0]
+    ip = server.networks.values()[0][0]
     shell = SecureShell(ip, server.config)
     wait_for_ping(server)
     wait_for_ssh(shell)
