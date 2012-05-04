@@ -2,6 +2,10 @@ To install py.test:
 
     easy_install -U pytest
 
+To install the openstack-test key in your Openstack project:
+    
+    nova keypair-add --pubkey openstack-test.pub openstack-test
+
 Run with py.test:
 
     py.test --capture=no -vvv
