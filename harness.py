@@ -16,6 +16,9 @@ from subprocess import PIPE
 
 from logger import log
 
+# This is set by pytest_runtest_setup in conftest.py.
+test_name = ''
+
 def create_gcapi_client():
     '''Creates a NovaClient from the environment variables.'''
     return NovaClient(auth_url=os.environ['NOVA_URL'],
@@ -96,7 +99,6 @@ def wait_for_build(server):
              condition, duration=60)
 
 def wait_for_ping(ip, duration=15):
-    ip = server.networks.values()[0][0]
     wait_for('ping %s to respond' % ip,
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0,
              duration=duration)
@@ -106,14 +108,14 @@ def wait_for_ssh(ssh, duration=60):
              lambda: ssh.call('true')[0] == 0, duration=duration)
 
 def generate_name(prefix):
-    return '%s-openstack-test-%d' % (prefix, random.randint(0, 1<<32))
+    return '%s-%d' % (prefix, random.randint(0, 1<<32))
 
 def boot(client, name_prefix, config):
     name = generate_name(name_prefix)
     flavor = client.flavors.find(name=config.flavor_name)
     image = client.images.find(name=config.image_name)
     log.info('Booting %s instance named %s', image.name, name)
-    server = client.servers.create(name=generate_name(name_prefix),
+    server = client.servers.create(name=name,
                                    image=image.id,
                                    flavor=flavor.id,
                                    key_name=config.key_name)
@@ -126,7 +128,7 @@ def assert_boot_ok(server):
     assert server.status == 'ACTIVE'
     ip = server.networks.values()[0][0]
     shell = SecureShell(ip, server.config)
-    wait_for_ping(server)
+    wait_for_ping(ip)
     wait_for_ssh(shell)
     # Sanity check on hostname
     shell.check_output('hostname')[0] == server.name

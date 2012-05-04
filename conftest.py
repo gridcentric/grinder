@@ -1,7 +1,11 @@
 from config import default_config
+import os
 
-def pytest_funcarg__config(request):
-    return 112
+def pytest_runtest_setup(item):
+    # Can't import harness earlier because pytest screws up importing of logger.
+    import harness
+    harness.test_name = item.reportinfo()[2]
+
 
 def pytest_addoption(parser):
     # Add options for each of the default_config fields.

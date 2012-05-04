@@ -14,7 +14,7 @@ class TestMigration(unittest.TestCase):
     def setUp(self):
         self.config = default_config
         self.client = harness.create_client()
-        self.server = harness.boot(self.client, 'TestMigration', self.config)
+        self.server = harness.boot(self.client, harness.test_name, self.config)
         self.ip = self.server.networks.values()[0][0]
         self.shell = harness.SecureShell(self.ip, self.config)
         self.breadcrumbs = harness.Breadcrumbs(self.shell)
