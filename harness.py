@@ -98,7 +98,7 @@ def wait_for_build(server):
     wait_for('BUILD on ID %s to finish' % str(server.id),
              condition, duration=60)
 
-def wait_for_ping(ip, duration=15):
+def wait_for_ping(ip, duration=60):
     wait_for('ping %s to respond' % ip,
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0,
              duration=duration)

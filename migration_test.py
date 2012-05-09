@@ -33,8 +33,8 @@ class TestMigration(unittest.TestCase):
         self.server.get()
         assert self.server.hostId == self.config.hostname_to_id(host)
         assert self.server.status == 'ACTIVE'
-        harness.wait_for_ping(self.ip, duration=5)
-        harness.wait_for_ssh(self.shell, duration=5)
+        harness.wait_for_ping(self.ip, duration=30)
+        harness.wait_for_ssh(self.shell, duration=30)
         self.breadcrumbs.add('alive on host %s' % host)
 
     def migrate(self, host, dest):
