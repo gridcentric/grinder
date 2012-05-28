@@ -89,14 +89,15 @@ def wait_for(message, condition, duration=15, interval=1):
         log.debug('Waiting %ds for %s ...', remaining, message)
         time.sleep(min(interval, remaining))
 
-def wait_for_build(server):
+def wait_while_status(server, status, duration=60):
     def condition():
-        if server.status != 'BUILD':
+        if server.status != status:
             return True
         server.get()
+        print 'status is', server.status
         return False
-    wait_for('BUILD on ID %s to finish' % str(server.id),
-             condition, duration=60)
+    wait_for('%s on ID %s to finish' % (status, str(server.id)),
+             condition, duration)
 
 def wait_for_ping(ip, duration=60):
     wait_for('ping %s to respond' % ip,
@@ -124,7 +125,7 @@ def boot(client, name_prefix, config):
     return server
 
 def assert_boot_ok(server):
-    wait_for_build(server)
+    wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
     ip = server.networks.values()[0][0]
     shell = SecureShell(ip, server.config)
