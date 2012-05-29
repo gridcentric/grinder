@@ -124,10 +124,16 @@ def boot(client, name_prefix, config):
     assert_boot_ok(server)
     return server
 
+def get_addrs(server):
+    ips = []
+    for network in server.networks.values():
+        ips.extend(network)
+    return ips
+
 def assert_boot_ok(server):
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
-    ip = server.networks.values()[0][0]
+    ip = get_addrs(server)[0]
     shell = SecureShell(ip, server.config)
     wait_for_ping(ip)
     wait_for_ssh(shell)
