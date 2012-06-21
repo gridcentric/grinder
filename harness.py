@@ -10,6 +10,8 @@ import sys
 import time
 import unittest
 
+import novaclient.exceptions
+
 from gridcentric.nova.client.client import NovaClient
 from novaclient.v1_1.client import Client
 from subprocess import PIPE
@@ -107,6 +109,15 @@ def wait_for_ping(ip, duration=60):
 def wait_for_ssh(ssh, duration=60):
     wait_for('ssh %s to respond' % ssh.host,
              lambda: ssh.call('true')[0] == 0, duration=duration)
+
+def wait_while_exists(server, duration=60):
+    def condition():
+        try:
+            server.get()
+            return False
+        except novaclient.exceptions.NotFound:
+            return True
+    wait_for('server %s to not exist' % server.id, condition, duration=duration)
 
 def generate_name(prefix):
     return '%s-%d' % (prefix, random.randint(0, 1<<32))

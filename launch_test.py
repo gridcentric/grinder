@@ -1,5 +1,7 @@
 import unittest
 
+from gridcentric.nova.client.exceptions import HttpException
+
 import harness
 
 from logger import log
@@ -111,9 +113,22 @@ class LaunchTest(unittest.TestCase):
         assert set(launched_addrs).isdisjoint(master_addrs)
         self.assert_server_alive(launched)
 
-        launched.delete()
-        self.gcapi.discard_instance(blessed.id)
-        master.delete()
+        # Can't discard a blessed instance with launched instances:
+        try:
+            self.gcapi.discard_instance(blessed.id)
+            assert False and 'HttpException expected!'
+        except HttpException, e:
+            log.debug('Got expected HttpException: %s', str(e))
+            assert e.code == 500
+        blessed.get()
+        assert blessed.status == 'BLESSED'
 
+        # Discard, wait, then delete.
+        launched.delete()
+        harness.wait_while_exists(launched)
+        self.gcapi.discard_instance(blessed.id)
+        harness.wait_while_exists(blessed)
+
+        master.delete()
         # TODO: Test blessing again, test launching more than once, test
         # deleting master then launching.
