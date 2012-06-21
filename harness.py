@@ -96,7 +96,6 @@ def wait_while_status(server, status, duration=60):
         if server.status != status:
             return True
         server.get()
-        print 'status is', server.status
         return False
     wait_for('%s on ID %s to finish' % (status, str(server.id)),
              condition, duration)
