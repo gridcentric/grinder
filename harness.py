@@ -21,25 +21,45 @@ from logger import log
 # This is set by pytest_runtest_setup in conftest.py.
 test_name = ''
 
-def create_gcapi_client():
+def create_gcapi_client(config):
     '''Creates a NovaClient from the environment variables.'''
-    return NovaClient(auth_url=os.environ['NOVA_URL'],
-                      user=os.environ['NOVA_USERNAME'],
-                      apikey=os.environ['NOVA_API_KEY'],
-                      project=os.environ.get('NOVA_PROJECT_ID'),
-                      default_version=os.environ.get('NOVA_VERSION', 'v1.1'))
+    # If we're on essex, we'll need to talk to the v2 authentication
+    # system, which requires us to provide a service_type as a
+    # target. Otherwise fall back to v1 authentication method.
+    if config.openstack_version == 'essex':
+        return NovaClient(auth_url=os.environ['OS_AUTH_URL'],
+                          user=os.environ['OS_USERNAME'],
+                          apikey=os.environ['OS_PASSWORD'],
+                          project=os.environ['OS_TENANT_NAME'],
+                          default_version=os.environ.get('NOVA_VERSION', 'v2.0'))
+    else:
+        return NovaClient(auth_url=os.environ['NOVA_URL'],
+                          user=os.environ['NOVA_USERNAME'],
+                          apikey=os.environ['NOVA_API_KEY'],
+                          project=os.environ.get('NOVA_PROJECT_ID'),
+                          default_version=os.environ.get('NOVA_VERSION', 'v1.1'))
 
-def create_nova_client():
+def create_nova_client(config):
     '''Creates a nova Client from the environment variables.'''
-    return  Client(username=os.environ['NOVA_USERNAME'],
-                   api_key=os.environ['NOVA_API_KEY'],
-                   project_id=os.environ['NOVA_PROJECT_ID'],
-                   auth_url=os.environ['NOVA_URL'])
+    # If we're on essex, we'll need to talk to the v2 authentication
+    # system, which requires us to provide a service_type as a
+    # target. Otherwise fall back to v1 authentication method.
+    if config.openstack_version == 'essex':
+        return Client(username=os.environ['OS_USERNAME'],
+                      api_key=os.environ['OS_PASSWORD'],
+                      project_id=os.environ['OS_TENANT_NAME'],
+                      auth_url=os.environ['OS_AUTH_URL'],
+                      service_type='compute')
+    else:
+        return Client(username=os.environ['NOVA_USERNAME'],
+                      api_key=os.environ['NOVA_API_KEY'],
+                      project_id=os.environ['NOVA_PROJECT_ID'],
+                      auth_url=os.environ['NOVA_URL'])
 
-def create_client():
+def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''
-    client = create_nova_client()
-    setattr(client, 'gcapi', create_gcapi_client())
+    client = create_nova_client(config)
+    setattr(client, 'gcapi', create_gcapi_client(config))
     return client
 
 class SecureShell(object):
@@ -104,7 +124,7 @@ def wait_for_ping(ip, duration=60):
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0,
              duration=duration)
 
-def wait_for_ssh(ssh, duration=60):
+def wait_for_ssh(ssh, duration=600):
     wait_for('ssh %s to respond' % ssh.host,
              lambda: ssh.call('true')[0] == 0, duration=duration)
 
