@@ -4,7 +4,7 @@ To install py.test:
 
 To install the openstack-test key in your Openstack project:
     
-    nova keypair-add --pubkey openstack-test.pub openstack-test
+    nova keypair-add --pub_key openstack-test.pub openstack-test
 
 Run with py.test:
 
