@@ -71,12 +71,6 @@ class TestMigration(unittest.TestCase):
         self.migrate(dest, host)
         self.server.delete()
 
-    def test_dest_ip_address(self):
-        host, dest = self.get_host_dest()
-        dest_ip = socket.gethostbyaddr(dest)[2][0]
-        self.fail_migrate(host, dest_ip)
-        self.server.delete()
-
     def test_dest_does_not_exist(self):
         host = self.get_host()
         dest = 'this-host-does-not-exist'
