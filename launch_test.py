@@ -28,7 +28,7 @@ class LaunchTest(unittest.TestCase):
 
     def setUp(self):
         self.config = default_config
-        self.client = harness.create_client()
+        self.client = harness.create_client(self.config)
         self.gcapi = self.client.gcapi
         self.breadcrumb_snapshots = {}
 
@@ -70,14 +70,16 @@ class LaunchTest(unittest.TestCase):
         return master
 
     def bless(self, master):
-        log.info('Blessing %d', master.id)
+        log.info('Blessing %d', str(master.id))
         master.breadcrumbs.add('Pre bless')
         blessed_list = self.gcapi.bless_instance(master.id)
         assert len(blessed_list) == 1
         blessed = blessed_list[0]
         assert blessed['id'] != master.id
-        assert blessed['uuid'] != master.uuid
-        assert int(blessed['metadata']['blessed_from']) == master.id
+        # In essex, the uuid takes the place of the id for instances.
+        if self.config.openstack_version != 'essex':
+            assert blessed['uuid'] != master.uuid
+        assert str(blessed['metadata']['blessed_from']) == str(master.id)
         assert blessed['name'] != master.name
         assert master.name in blessed['name']
         assert blessed['status'] in ['BUILD', 'BLESSED']
@@ -92,10 +94,12 @@ class LaunchTest(unittest.TestCase):
         assert len(launched_list) == 1
         launched = launched_list[0]
         assert launched['id'] != blessed.id
-        assert launched['uuid'] != blessed.uuid
+        # In essex, the uuid takes the place of the id for instances.
+        if self.config.openstack_version != 'essex':
+            assert launched['uuid'] != blessed.uuid
         # TODO: Enable this assert once issue #179 is fixed.
         # assert int(launched['metadata']['launched_from']) == blessed.id
-        assert int(self.client.servers.get(launched['id']).metadata['launched_from']) == blessed.id
+        assert str(self.client.servers.get(launched['id']).metadata['launched_from']) == str(blessed.id)
         assert launched['name'] != blessed.name
         assert blessed.name in launched['name']
         assert launched['status'] in ['ACTIVE', 'BUILD']
