@@ -1,4 +1,5 @@
 import unittest
+import logging
 
 from gridcentric.nova.client.exceptions import HttpException
 
@@ -124,11 +125,14 @@ class LaunchTest(unittest.TestCase):
         assert blessed.status == 'BLESSED'
 
         # Discard, wait, then delete.
+        log.debug('Deleting launched %s', launched.id)
         launched.delete()
         harness.wait_while_exists(launched)
+        log.debug('Discarding blessed %s', blessed.id)
         self.gcapi.discard_instance(blessed.id)
         harness.wait_while_exists(blessed)
 
+        log.debug('Deleting master %s', master.id)
         master.delete()
         # TODO: Test blessing again, test launching more than once, test
         # deleting master then launching.
