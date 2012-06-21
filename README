@@ -1,3 +1,9 @@
+To run, use the standalone py.test binary, pytest.py:
+    
+    ./pytest.py
+
+Alternatively, you can install py.test and use it:
+
 To install py.test:
 
     easy_install -U pytest
