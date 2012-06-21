@@ -1,6 +1,7 @@
 import os
 import socket
 import unittest
+import time
 
 from gridcentric.nova.client.exceptions import HttpException
 
@@ -64,10 +65,27 @@ class TestMigration(unittest.TestCase):
         log.info('Expecting Migration %s to %s to fail',
                  str(self.server.id), dest)
         self.breadcrumbs.add('pre expected fail migration to %s' % dest)
-        e = harness.assert_raises(HttpException,
+
+        if self.config.openstack_version == 'essex':
+            # In essex, gc api actions are rpc casts rather than
+            # calls. Migration thus won't throw any exceptions, we
+            # just need to ensure nothing bad happens after the
+            # migration invocation. 
+            self.client.gcapi.migrate_instance(self.server.id, dest)
+
+            # FIXME: Wait a short period to reduce the chance of a
+            # race between our check and the rpc cast being
+            # (incorrectly) picked up by someone and causing
+            # problems. This is a temporary hack, we need a more
+            # robust way of ensuring the migration fails.
+            log.info('Sleeping for 3 seconds to let the rpc cast propagate.')
+            time.sleep(3)
+        else: # Diablo
+            e = harness.assert_raises(HttpException,
                                   self.client.gcapi.migrate_instance,
                                   self.server.id, dest)
-        assert e.code == 500
+            assert e.code == 500
+
         self.assert_server_alive(host)
         self.breadcrumbs.add('post expected fail migration to %s' % dest)
 
