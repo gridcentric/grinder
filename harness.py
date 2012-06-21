@@ -88,7 +88,6 @@ def wait_for(message, condition, duration=15, interval=1):
         remaining = start + duration - time.time()
         if remaining <= 0:
             raise Exception('Timeout: waited %ss for %s' % (duration, message))
-        log.debug('Waiting %ds for %s ...', remaining, message)
         time.sleep(min(interval, remaining))
 
 def wait_while_status(server, status, duration=60):

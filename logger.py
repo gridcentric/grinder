@@ -1,7 +1,10 @@
 import logging
 import sys
 
+# We can log to stdout because py.test captures and saves all of the output.
+handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
 log = logging.getLogger('openstack-test')
 log.setLevel(logging.DEBUG)
-# We can log to stdout because py.test captures and saves all of the output.
-log.addHandler(logging.StreamHandler(sys.stdout))
+log.addHandler(handler)
