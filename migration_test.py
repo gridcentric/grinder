@@ -13,7 +13,7 @@ class TestMigration(unittest.TestCase):
 
     def setUp(self):
         self.config = default_config
-        self.client = harness.create_client()
+        self.client = harness.create_client(self.config)
         self.server = harness.boot(self.client, harness.test_name, self.config)
         self.ip = self.server.networks.values()[0][0]
         self.shell = harness.SecureShell(self.ip, self.config)
@@ -21,7 +21,8 @@ class TestMigration(unittest.TestCase):
         self.breadcrumbs.add('booted %s' % self.server.name)
 
     def get_host(self):
-        return self.config.id_to_hostname(self.server.hostId)
+        return self.config.id_to_hostname(self.server.tenant_id,
+                                          self.server.hostId)
 
     def get_host_dest(self):
         host = self.get_host()
@@ -31,7 +32,8 @@ class TestMigration(unittest.TestCase):
 
     def wait_while_host(self, host, duration=60):
         def condition():
-            if host != self.config.id_to_hostname(self.server.hostId):
+            if host != self.config.id_to_hostname(self.server.tenant_id,
+                                                  self.server.hostId):
                 return True
             self.server.get()
             return False
@@ -40,7 +42,9 @@ class TestMigration(unittest.TestCase):
 
     def assert_server_alive(self, host):
         self.server.get()
-        assert self.server.hostId == self.config.hostname_to_id(host)
+        print self.server.hostId
+        assert self.server.hostId == \
+            self.config.hostname_to_id(self.server.tenant_id, host)
         assert self.server.status == 'ACTIVE'
         harness.wait_for_ping(self.ip, duration=30)
         harness.wait_for_ssh(self.shell, duration=30)
