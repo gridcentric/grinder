@@ -29,6 +29,15 @@ class TestMigration(unittest.TestCase):
         assert host != dest
         return host, dest
 
+    def wait_while_host(self, host, duration=60):
+        def condition():
+            if host != self.config.id_to_hostname(self.server.hostId):
+                return True
+            self.server.get()
+            return False
+        harness.wait_for('%s to not be on host %s' % (self.server.id, host),
+                         condition, duration)
+
     def assert_server_alive(self, host):
         self.server.get()
         assert self.server.hostId == self.config.hostname_to_id(host)
@@ -42,6 +51,8 @@ class TestMigration(unittest.TestCase):
         self.assert_server_alive(host)
         self.breadcrumbs.add('pre migration to %s' % dest)
         self.client.gcapi.migrate_instance(self.server.id, dest)
+        self.wait_while_host(host)
+        harness.wait_while_status(self.server, 'MIGRATING')
         self.assert_server_alive(dest)
         self.breadcrumbs.add('post migration to %s' % dest)
 
