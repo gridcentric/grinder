@@ -63,10 +63,12 @@ class LaunchTest(unittest.TestCase):
     def delete(self, server):
         log.debug('Deleting %s %s', server.name, server.id)
         server.delete()
+        harness.wait_while_exists(server)
 
     def discard(self, server):
         log.debug('Discarding %s %s', server.name, server.id)
         self.gcapi.discard_instance(server.id)
+        harness.wait_while_exists(server)
 
     def boot_master(self):
         master = harness.boot(self.client, harness.test_name, self.config)
@@ -91,6 +93,7 @@ class LaunchTest(unittest.TestCase):
         assert blessed['status'] in ['BUILD', 'BLESSED']
         blessed = self.client.servers.get(blessed['id'])
         self.breadcrumb_snapshots[blessed.id] = master.breadcrumbs.snapshot()
+        self.wait_for_bless(blessed)
         return blessed
 
     def launch(self, blessed):
@@ -164,12 +167,9 @@ class LaunchTest(unittest.TestCase):
 
         # Discard, wait, then delete.
         self.delete(launched)
-        harness.wait_while_exists(launched)
         self.discard(blessed)
-        harness.wait_while_exists(blessed)
 
         self.delete(master)
-        harness.wait_while_exists(master)
         # TODO: Test blessing again, test launching more than once, test
         # deleting master then launching.
 
@@ -179,9 +179,7 @@ class LaunchTest(unittest.TestCase):
         # TODO: This wait_for_bless is necessary because there's a race in
         # blessing when pausing & unpausing qemu. Once we add some
         # synchronization to nova-gc, we can remove this wait_for_bless.
-        self.wait_for_bless(blessed1)
         blessed2 = self.bless(master)
-        self.wait_for_bless(blessed2)
         self.assert_server_alive(master)
 
         blessed_ids = self.list_blessed_ids(master.id)
@@ -189,23 +187,13 @@ class LaunchTest(unittest.TestCase):
         self.delete(master)
         self.discard(blessed1)
         self.discard(blessed2)
-        harness.wait_while_exists(master)
-        harness.wait_while_exists(blessed1)
-        harness.wait_while_exists(blessed2)
 
     def test_multi_launch(self):
         master = self.boot_master()
         blessed = self.bless(master)
-        self.wait_for_bless(blessed)
         launched1 = self.launch(blessed)
         launched2 = self.launch(blessed)
-        self.assert_server_alive(launched1)
-        self.assert_server_alive(launched2)
         self.delete(launched1)
         self.delete(launched2)
-        harness.wait_while_exists(launched1)
-        harness.wait_while_exists(launched2)
         self.discard(blessed)
         self.delete(master)
-        harness.wait_while_exists(master)
-        harness.wait_while_exists(blessed)
