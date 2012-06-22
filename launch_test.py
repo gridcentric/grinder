@@ -81,7 +81,7 @@ class LaunchTest(unittest.TestCase):
 
     def bless(self, master):
         log.info('Blessing %d', master.id)
-        master.breadcrumbs.add('Pre bless %s' % master.id)
+        master.breadcrumbs.add('Pre bless')
         blessed_list = self.gcapi.bless_instance(master.id)
         assert len(blessed_list) == 1
         blessed = blessed_list[0]
@@ -94,6 +94,7 @@ class LaunchTest(unittest.TestCase):
         blessed = self.client.servers.get(blessed['id'])
         self.breadcrumb_snapshots[blessed.id] = master.breadcrumbs.snapshot()
         self.wait_for_bless(blessed)
+        master.breadcrumbs.add('Post bless, child is %s' % blessed.id)
         return blessed
 
     def launch(self, blessed):
