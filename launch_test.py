@@ -27,6 +27,13 @@ class LaunchTest(unittest.TestCase):
         self.config = default_config
         self.client = harness.create_client()
         self.gcapi = self.client.gcapi
+        self.breadcrumb_snapshots = {}
+
+    def server_breadcrumbs(self, server):
+        ip = server.networks.values()[0][0]
+        shell = harness.SecureShell(ip, self.config)
+        shell = self.server_shell(server)
+        return Breadcrum
 
     def assert_server_alive(self, server):
         server.get()
@@ -38,13 +45,41 @@ class LaunchTest(unittest.TestCase):
     def wait_for_bless(self, blessed):
         harness.wait_while_status(blessed, 'BUILD')
         assert blessed.status == 'BLESSED'
+        # Test issue #152. The severs/detail and servers/<ID> were returning
+        # difference statuses for blessed servers. servers.get() retrieves
+        # servers/<ID> and servers.list() retrieves servers/detail.
+        self.client.servers.get(blessed.id).status == 'BLESSED'
+        for server in self.client.servers.list():
+            if server.id == blessed.id:
+                assert server.status == 'BLESSED'
+                break
+        else:
+            assert False
 
     def wait_for_launch(self, launched):
         harness.wait_while_status(launched, 'BUILD')
         assert launched.status == 'ACTIVE'
 
+    def delete(self, server):
+        log.debug('Deleting %s %s', server.name, server.id)
+        server.delete()
+
+    def discard(self, server):
+        log.debug('Discarding %s %s', server.name, server.id)
+        self.gcapi.discard_instance(server.id)
+
+    def boot_master(self):
+        master = harness.boot(self.client, harness.test_name, self.config)
+        ip = harness.get_addrs(master)[0]
+        shell = harness.SecureShell(ip, self.config)
+        breadcrumbs = harness.Breadcrumbs(shell)
+        breadcrumbs.add('Booted master %s' % master.id)
+        setattr(master, 'breadcrumbs', breadcrumbs)
+        return master
+
     def bless(self, master):
         log.info('Blessing %d', master.id)
+        master.breadcrumbs.add('Pre bless %s' % master.id)
         blessed_list = self.gcapi.bless_instance(master.id)
         assert len(blessed_list) == 1
         blessed = blessed_list[0]
@@ -54,7 +89,9 @@ class LaunchTest(unittest.TestCase):
         assert blessed['name'] != master.name
         assert master.name in blessed['name']
         assert blessed['status'] in ['BUILD', 'BLESSED']
-        return self.client.servers.get(blessed['id'])
+        blessed = self.client.servers.get(blessed['id'])
+        self.breadcrumb_snapshots[blessed.id] = master.breadcrumbs.snapshot()
+        return blessed
 
     def launch(self, blessed):
         launched_list = self.gcapi.launch_instance(blessed.id)
@@ -68,10 +105,23 @@ class LaunchTest(unittest.TestCase):
         assert launched['name'] != blessed.name
         assert blessed.name in launched['name']
         assert launched['status'] in ['ACTIVE', 'BUILD']
-        return self.client.servers.get(launched['id'])
+        launched = self.client.servers.get(launched['id'])
+        harness.wait_while_status(launched, 'BUILD')
+        assert launched.status == 'ACTIVE'
+        ip = harness.get_addrs(launched)[0]
+        harness.wait_for_ping(ip)
+        shell = harness.SecureShell(ip, self.config)
+        harness.wait_for_ssh(shell)
+        breadcrumbs = self.breadcrumb_snapshots[blessed.id].instantiate(shell)
+        breadcrumbs.add('Post launch %s' % launched.id)
+        setattr(launched, 'breadcrumbs', breadcrumbs)
+        return launched
 
     def list_blessed(self, id):
         return [DictWrapper(d) for d in self.gcapi.list_blessed_instances(id)]
+
+    def list_blessed_ids(self, id):
+        return [blessed.id for blessed in self.list_blessed(id)]
 
     def test_list_blessed_launched_bad_id(self):
         fake_id = '123412341234'
@@ -80,7 +130,7 @@ class LaunchTest(unittest.TestCase):
         assert [] == self.gcapi.list_launched_instances(fake_id)
 
     def test_bless_launch(self):
-        master = harness.boot(self.client, harness.test_name, self.config)
+        master = self.boot_master()
         assert [] == self.gcapi.list_blessed_instances(master.id)
 
         blessed = self.bless(master)
@@ -95,20 +145,8 @@ class LaunchTest(unittest.TestCase):
         self.wait_for_bless(blessed)
         self.assert_server_alive(master)
 
-        # Test issue #152. The severs/detail and servers/<ID> were returning
-        # difference statuses for blessed servers. servers.get() retrieves
-        # servers/<ID> and servers.list() retrieves servers/detail.
-        self.client.servers.get(blessed.id).status == 'BLESSED'
-        for server in self.client.servers.list():
-            if server.id == blessed.id:
-                assert server.status == 'BLESSED'
-                break
-        else:
-            assert False
-
         # Test launching.
         launched = self.launch(blessed)
-        self.wait_for_launch(launched)
         launched_addrs = harness.get_addrs(launched)
         master_addrs = harness.get_addrs(master)
         assert set(launched_addrs).isdisjoint(master_addrs)
@@ -116,7 +154,7 @@ class LaunchTest(unittest.TestCase):
 
         # Can't discard a blessed instance with launched instances:
         try:
-            self.gcapi.discard_instance(blessed.id)
+            self.discard(blessed)
             assert False and 'HttpException expected!'
         except HttpException, e:
             log.debug('Got expected HttpException: %s', str(e))
@@ -125,14 +163,49 @@ class LaunchTest(unittest.TestCase):
         assert blessed.status == 'BLESSED'
 
         # Discard, wait, then delete.
-        log.debug('Deleting launched %s', launched.id)
-        launched.delete()
+        self.delete(launched)
         harness.wait_while_exists(launched)
-        log.debug('Discarding blessed %s', blessed.id)
-        self.gcapi.discard_instance(blessed.id)
+        self.discard(blessed)
         harness.wait_while_exists(blessed)
 
-        log.debug('Deleting master %s', master.id)
-        master.delete()
+        self.delete(master)
+        harness.wait_while_exists(master)
         # TODO: Test blessing again, test launching more than once, test
         # deleting master then launching.
+
+    def test_multi_bless(self):
+        master = self.boot_master()
+        blessed1 = self.bless(master)
+        # TODO: This wait_for_bless is necessary because there's a race in
+        # blessing when pausing & unpausing qemu. Once we add some
+        # synchronization to nova-gc, we can remove this wait_for_bless.
+        self.wait_for_bless(blessed1)
+        blessed2 = self.bless(master)
+        self.wait_for_bless(blessed2)
+        self.assert_server_alive(master)
+
+        blessed_ids = self.list_blessed_ids(master.id)
+        assert sorted([blessed1.id, blessed2.id]) == sorted(blessed_ids)
+        self.delete(master)
+        self.discard(blessed1)
+        self.discard(blessed2)
+        harness.wait_while_exists(master)
+        harness.wait_while_exists(blessed1)
+        harness.wait_while_exists(blessed2)
+
+    def test_multi_launch(self):
+        master = self.boot_master()
+        blessed = self.bless(master)
+        self.wait_for_bless(blessed)
+        launched1 = self.launch(blessed)
+        launched2 = self.launch(blessed)
+        self.assert_server_alive(launched1)
+        self.assert_server_alive(launched2)
+        self.delete(launched1)
+        self.delete(launched2)
+        harness.wait_while_exists(launched1)
+        harness.wait_while_exists(launched2)
+        self.discard(blessed)
+        self.delete(master)
+        harness.wait_while_exists(master)
+        harness.wait_while_exists(blessed)

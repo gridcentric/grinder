@@ -31,10 +31,10 @@ def create_gcapi_client():
 
 def create_nova_client():
     '''Creates a nova Client from the environment variables.'''
-    return Client(username=os.environ['NOVA_USERNAME'],
-                  api_key=os.environ['NOVA_API_KEY'],
-                  project_id=os.environ['NOVA_PROJECT_ID'],
-                  auth_url=os.environ['NOVA_URL'])
+    return  Client(username=os.environ['NOVA_USERNAME'],
+                   api_key=os.environ['NOVA_API_KEY'],
+                   project_id=os.environ['NOVA_PROJECT_ID'],
+                   auth_url=os.environ['NOVA_URL'])
 
 def create_client():
     '''Creates a nova Client with a gcapi client embeded.'''
@@ -154,21 +154,35 @@ def assert_boot_ok(server):
 class Breadcrumbs(object):
     def __init__(self, shell):
         self.shell = shell
-        self.breadcrumbs = []
+        self.trail = []
         self.filename = '/tmp/test-breadcrumbs-%d' % random.randint(0, 1<<32)
+
+    class Snapshot(object):
+        def __init__(self, breadcrumbs):
+            self.trail = list(breadcrumbs.trail)
+            self.filename = breadcrumbs.filename
+
+        def instantiate(self, shell):
+            result = Breadcrumbs(shell)
+            result.trail = list(self.trail)
+            result.filename = self.filename
+            return result
+
+    def snapshot(self):
+        return Breadcrumbs.Snapshot(self)
 
     def add(self, breadcrumb):
         self.assert_trail()
-        breadcrumb = '%d: %s' % (len(self.breadcrumbs), breadcrumb)
+        breadcrumb = '%d: %s' % (len(self.trail), breadcrumb)
         log.debug('Adding breadcrumb "%s"', breadcrumb)
         self.shell.check_output('cat >> %s' % self.filename, input=breadcrumb + '\n')
-        self.breadcrumbs.append(breadcrumb)
+        self.trail.append(breadcrumb)
         self.assert_trail()
 
     def assert_trail(self):
-        if len(self.breadcrumbs) == 0:
+        if len(self.trail) == 0:
             self.shell.check_output('test ! -e %s' % self.filename)
         else:
             stdout, stderr = self.shell.check_output('cat %s' % self.filename)
             log.debug('Got breadcrumbs: %s', stdout.split('\n'))
-            assert stdout.split('\n')[:-1] == list(self.breadcrumbs)
+            assert stdout.split('\n')[:-1] == list(self.trail)
