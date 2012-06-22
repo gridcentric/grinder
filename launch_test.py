@@ -198,3 +198,11 @@ class LaunchTest(unittest.TestCase):
         self.delete(launched2)
         self.discard(blessed)
         self.delete(master)
+
+    def test_delete_master(self):
+        master = self.boot_master()
+        blessed = self.bless(master)
+        self.delete(master)
+        launched = self.launch(blessed)
+        self.delete(launched)
+        self.discard(blessed)
