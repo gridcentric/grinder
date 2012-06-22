@@ -69,12 +69,6 @@ class TestMigration(unittest.TestCase):
         self.assert_server_alive(host)
         self.breadcrumbs.add('post expected fail migration to %s' % dest)
 
-    def test_simple(self):
-        host, dest = self.get_host_dest()
-        self.migrate(host, dest)
-        self.server.delete()
-        harness.wait_while_exists(self.server)
-
     def test_back_and_forth(self):
         host, dest = self.get_host_dest()
         self.migrate(host, dest)
