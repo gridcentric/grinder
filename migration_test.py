@@ -73,6 +73,7 @@ class TestMigration(unittest.TestCase):
         host, dest = self.get_host_dest()
         self.migrate(host, dest)
         self.server.delete()
+        harness.wait_while_exists(self.server)
 
     def test_back_and_forth(self):
         host, dest = self.get_host_dest()
@@ -81,20 +82,24 @@ class TestMigration(unittest.TestCase):
         self.migrate(host, dest)
         self.migrate(dest, host)
         self.server.delete()
+        harness.wait_while_exists(self.server)
 
     def test_dest_does_not_exist(self):
         host = self.get_host()
         dest = 'this-host-does-not-exist'
         self.fail_migrate(host, dest)
         self.server.delete()
+        harness.wait_while_exists(self.server)
 
     def test_dest_does_not_have_openstack(self):
         host = self.get_host()
         dest = self.config.hosts_without_openstack[0]
         self.fail_migrate(host, dest)
         self.server.delete()
+        harness.wait_while_exists(self.server)
 
     def test_migrate_self(self):
         host = self.get_host()
         self.fail_migrate(host, host)
         self.server.delete()
+        harness.wait_while_exists(self.server)
