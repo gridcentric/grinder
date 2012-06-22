@@ -151,6 +151,15 @@ def assert_boot_ok(server):
     # Make sure that the vmsagent is running
     shell.check_output('pidof vmsagent')
 
+def assert_raises(exception_type, command, *args, **kwargs):
+    try:
+        command(*args, **kwargs)
+        assert False and 'Expected exception of type %s' % exception_type
+    except Exception, e:
+        assert type(e) ==  exception_type
+        log.debug('Got expected exception %s', e)
+        return e
+
 class Breadcrumbs(object):
     def __init__(self, shell):
         self.shell = shell

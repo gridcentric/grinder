@@ -21,6 +21,9 @@ class DictWrapper(object):
     def __str__(self):
         return str(self.d)
 
+def dict_wrapper_list(dict_list):
+    return [DictWrapper(d) for d in dict_list]
+
 class LaunchTest(unittest.TestCase):
 
     def setUp(self):
@@ -28,19 +31,6 @@ class LaunchTest(unittest.TestCase):
         self.client = harness.create_client()
         self.gcapi = self.client.gcapi
         self.breadcrumb_snapshots = {}
-
-    def server_breadcrumbs(self, server):
-        ip = server.networks.values()[0][0]
-        shell = harness.SecureShell(ip, self.config)
-        shell = self.server_shell(server)
-        return Breadcrum
-
-    def assert_server_alive(self, server):
-        server.get()
-        assert server.status == 'ACTIVE'
-        ip = server.networks.values()[0][0]
-        harness.wait_for_ping(ip)
-        harness.wait_for_ssh(harness.SecureShell(ip, self.config))
 
     def wait_for_bless(self, blessed):
         harness.wait_while_status(blessed, 'BUILD')
@@ -121,8 +111,14 @@ class LaunchTest(unittest.TestCase):
         setattr(launched, 'breadcrumbs', breadcrumbs)
         return launched
 
+    def list_launched(self, id):
+        return dict_wrapper_list(self.gcapi.list_launched_instances(id))
+
+    def list_launched_ids(self, id):
+        return [launched.id for launched in self.list_launched(id)]
+
     def list_blessed(self, id):
-        return [DictWrapper(d) for d in self.gcapi.list_blessed_instances(id)]
+        return dict_wrapper_list(self.gcapi.list_blessed_instances(id))
 
     def list_blessed_ids(self, id):
         return [blessed.id for blessed in self.list_blessed(id)]
@@ -135,44 +131,22 @@ class LaunchTest(unittest.TestCase):
 
     def test_bless_launch(self):
         master = self.boot_master()
-        assert [] == self.gcapi.list_blessed_instances(master.id)
 
+        assert [] == self.list_blessed_ids(master.id)
         blessed = self.bless(master)
+        assert [blessed.id] == self.list_blessed_ids(master.id)
 
-        # Test list_blessed
-        blessed_list = self.list_blessed(master.id)
-        assert len(blessed_list) == 1
-        assert blessed_list[0].id == blessed.id
-
-        # Wait for the bless to complete. Once complete, the master should be
-        # active again.
-        self.wait_for_bless(blessed)
-        self.assert_server_alive(master)
-
-        # Test launching.
+        assert [] == self.list_launched_ids(blessed.id)
         launched = self.launch(blessed)
+        assert [launched.id] == self.list_launched_ids(blessed.id)
+
         launched_addrs = harness.get_addrs(launched)
         master_addrs = harness.get_addrs(master)
         assert set(launched_addrs).isdisjoint(master_addrs)
-        self.assert_server_alive(launched)
 
-        # Can't discard a blessed instance with launched instances:
-        try:
-            self.discard(blessed)
-            assert False and 'HttpException expected!'
-        except HttpException, e:
-            log.debug('Got expected HttpException: %s', str(e))
-            assert e.code == 500
-        blessed.get()
-        assert blessed.status == 'BLESSED'
-
-        # Discard, wait, then delete.
         self.delete(launched)
         self.discard(blessed)
-
         self.delete(master)
-        # TODO: Test blessing again, test launching more than once, test
-        # deleting master then launching.
 
     def test_multi_bless(self):
         master = self.boot_master()
@@ -181,10 +155,18 @@ class LaunchTest(unittest.TestCase):
         # blessing when pausing & unpausing qemu. Once we add some
         # synchronization to nova-gc, we can remove this wait_for_bless.
         blessed2 = self.bless(master)
-        self.assert_server_alive(master)
 
         blessed_ids = self.list_blessed_ids(master.id)
         assert sorted([blessed1.id, blessed2.id]) == sorted(blessed_ids)
+
+        launched1 = self.launch(blessed1)
+        launched2 = self.launch(blessed2)
+
+        assert [launched1.id] == self.list_launched_ids(blessed1.id)
+        assert [launched2.id] == self.list_launched_ids(blessed2.id)
+
+        self.delete(launched1)
+        self.delete(launched2)
         self.delete(master)
         self.discard(blessed1)
         self.discard(blessed2)
@@ -194,15 +176,45 @@ class LaunchTest(unittest.TestCase):
         blessed = self.bless(master)
         launched1 = self.launch(blessed)
         launched2 = self.launch(blessed)
+        launched_ids = self.list_launched_ids(blessed.id)
+        assert sorted([launched1.id, launched2.id]) == sorted(launched_ids)
         self.delete(launched1)
         self.delete(launched2)
         self.discard(blessed)
         self.delete(master)
 
-    def test_delete_master(self):
+    def test_delete_master_before_launch(self):
         master = self.boot_master()
         blessed = self.bless(master)
         self.delete(master)
         launched = self.launch(blessed)
         self.delete(launched)
         self.discard(blessed)
+
+    def test_cannot_discard_blessed_with_launched(self):
+        master = self.boot_master()
+        blessed = self.bless(master)
+        launched1 = self.launch(blessed)
+        e = harness.assert_raises(HttpException, self.discard, blessed)
+        assert e.code == 500
+        # Make sure that we can still launch after a failed discard.
+        launched2 = self.launch(blessed)
+        self.delete(launched1)
+        self.delete(launched2)
+        self.discard(blessed)
+        self.delete(master)
+
+    def test_cannot_delete_blessed(self):
+        master = self.boot_master()
+        blessed = self.bless(master)
+        # blessed.delete does not fail per se b/c it's nova compute that can't
+        # handle the delete of a BLESSED instance. Hence, if nova compute were
+        # buggy and did indeed delete the BLESSED instance, then we might not
+        # catch it because the buggy deletion races with the launch below.
+        blessed.delete()
+        blessed.get()
+        assert blessed.status == 'BLESSED'
+        launched = self.launch(blessed)
+        self.delete(launched)
+        self.discard(blessed)
+        self.delete(master)
