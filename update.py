@@ -3,12 +3,47 @@
 import os
 import sys
 import re
+import json
 import urllib2
 import shutil
 import subprocess
 from cookielib import CookieJar
 
-from config import default_config as config
+class Config:
+    def __init__(self):
+        default_vms_spec = \
+            '''
+            [
+                ["vmsfs", "vmsfs[0-9._]+amd64\\\\.deb"], 
+                ["vms-kvm", "vms-kvm[0-9._]+amd64\\\\.deb"], 
+                ["vms", "vms[0-9._]+-ubuntu1-py27_amd64\\\\.deb"], 
+                ["vms-libvirt", "vms-libvirt[0-9._]+amd64\\\\.deb"], 
+                ["mcdist", "mcdist[0-9._]+amd64\\\\.deb"], 
+                ["vms-mcdist", "vms-mcdist[0-9._]+amd64\\\\.deb"]
+            ]
+            '''
+        default_openstack_spec = \
+            '''
+            [
+                ["nova-gridcentric", "nova-gridcentric_[0-9.]+-ubuntu[0-9.]+py2.7_all\\\\.deb"]
+            ]
+            '''
+
+        self.build_server = os.getenv('UPDATER_REPOSITORY', '********')
+        self.build_username = os.getenv('UPDATER_USERNAME', '********')
+        self.build_password = os.getenv('UPDATER_PASSWORD', '********')
+
+        self.package_tmp_dir = os.getenv('UPDATER_TEMP_DIR', '.tmp')
+        self.vms_project = \
+            os.getenv('UPDATER_VMS_PROJECT', 'Libvirt')
+        self.vms_packages = \
+            json.loads(os.getenv('UPDATER_VMS_PACKAGE_SPEC', default_vms_spec))
+        self.openstack_project = \
+            os.getenv('UPDATER_OPENSTACK_PROJECT', 'Essex')
+        self.openstack_packages = \
+            json.loads(os.getenv('UPDATER_OPENSTACK_PACKAGE_SPEC', default_openstack_spec))
+
+config = Config()
 
 def install_packages():
     # Save the current working dir
@@ -51,8 +86,8 @@ def install_packages():
 
     fetch_package(openstack_package_url, opener, "archive-openstack.zip")
 
-    def install(project_name, project_archive_file, project_package_manifest, pre_install_task=None,
-                post_install_task=None):
+    def install(project_name, project_archive_file, project_package_manifest, 
+                pre_install_task=None, post_install_task=None):
         print "================== Installing", project_name, "=================="
         print "Extracting archive contents"
         os.chdir(config.package_tmp_dir)
@@ -176,4 +211,7 @@ def install_packages():
             post_install_task = openstack_post_install)
 
 if __name__ == "__main__":
+    if not os.geteuid() == 0:
+        sys.exit("This script must be run as root.")
+
     install_packages()

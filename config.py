@@ -19,24 +19,6 @@ class Config(object):
         self.guest_user = 'ubuntu'
         self.openstack_version = "essex"
 
-        self.build_server = '********'
-        self.build_username = '********'
-        self.build_password = '********'
-        self.vms_project = 'Libvirt'
-        self.openstack_project = 'Essex'
-        self.package_tmp_dir = '.tmp'
-
-        self.vms_packages = [
-            ('vmsfs', 'vmsfs[0-9._]+amd64\.deb'),
-            ('vms-kvm', 'vms-kvm[0-9._]+amd64\.deb'),
-            ('vms', 'vms[0-9._]+-ubuntu1-py27_amd64\.deb'),
-            ('vms-libvirt', 'vms-libvirt[0-9._]+amd64\.deb'),
-            ('mcdist', 'mcdist[0-9._]+amd64\.deb'),
-            ('vms-mcdist', 'vms-mcdist[0-9._]+amd64\.deb')]
-
-        self.openstack_packages = [
-            ('nova-gridcentric', 'nova-gridcentric_[0-9.]+-ubuntu[0-9.]+py2.7_all\.deb')]
-
     def hostname_to_id(self, tenant_id, hostname):
         if self.openstack_version == "essex":
             return hashlib.sha224(str(tenant_id) + str(hostname)).hexdigest()
