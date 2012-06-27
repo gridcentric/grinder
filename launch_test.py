@@ -70,7 +70,7 @@ class LaunchTest(unittest.TestCase):
         return master
 
     def bless(self, master):
-        log.info('Blessing %d', str(master.id))
+        log.info('Blessing %s', str(master.id))
         master.breadcrumbs.add('Pre bless')
         blessed_list = self.gcapi.bless_instance(master.id)
         assert len(blessed_list) == 1
@@ -211,11 +211,18 @@ class LaunchTest(unittest.TestCase):
     def test_cannot_delete_blessed(self):
         master = self.boot_master()
         blessed = self.bless(master)
-        # blessed.delete does not fail per se b/c it's nova compute that can't
-        # handle the delete of a BLESSED instance. Hence, if nova compute were
-        # buggy and did indeed delete the BLESSED instance, then we might not
-        # catch it because the buggy deletion races with the launch below.
-        blessed.delete()
+        if self.config.openstack_version == 'essex':
+            # In Essex, attempting to delete a blessed instance raises a
+            # ClientException in novaclient.
+            e = harness.assert_raises(ClientException, blessed.delete)
+            assert e.code == 409
+        else:
+            # blessed.delete does not fail per se b/c it's nova compute that can't
+            # handle the delete of a BLESSED instance. Hence, if nova compute were
+            # buggy and did indeed delete the BLESSED instance, then we might not
+            # catch it because the buggy deletion races with the launch below.
+            blessed.delete()
+
         blessed.get()
         assert blessed.status == 'BLESSED'
         launched = self.launch(blessed)
