@@ -8,6 +8,9 @@ import harness
 from logger import log
 from config import default_config
 
+if default_config.openstack_version == 'essex':
+    from novaclient.exceptions import ClientException
+
 class DictWrapper(object):
     def __init__(self, d):
         self.d = d
