@@ -14,11 +14,11 @@ class Config:
         default_vms_spec = \
             '''
             [
-                ["vmsfs", "vmsfs[0-9._]+amd64\\\\.deb"], 
-                ["vms-kvm", "vms-kvm[0-9._]+amd64\\\\.deb"], 
-                ["vms", "vms[0-9._]+-ubuntu1-py27_amd64\\\\.deb"], 
-                ["vms-libvirt", "vms-libvirt[0-9._]+amd64\\\\.deb"], 
-                ["mcdist", "mcdist[0-9._]+amd64\\\\.deb"], 
+                ["vmsfs", "vmsfs[0-9._]+amd64\\\\.deb"],
+                ["vms-kvm", "vms-kvm[0-9._]+amd64\\\\.deb"],
+                ["vms", "vms[0-9._]+-ubuntu1-py27_amd64\\\\.deb"],
+                ["vms-libvirt", "vms-libvirt[0-9._]+amd64\\\\.deb"],
+                ["mcdist", "mcdist[0-9._]+amd64\\\\.deb"],
                 ["vms-mcdist", "vms-mcdist[0-9._]+amd64\\\\.deb"]
             ]
             '''
@@ -198,7 +198,7 @@ def install_packages():
         print "Mounting vmsfs at", mountpoint
         os.system("mount %s" % mountpoint)
 
-    install("vms", "archive-vms.zip", config.vms_packages, 
+    install("vms", "archive-vms.zip", config.vms_packages,
             pre_install_task = vms_pre_install,
             post_install_task = vms_post_install)
     
@@ -215,3 +215,4 @@ if __name__ == "__main__":
         sys.exit("This script must be run as root.")
 
     install_packages()
+
