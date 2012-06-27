@@ -127,6 +127,32 @@ class LaunchTest(unittest.TestCase):
     def list_blessed_ids(self, id):
         return [blessed.id for blessed in self.list_blessed(id)]
 
+    def test_launch_master(self):
+        master = self.boot_master()
+
+        e = harness.assert_raises(HttpException, self.launch, master)
+        assert e.code == 500
+
+        # Master should still be alive and well at this point.
+        master.get()
+        assert master.status == 'ACTIVE'
+        master.breadcrumbs.add("Alive after launch attempt.")        
+        
+        self.delete(master)
+
+    def test_discard_master(self):
+        master = self.boot_master()
+
+        e = harness.assert_raises(HttpException, self.discard, master)
+        assert e.code == 500
+
+        # Master should still be alive and well at this point.
+        master.get()
+        assert master.status == 'ACTIVE'
+        master.breadcrumbs.add("Alive after discard attempt.")
+        
+        self.delete(master)
+    
     def test_list_blessed_launched_bad_id(self):
         fake_id = '123412341234'
         assert fake_id not in [s.id for s in self.client.servers.list()]
