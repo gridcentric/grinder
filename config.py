@@ -17,19 +17,23 @@ class Config(object):
         self.key_name = 'openstack-test'
         self.key_path = os.path.join(self.data_path, 'openstack-test.key')
         self.guest_user = 'ubuntu'
+        self.openstack_version = "essex"
 
-    def hostname_to_id(self, hostname):
-        return hashlib.sha224(hostname).hexdigest()
+    def hostname_to_id(self, tenant_id, hostname):
+        if self.openstack_version == "essex":
+            return hashlib.sha224(str(tenant_id) + str(hostname)).hexdigest()
+        else:
+            return hashlib.sha224(str(hostname)).hexdigest()
 
-    def id_to_hostname(self, id):
+    def id_to_hostname(self, tenant_id, id):
         for host in self.hosts:
-            if self.hostname_to_id(host) == id:
+            if self.hostname_to_id(tenant_id, host) == id:
                 return host
         raise KeyError(id)
 
-    def other_hosts(self, hostname=None, hostId=None):
+    def other_hosts(self, hostname=None, hostId=None, tenant_id=None):
         if hostname == None:
-            hostname = id_to_hostname(hostId)
+            hostname = id_to_hostname(tenant_id, hostId)
         return [host for host in self.hosts if host != hostname]
 
 default_config = Config()

@@ -1,6 +1,7 @@
 import os
 import socket
 import unittest
+import time
 
 from gridcentric.nova.client.exceptions import HttpException
 
@@ -13,7 +14,7 @@ class TestMigration(unittest.TestCase):
 
     def setUp(self):
         self.config = default_config
-        self.client = harness.create_client()
+        self.client = harness.create_client(self.config)
         self.server = harness.boot(self.client, harness.test_name, self.config)
         self.ip = self.server.networks.values()[0][0]
         self.shell = harness.SecureShell(self.ip, self.config)
@@ -21,7 +22,8 @@ class TestMigration(unittest.TestCase):
         self.breadcrumbs.add('booted %s' % self.server.name)
 
     def get_host(self):
-        return self.config.id_to_hostname(self.server.hostId)
+        return self.config.id_to_hostname(self.server.tenant_id,
+                                          self.server.hostId)
 
     def get_host_dest(self):
         host = self.get_host()
@@ -31,7 +33,8 @@ class TestMigration(unittest.TestCase):
 
     def wait_while_host(self, host, duration=60):
         def condition():
-            if host != self.config.id_to_hostname(self.server.hostId):
+            if host != self.config.id_to_hostname(self.server.tenant_id,
+                                                  self.server.hostId):
                 return True
             self.server.get()
             return False
@@ -40,7 +43,8 @@ class TestMigration(unittest.TestCase):
 
     def assert_server_alive(self, host):
         self.server.get()
-        assert self.server.hostId == self.config.hostname_to_id(host)
+        assert self.server.hostId == \
+            self.config.hostname_to_id(self.server.tenant_id, host)
         assert self.server.status == 'ACTIVE'
         harness.wait_for_ping(self.ip, duration=30)
         harness.wait_for_ssh(self.shell, duration=30)
@@ -60,10 +64,27 @@ class TestMigration(unittest.TestCase):
         log.info('Expecting Migration %s to %s to fail',
                  str(self.server.id), dest)
         self.breadcrumbs.add('pre expected fail migration to %s' % dest)
-        e = harness.assert_raises(HttpException,
+
+        if self.config.openstack_version == 'essex':
+            # In essex, gc api actions are rpc casts rather than
+            # calls. Migration thus won't throw any exceptions, we
+            # just need to ensure nothing bad happens after the
+            # migration invocation. 
+            self.client.gcapi.migrate_instance(self.server.id, dest)
+
+            # FIXME: Wait a short period to reduce the chance of a
+            # race between our check and the rpc cast being
+            # (incorrectly) picked up by someone and causing
+            # problems. This is a temporary hack, we need a more
+            # robust way of ensuring the migration fails.
+            log.info('Sleeping for 3 seconds to let the rpc cast propagate.')
+            time.sleep(3)
+        else: # Diablo
+            e = harness.assert_raises(HttpException,
                                   self.client.gcapi.migrate_instance,
                                   self.server.id, dest)
-        assert e.code == 500
+            assert e.code == 500
+
         self.assert_server_alive(host)
         self.breadcrumbs.add('post expected fail migration to %s' % dest)
 

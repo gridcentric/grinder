@@ -8,6 +8,9 @@ import harness
 from logger import log
 from config import default_config
 
+if default_config.openstack_version == 'essex':
+    from novaclient.exceptions import ClientException
+
 class DictWrapper(object):
     def __init__(self, d):
         self.d = d
@@ -28,7 +31,7 @@ class LaunchTest(unittest.TestCase):
 
     def setUp(self):
         self.config = default_config
-        self.client = harness.create_client()
+        self.client = harness.create_client(self.config)
         self.gcapi = self.client.gcapi
         self.breadcrumb_snapshots = {}
 
@@ -70,14 +73,16 @@ class LaunchTest(unittest.TestCase):
         return master
 
     def bless(self, master):
-        log.info('Blessing %d', master.id)
+        log.info('Blessing %s', str(master.id))
         master.breadcrumbs.add('Pre bless')
         blessed_list = self.gcapi.bless_instance(master.id)
         assert len(blessed_list) == 1
         blessed = blessed_list[0]
         assert blessed['id'] != master.id
-        assert blessed['uuid'] != master.uuid
-        assert int(blessed['metadata']['blessed_from']) == master.id
+        # In essex, the uuid takes the place of the id for instances.
+        if self.config.openstack_version != 'essex':
+            assert blessed['uuid'] != master.uuid
+        assert str(blessed['metadata']['blessed_from']) == str(master.id)
         assert blessed['name'] != master.name
         assert master.name in blessed['name']
         assert blessed['status'] in ['BUILD', 'BLESSED']
@@ -92,10 +97,12 @@ class LaunchTest(unittest.TestCase):
         assert len(launched_list) == 1
         launched = launched_list[0]
         assert launched['id'] != blessed.id
-        assert launched['uuid'] != blessed.uuid
+        # In essex, the uuid takes the place of the id for instances.
+        if self.config.openstack_version != 'essex':
+            assert launched['uuid'] != blessed.uuid
         # TODO: Enable this assert once issue #179 is fixed.
         # assert int(launched['metadata']['launched_from']) == blessed.id
-        assert int(self.client.servers.get(launched['id']).metadata['launched_from']) == blessed.id
+        assert str(self.client.servers.get(launched['id']).metadata['launched_from']) == str(blessed.id)
         assert launched['name'] != blessed.name
         assert blessed.name in launched['name']
         assert launched['status'] in ['ACTIVE', 'BUILD']
@@ -123,6 +130,32 @@ class LaunchTest(unittest.TestCase):
     def list_blessed_ids(self, id):
         return [blessed.id for blessed in self.list_blessed(id)]
 
+    def test_launch_master(self):
+        master = self.boot_master()
+
+        e = harness.assert_raises(HttpException, self.launch, master)
+        assert e.code == 500
+
+        # Master should still be alive and well at this point.
+        master.get()
+        assert master.status == 'ACTIVE'
+        master.breadcrumbs.add("Alive after launch attempt.")        
+        
+        self.delete(master)
+
+    def test_discard_master(self):
+        master = self.boot_master()
+
+        e = harness.assert_raises(HttpException, self.discard, master)
+        assert e.code == 500
+
+        # Master should still be alive and well at this point.
+        master.get()
+        assert master.status == 'ACTIVE'
+        master.breadcrumbs.add("Alive after discard attempt.")
+        
+        self.delete(master)
+    
     def test_list_blessed_launched_bad_id(self):
         fake_id = '123412341234'
         assert fake_id not in [s.id for s in self.client.servers.list()]
@@ -207,11 +240,18 @@ class LaunchTest(unittest.TestCase):
     def test_cannot_delete_blessed(self):
         master = self.boot_master()
         blessed = self.bless(master)
-        # blessed.delete does not fail per se b/c it's nova compute that can't
-        # handle the delete of a BLESSED instance. Hence, if nova compute were
-        # buggy and did indeed delete the BLESSED instance, then we might not
-        # catch it because the buggy deletion races with the launch below.
-        blessed.delete()
+        if self.config.openstack_version == 'essex':
+            # In Essex, attempting to delete a blessed instance raises a
+            # ClientException in novaclient.
+            e = harness.assert_raises(ClientException, blessed.delete)
+            assert e.code == 409
+        else:
+            # blessed.delete does not fail per se b/c it's nova compute that can't
+            # handle the delete of a BLESSED instance. Hence, if nova compute were
+            # buggy and did indeed delete the BLESSED instance, then we might not
+            # catch it because the buggy deletion races with the launch below.
+            blessed.delete()
+
         blessed.get()
         assert blessed.status == 'BLESSED'
         launched = self.launch(blessed)

@@ -12,6 +12,17 @@ To install the openstack-test key in your Openstack project:
     
     nova keypair-add --pub_key openstack-test.pub openstack-test
 
+Change permissions on the private half of the key to appease ssh:
+    
+    chown me:me openstack-test.key
+    chmod 600 openstack-test.key
+
+If running the test from outside the openstack cluster, the default
+group needs to be configured to allow icmp and ssh traffic to VMs:
+    
+    nova secgroup-add-rule default tcp 22 22 0.0.0.0/0
+    nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
+
 Run with py.test:
 
     py.test --capture=no -vvv
