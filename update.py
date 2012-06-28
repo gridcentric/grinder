@@ -121,9 +121,6 @@ def install_packages():
             name, plist = p
             print "    %s: %s" % (name, plist[0] if len(plist) > 0 else "NOT FOUND")
 
-        def find_packages(pattern, lst):
-            return [ pkg for pkg in listing if re.match(pattern, pkg) ]
-
         if pre_install_task:
             print "Executing pre-install tasks"
             packages = pre_install_task(packages)
