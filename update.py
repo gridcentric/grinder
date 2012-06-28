@@ -153,7 +153,7 @@ def install_packages():
         if mountpoint:
             print "Attempting to umount vmsfs from", mountpoint
             p = subprocess.Popen('umount %s' % mountpoint, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            p.wait()
+            p.communicate()
             if p.returncode == 0:
                 # Everything is fine, carry on with installation.
                 print "Vmsfs successfully unmounted"
@@ -168,7 +168,7 @@ def install_packages():
                     return [ (n, p) for n, p in packages if n != "vmsfs" ]
                 else:
                     # Vmsfs not mounted. Carry on.
-                    return
+                    return packages
         else:
             # Can't find mountpoint, assume vmsfs not installed and carry on.
             print "Can't find vmsfs mount point"
