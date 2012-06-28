@@ -43,7 +43,6 @@ class TestMigration(unittest.TestCase):
 
     def assert_server_alive(self, host):
         self.server.get()
-        print self.server.hostId
         assert self.server.hostId == \
             self.config.hostname_to_id(self.server.tenant_id, host)
         assert self.server.status == 'ACTIVE'
