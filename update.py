@@ -200,7 +200,7 @@ def install_packages():
             post_install_task = vms_post_install)
     
     def openstack_post_install(packages):
-        for service in ["nova-compute", "nova-gridcentric"]:
+        for service in ["nova-api", "nova-compute", "nova-gridcentric"]:
             if os.system("restart %s" % service) != 0:
                 os.system("start %s" % service)
 
