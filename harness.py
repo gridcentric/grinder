@@ -78,7 +78,7 @@ class SecureShell(object):
                    '    -o StrictHostKeyChecking=no' \
                    '    -i %s' \
                    '    %s@%s' % (self.key_path, self.user, self.host)
-        log.debug('ssh %s@%s: %s', self.user, self.host, ' '.join(args))
+        log.debug('ssh %s@%s: %s %s', self.user, self.host, ssh_args, ' '.join(args))
         return subprocess.Popen(ssh_args.split() + args, **kwargs)
 
     def check_output(self, args, **kwargs):
