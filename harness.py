@@ -17,6 +17,7 @@ from novaclient.v1_1.client import Client
 from subprocess import PIPE
 
 from logger import log
+import config
 
 # This is set by pytest_runtest_setup in conftest.py.
 test_name = ''
@@ -98,6 +99,21 @@ class SecureShell(object):
         p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, **kwargs)
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
+
+class HostSecureShell(SecureShell):
+    def __init__(self, host, config):
+        self.host = host
+        self.key_path = config.key_path
+        self.user = config.host_user
+
+def vmsctl_call(host, args, config = config.default_config):
+    if isinstance(args, str) or isinstance(args, unicode):
+        args = args.split()
+    if not isinstance(args, list):
+        raise ValueError("Type of args is %s, should be string or list" 
+                            % type(args))
+    shell = HostSecureShell(host, config)
+    return shell.call(["sudo vmsctl"] + args)
 
 def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)

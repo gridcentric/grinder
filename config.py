@@ -18,6 +18,7 @@ class Config(object):
         self.key_path = os.path.join(self.data_path, 'openstack-test.key')
         self.guest_user = 'ubuntu'
         self.openstack_version = "essex"
+        self.host_user = "tester"
 
     def hostname_to_id(self, tenant_id, hostname):
         if self.openstack_version == "essex":
