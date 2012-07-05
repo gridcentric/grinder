@@ -69,18 +69,20 @@ class SecureShell(object):
         self.key_path = config.key_path
         self.user = config.guest_user
 
+    def ssh_opts(self):
+        return '-o UserKnownHostsFile=/dev/null ' \
+               '-o StrictHostKeyChecking=no ' \
+               '-i %s ' % (self.key_path)
+
     def popen(self, args, **kwargs):
         # Too hard to support this.
         assert kwargs.get('shell') != True
         # If we get a string, just pass it to the client's shell.
         if isinstance(args, str):
             args = [args]
-        ssh_args = 'ssh -o UserKnownHostsFile=/dev/null' \
-                   '    -o StrictHostKeyChecking=no' \
-                   '    -i %s' \
-                   '    %s@%s' % (self.key_path, self.user, self.host)
-        log.debug('ssh %s@%s: %s %s', self.user, self.host, ssh_args, ' '.join(args))
-        return subprocess.Popen(ssh_args.split() + args, **kwargs)
+        log.debug('ssh %s@%s: %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
+        return subprocess.Popen(['ssh'] + self.ssh_opts().split() + 
+                                ['%s@%s' % (self.user, self.host)] + args, **kwargs)
 
     def check_output(self, args, **kwargs):
         returncode, stdout, stderr = self.call(args, **kwargs)
@@ -99,6 +101,27 @@ class SecureShell(object):
         p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, **kwargs)
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
+
+class TransferChannel(SecureShell):
+    def __do_scp(self, source, destination):
+        log.debug('scp %s %s %s' % (self.ssh_opts(), source, destination))
+        p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] + 
+                             [destination], stdout=PIPE, stderr=PIPE)
+        p.wait()
+        return p.returncode, p.stdout.readlines(), p.stderr.readlines()
+
+    def put_file(self, local_path, remote_path = ''):
+        os.stat(local_path)
+        return self.__do_scp(local_path, '%s@%s:%s' % (self.user, self.host, remote_path))
+
+    def get_file(self, remote_path, local_path = '.'):
+        if local_path != '.':
+            try:
+                os.stat(local_path)
+            except OSError:
+                # Could be a filename that does not yet exist. But its directory should
+                os.stat(os.path.dirname(local_path))
+        return self.__do_scp('%s@%s:%s' % (self.user, self.host, remote_path), local_path)
 
 class SecureRootShell(SecureShell):
     def call(self, args, **kwargs):
