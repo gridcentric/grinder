@@ -18,7 +18,7 @@ from novaclient.v1_1.client import Client
 from subprocess import PIPE
 
 from logger import log
-import config
+from config import default_config
 
 # This is set by pytest_runtest_setup in conftest.py.
 test_name = ''
@@ -81,7 +81,7 @@ class SecureShell(object):
         # If we get a string, just pass it to the client's shell.
         if isinstance(args, str):
             args = [args]
-        log.debug('ssh %s@%s: %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
+        log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
         return subprocess.Popen(['ssh'] + self.ssh_opts().split() + 
                                 ['%s@%s' % (self.user, self.host)] + args, **kwargs)
 
@@ -108,8 +108,8 @@ class TransferChannel(SecureShell):
         log.debug('scp %s %s %s' % (self.ssh_opts(), source, destination))
         p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] + 
                              [destination], stdout=PIPE, stderr=PIPE)
-        p.wait()
-        return p.returncode, p.stdout.readlines(), p.stderr.readlines()
+        stdout, stderr = p.communicate()
+        return p.returncode, stdout, stderr
 
     def put_file(self, local_path, remote_path = ''):
         os.stat(local_path)
@@ -131,7 +131,7 @@ class SecureRootShell(SecureShell):
         elif not isinstance(args, list):
             raise ValueError("Args of %s, must be list or string" % str(type(args)))
         args = ['sudo'] + args
-        SecureShell.call(self, args, **kwargs)
+        return SecureShell.call(self, args, **kwargs)
 
 class HostSecureShell(SecureShell):
     def __init__(self, host, config):
@@ -139,18 +139,18 @@ class HostSecureShell(SecureShell):
         self.key_path = config.key_path
         self.user = config.host_user
 
-def vmsctl_call(host, args, config = config.default_config):
+def vmsctl_call(host, args, config = default_config):
     if isinstance(args, str) or isinstance(args, unicode):
         args = args.split()
     if not isinstance(args, list):
         raise ValueError("Type of args is %s, should be string or list" 
                             % type(args))
     shell = HostSecureShell(host, config)
-    return shell.call(["sudo vmsctl"] + args)
+    return shell.call(["sudo", "vmsctl"] + args)
 
 # The magic token @{ID} in the args string will be replaced by the appropriate
 # VMS id derived from the provided Openstack ID
-def vmsctl_call_instance(host, args, osid, config = config.default_config):
+def vmsctl_call_instance(host, args, osid, config = default_config):
     # Check input
     if isinstance(args, str) or isinstance(args, unicode):
         args = args.split()
