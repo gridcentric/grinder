@@ -100,6 +100,15 @@ class SecureShell(object):
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
 
+class SecureRootShell(SecureShell):
+    def call(self, args, **kwargs):
+        if isinstance(args, str):
+            args = [args]
+        elif not isinstance(args, list):
+            raise ValueError("Args of %s, must be list or string" % str(type(args)))
+        args = ['sudo'] + args
+        SecureShell.call(self, args, **kwargs)
+
 class HostSecureShell(SecureShell):
     def __init__(self, host, config):
         self.host = host
