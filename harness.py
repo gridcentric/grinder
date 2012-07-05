@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import unittest
+import re
 
 import novaclient.exceptions
 
@@ -146,6 +147,42 @@ def vmsctl_call(host, args, config = config.default_config):
                             % type(args))
     shell = HostSecureShell(host, config)
     return shell.call(["sudo vmsctl"] + args)
+
+# The magic token @{ID} in the args string will be replaced by the appropriate
+# VMS id derived from the provided Openstack ID
+def vmsctl_call_instance(host, args, osid, config = config.default_config):
+    # Check input
+    if isinstance(args, str) or isinstance(args, unicode):
+        args = args.split()
+    if not isinstance(args, list):
+        raise ValueError("Type of args is %s, should be string or list" 
+                            % type(args))
+    args_str = ' '.join(args)
+    m = re.search('\@\{ID\}', args_str)
+    if m is None:
+        raise ValueError("Arguments %s should include token ${ID}" % args_str)
+
+    # Now, translate the ID
+    shell = HostSecureShell(host, config)
+    if config.openstack_version == 'essex':
+        (rc, stdout, stderr) = shell.call(
+                "ps aux | grep qemu-system | grep %s | grep -v ssh | awk '{print $2}'" % osid)
+    else:
+        (rc, stdout, stderr) = shell.call(
+                "ps aux | grep qemu-system | grep %08x | grep -v ssh | awk '{print $2}'" % int(osid))
+    if rc != 0:
+        raise LookupError("Openstack ID %s could not be matched to a VMS ID on "\
+                            "host %s." % (str(osid), host))
+    try:
+        vmsid = int(stdout.split('\n')[0].strip())
+    except:
+        raise LookupError("Openstack ID %s could not be matched to a VMS ID on "\
+                            "host %s." % (str(osid), host))
+
+    # Replace the args
+    args = re.sub('\@\{ID\}', str(vmsid), args_str).split()
+
+    return vmsctl_call(host, args, config)
 
 def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)
