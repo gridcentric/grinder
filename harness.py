@@ -181,11 +181,12 @@ class VmsctlInterface(object):
             raise VmsctlLookupError("Openstack ID %s could not be matched to a VMS ID on "\
                                     "host %s." % (str(self.osid), host))
         try:
+            # Int cast dande to make sure we got back a proper ID
             vmsid = int(stdout.split('\n')[0].strip())
         except:
             raise VmsctlLookupError("Openstack ID %s could not be matched to a VMS ID on "\
                                     "host %s." % (str(self.osid), host))
-        return vmsid
+        return str(vmsid)
 
     def __do_call(self, args):
         if isinstance(args, str) or isinstance(args, unicode):
@@ -193,19 +194,75 @@ class VmsctlInterface(object):
         if not isinstance(args, list):
             raise ValueError("Type of args is %s, should be string or list" 
                                 % str(type(args)))
-        return self.shell.call(["sudo", "vmsctl"] + args)
+        try:
+            return self.shell.call(["sudo", "vmsctl"] + args)
+        except Exception as e:
+            raise VmsctlExecError("%s failed. Unknown RC.\nOutput:\n%s" %
+                                    (str(args), e.strerror))
+
+    def __set_call(self, args):
+        (rc, stdout, stderr) = self.__do_call(args)
+        # Calls that set a parameter return a 1
+        if rc == 1:
+            return stdout
+        raise VmsctlExecError("Set param %s for VMS ID %s to %s failed. "\
+                              "RC: %s\nOutput:\n%s" % (key, self.vmsid, 
+                                                    str(value), str(rc), stderr))
+    def set_param(self, key, value):
+        self.__set_call(["set", self.vmsid, key, str(value)])
 
     def get_param(self, key):
-        try:
-            (rc, stdout, stderr) = self.__do_call(["get", str(self.vmsid), key])
-            if rc == 0:
-                return stdout.split('\n')[0].strip()
-        except Exception as e:
-            rc = "Unknown"
-            stderr = e.strerror
-        raise VmsctlExecError("Getting param %s for VMS ID %s failed. RC: %s\nOutput:\n%s" %
-                                (key, str(self.vmsid), str(rc), stderr))
+        (rc, stdout, stderr) = self.__do_call(["get", self.vmsid, key])
+        if rc == 0:
+            return stdout.split('\n')[0].strip()
+        raise VmsctlExecError("Get param %s for VMS ID %s failed. RC: %s\nOutput:\n%s" %
+                                (key, self.vmsid, str(rc), stderr))
 
+    def get_target(self):
+        return int(self.get_param("memory.target"))
+
+    def get_current_memory(self):
+        return int(self.get_param("memory.current"))
+
+    def get_max_memory(self):
+        return int(self.get_param("pages"))
+
+    def set_target(self, value):
+        self.set_param("memory.target", value)
+
+    def clear_target(self):
+        self.set_param("memory.target", '0')
+
+    def dropall(self):
+        self.__set_call(["dropall", self.vmsid])
+
+    def launch_hoard(self, rate = '25'):
+        self.__set_call(["hoard", self.vmsid, str(rate)])
+
+    def stop_hoard(self):
+        self.set_param("hoard", "0")
+
+    def full_hoard(self, rate = '25', wait_seconds = 120, threshold = 0.9):
+        self.launch_hoard(rate)
+        tries = 0
+        while float(self.get_current_memory()) <= (threshold * float(self.get_max_memory())):
+            time.sleep(1)
+            tries += 1
+            if tries >= wait_seconds:
+                return False
+        self.stop_hoard()
+        return True
+
+    def info(self):
+        (rc, stdout, stderr) = self.__do_call(["info", self.vmsid])
+        if rc == 0:
+            lines = [ l.strip() for l in stdout.split('\n') ]
+            vmsid = lines[0].split(':')[0].strip()
+            if vmsid == self.vmsid:
+                return eval(' '.join(lines[1:]))
+        raise VmsctlExecError("Get info for VMS ID %s failed. RC: %s\nOutput:\n%s" %
+                                (self.vmsid, str(rc), stderr))
+        
 def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)
     start = time.time()
