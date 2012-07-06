@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import unittest
+import re
 
 import novaclient.exceptions
 
@@ -17,6 +18,7 @@ from novaclient.v1_1.client import Client
 from subprocess import PIPE
 
 from logger import log
+from config import default_config
 
 # This is set by pytest_runtest_setup in conftest.py.
 test_name = ''
@@ -68,18 +70,20 @@ class SecureShell(object):
         self.key_path = config.key_path
         self.user = config.guest_user
 
+    def ssh_opts(self):
+        return '-o UserKnownHostsFile=/dev/null ' \
+               '-o StrictHostKeyChecking=no ' \
+               '-i %s ' % (self.key_path)
+
     def popen(self, args, **kwargs):
         # Too hard to support this.
         assert kwargs.get('shell') != True
         # If we get a string, just pass it to the client's shell.
         if isinstance(args, str):
             args = [args]
-        ssh_args = 'ssh -o UserKnownHostsFile=/dev/null' \
-                   '    -o StrictHostKeyChecking=no' \
-                   '    -i %s' \
-                   '    %s@%s' % (self.key_path, self.user, self.host)
-        log.debug('ssh %s@%s: %s', self.user, self.host, ' '.join(args))
-        return subprocess.Popen(ssh_args.split() + args, **kwargs)
+        log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
+        return subprocess.Popen(['ssh'] + self.ssh_opts().split() + 
+                                ['%s@%s' % (self.user, self.host)] + args, **kwargs)
 
     def check_output(self, args, **kwargs):
         returncode, stdout, stderr = self.call(args, **kwargs)
@@ -98,6 +102,109 @@ class SecureShell(object):
         p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, **kwargs)
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
+
+class TransferChannel(SecureShell):
+    def __do_scp(self, source, destination):
+        log.debug('scp %s %s %s' % (self.ssh_opts(), source, destination))
+        p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] + 
+                             [destination], stdout=PIPE, stderr=PIPE)
+        stdout, stderr = p.communicate()
+        return p.returncode, stdout, stderr
+
+    def put_file(self, local_path, remote_path = ''):
+        os.stat(local_path)
+        return self.__do_scp(local_path, '%s@%s:%s' % (self.user, self.host, remote_path))
+
+    def get_file(self, remote_path, local_path = '.'):
+        if local_path != '.':
+            try:
+                os.stat(local_path)
+            except OSError:
+                # Could be a filename that does not yet exist. But its directory should
+                os.stat(os.path.dirname(local_path))
+        return self.__do_scp('%s@%s:%s' % (self.user, self.host, remote_path), local_path)
+
+class SecureRootShell(SecureShell):
+    def call(self, args, **kwargs):
+        if isinstance(args, str):
+            args = [args]
+        elif not isinstance(args, list):
+            raise ValueError("Args of %s, must be list or string" % str(type(args)))
+        args = ['sudo'] + args
+        return SecureShell.call(self, args, **kwargs)
+
+class HostSecureShell(SecureShell):
+    def __init__(self, host, config):
+        self.host = host
+        self.key_path = config.key_path
+        self.user = config.host_user
+
+class VmsctlExecError(Exception):
+    pass
+
+class VmsctlLookupError(Exception):
+    pass
+
+class VmsctlInterface(object):
+    def __init__(self, osid, config = default_config):
+        self.osid   = osid
+        self.config = config
+        self.vmsid  = None
+
+        # Try to find on which host the instance is located
+        for host in self.config.hosts:
+            try:
+                self.vmsid  = self.__osid_to_vmsid(host)
+                self.host   = host
+                break
+            except VmsctlLookupError:
+                # Try the next one if any
+                pass
+        if self.vmsid is None:
+            raise VmsctlLookupError("Could not find Openstack instance %s in servers %s." %
+                                    (str(osid), str(self.config.hosts)))
+
+        # Now that we have the host establish the shell
+        self.shell = HostSecureShell(self.host, self.config)
+
+    def __osid_to_vmsid(self, host):
+        shell = HostSecureShell(host, self.config)
+        if self.config.openstack_version == 'essex':
+            (rc, stdout, stderr) = shell.call(
+                    "ps aux | grep qemu-system | grep %s | grep -v ssh | awk '{print $2}'" %
+                        self.osid)
+        else:
+            (rc, stdout, stderr) = shell.call(
+                    "ps aux | grep qemu-system | grep %08x | grep -v ssh | awk '{print $2}'" %
+                        int(self.osid))
+        if rc != 0:
+            raise VmsctlLookupError("Openstack ID %s could not be matched to a VMS ID on "\
+                                    "host %s." % (str(self.osid), host))
+        try:
+            vmsid = int(stdout.split('\n')[0].strip())
+        except:
+            raise VmsctlLookupError("Openstack ID %s could not be matched to a VMS ID on "\
+                                    "host %s." % (str(self.osid), host))
+        return vmsid
+
+    def __do_call(self, args):
+        if isinstance(args, str) or isinstance(args, unicode):
+            args = args.split()
+        if not isinstance(args, list):
+            raise ValueError("Type of args is %s, should be string or list" 
+                                % str(type(args)))
+        return self.shell.call(["sudo", "vmsctl"] + args)
+
+    def get_param(self, key):
+        try:
+            (rc, stdout, stderr) = self.__do_call(["get", str(self.vmsid), key])
+            if rc == 0:
+                return stdout.split('\n')[0].strip()
+        except Exception as e:
+            rc = "Unknown"
+            stderr = e.strerror
+        raise VmsctlExecError("Getting param %s for VMS ID %s failed. RC: %s\nOutput:\n%s" %
+                                (key, str(self.vmsid), str(rc), stderr))
 
 def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)
