@@ -139,50 +139,72 @@ class HostSecureShell(SecureShell):
         self.key_path = config.key_path
         self.user = config.host_user
 
-def vmsctl_call(host, args, config = default_config):
-    if isinstance(args, str) or isinstance(args, unicode):
-        args = args.split()
-    if not isinstance(args, list):
-        raise ValueError("Type of args is %s, should be string or list" 
-                            % type(args))
-    shell = HostSecureShell(host, config)
-    return shell.call(["sudo", "vmsctl"] + args)
+class VmsctlExecError(Exception):
+    pass
 
-# The magic token @{ID} in the args string will be replaced by the appropriate
-# VMS id derived from the provided Openstack ID
-def vmsctl_call_instance(host, args, osid, config = default_config):
-    # Check input
-    if isinstance(args, str) or isinstance(args, unicode):
-        args = args.split()
-    if not isinstance(args, list):
-        raise ValueError("Type of args is %s, should be string or list" 
-                            % type(args))
-    args_str = ' '.join(args)
-    m = re.search('\@\{ID\}', args_str)
-    if m is None:
-        raise ValueError("Arguments %s should include token ${ID}" % args_str)
+class VmsctlLookupError(Exception):
+    pass
 
-    # Now, translate the ID
-    shell = HostSecureShell(host, config)
-    if config.openstack_version == 'essex':
-        (rc, stdout, stderr) = shell.call(
-                "ps aux | grep qemu-system | grep %s | grep -v ssh | awk '{print $2}'" % osid)
-    else:
-        (rc, stdout, stderr) = shell.call(
-                "ps aux | grep qemu-system | grep %08x | grep -v ssh | awk '{print $2}'" % int(osid))
-    if rc != 0:
-        raise LookupError("Openstack ID %s could not be matched to a VMS ID on "\
-                            "host %s." % (str(osid), host))
-    try:
-        vmsid = int(stdout.split('\n')[0].strip())
-    except:
-        raise LookupError("Openstack ID %s could not be matched to a VMS ID on "\
-                            "host %s." % (str(osid), host))
+class VmsctlInterface(object):
+    def __init__(self, osid, config = default_config):
+        self.osid   = osid
+        self.config = config
+        self.vmsid  = None
 
-    # Replace the args
-    args = re.sub('\@\{ID\}', str(vmsid), args_str).split()
+        # Try to find on which host the instance is located
+        for host in self.config.hosts:
+            try:
+                self.vmsid  = self.__osid_to_vmsid(host)
+                self.host   = host
+                break
+            except VmsctlLookupError:
+                # Try the next one if any
+                pass
+        if self.vmsid is None:
+            raise VmsctlLookupError("Could not find Openstack instance %s in servers %s." %
+                                    (str(osid), str(self.config.hosts)))
 
-    return vmsctl_call(host, args, config)
+        # Now that we have the host establish the shell
+        self.shell = HostSecureShell(self.host, self.config)
+
+    def __osid_to_vmsid(self, host):
+        shell = HostSecureShell(host, self.config)
+        if self.config.openstack_version == 'essex':
+            (rc, stdout, stderr) = shell.call(
+                    "ps aux | grep qemu-system | grep %s | grep -v ssh | awk '{print $2}'" %
+                        self.osid)
+        else:
+            (rc, stdout, stderr) = shell.call(
+                    "ps aux | grep qemu-system | grep %08x | grep -v ssh | awk '{print $2}'" %
+                        int(self.osid))
+        if rc != 0:
+            raise VmsctlLookupError("Openstack ID %s could not be matched to a VMS ID on "\
+                                    "host %s." % (str(self.osid), host))
+        try:
+            vmsid = int(stdout.split('\n')[0].strip())
+        except:
+            raise VmsctlLookupError("Openstack ID %s could not be matched to a VMS ID on "\
+                                    "host %s." % (str(self.osid), host))
+        return vmsid
+
+    def __do_call(self, args):
+        if isinstance(args, str) or isinstance(args, unicode):
+            args = args.split()
+        if not isinstance(args, list):
+            raise ValueError("Type of args is %s, should be string or list" 
+                                % str(type(args)))
+        return self.shell.call(["sudo", "vmsctl"] + args)
+
+    def get_param(self, key):
+        try:
+            (rc, stdout, stderr) = self.__do_call(["get", str(self.vmsid), key])
+            if rc == 0:
+                return stdout.split('\n')[0].strip()
+        except Exception as e:
+            rc = "Unknown"
+            stderr = e.strerror
+        raise VmsctlExecError("Getting param %s for VMS ID %s failed. RC: %s\nOutput:\n%s" %
+                                (key, str(self.vmsid), str(rc), stderr))
 
 def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)
