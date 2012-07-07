@@ -15,6 +15,7 @@ import novaclient.exceptions
 
 from gridcentric.nova.client.client import NovaClient
 from novaclient.v1_1.client import Client
+from novaclient.v1_1.servers import Server
 from subprocess import PIPE
 
 from logger import log
@@ -151,8 +152,16 @@ class VmsctlLookupError(Exception):
     pass
 
 class VmsctlInterface(object):
-    def __init__(self, osid, config = default_config):
-        self.osid   = osid
+    def __init__(self, target, config = default_config):
+        if type(target) in [int, long, unicode, str]:
+            self.osid   = target
+        elif isinstance(target, Server):
+            if config.openstack_version == "diablo":
+                self.osid   = target._info['id']
+            else:
+                self.osid   = target.id
+        else:
+            raise ValueError("Bad target %s." % str(type(target)))
         self.config = config
         self.vmsid  = None
 
