@@ -1,5 +1,6 @@
 import unittest
 import logging
+import os
 
 from gridcentric.nova.client.exceptions import HttpException
 
@@ -72,6 +73,17 @@ class LaunchTest(unittest.TestCase):
         setattr(master, 'breadcrumbs', breadcrumbs)
         return master
 
+    def root_command(self, master, cmd):
+        ip = harness.get_addrs(master)[0]
+        ssh = harness.SecureRootShell(ip, self.config)
+        (rc, stdout, stderr) = ssh.call(cmd)
+        master.breadcrumbs.add("Root command %s" % str(cmd))
+        return (rc, stdout, stderr)
+
+    def assert_root_command(self, master, cmd):
+        (rc, stdout, stderr) = self.root_command(master, cmd)
+        assert rc == 0
+         
     def bless(self, master):
         log.info('Blessing %s', str(master.id))
         master.breadcrumbs.add('Pre bless')
@@ -258,3 +270,72 @@ class LaunchTest(unittest.TestCase):
         self.delete(launched)
         self.discard(blessed)
         self.delete(master)
+
+class LinuxAgentTest(LaunchTest):
+    # There is no good definition for "dropall" has succeeded. However, on
+    # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
+    # of RAM, there should be massive removal of free pages. Settle on a
+    # 50% threshold for now.
+    DROPALL_ACCEPTABLE_FRACTION = 0.5
+
+    def test_agent_hoard_dropall(self):
+        master = self.boot_master()
+
+        # Drop package, install it, trivially ensure
+        harness.auto_install_agent(master, self.config)
+        master.breadcrumbs.add("Installed latest agent")
+        self.assert_root_command(master, "ps aux | grep vmsagent | grep -v "\
+                                         "grep | grep -v ssh")
+
+        # We can bless now
+        assert [] == self.list_blessed_ids(master.id)
+        blessed = self.bless(master)
+        assert [blessed.id] == self.list_blessed_ids(master.id)
+
+        # And launch a clone
+        assert [] == self.list_launched_ids(blessed.id)
+        launched = self.launch(blessed)
+        assert [launched.id] == self.list_launched_ids(blessed.id)
+
+        launched_addrs = harness.get_addrs(launched)
+        master_addrs = harness.get_addrs(master)
+        assert set(launched_addrs).isdisjoint(master_addrs)
+
+        # Now let's have some vmsctl fun
+        vmsctl = harness.VmsctlInterface(launched, self.config)
+        # For a single clone all pages fetched become sharing nominees.
+        # We want to drop them anyways since they're not really shared
+        vmsctl.set_flag("eviction.dropshared")
+        # We want to see the full effect of hoarding, let's not 
+        # bypass zeros
+        vmsctl.clear_flag("zeros.enabled")
+        # Avoid any chance of eviction other than zero dropping
+        vmsctl.clear_flag("eviction.paging")
+        vmsctl.clear_flag("eviction.sharing")
+        # No target so hoard finishes without triggering dropall
+        vmsctl.clear_target()
+        assert vmsctl.match_expected_params({ "eviction.dropshared"     : 1,
+                                              "zeros.enabled"           : 0,
+                                              "eviction.paging"         : 0,
+                                              "eviction.sharing"        : 0,
+                                              "memory.target"           : 0 })
+
+        # Hoard so dropall makes a splash
+        assert vmsctl.full_hoard()
+
+        # Now dropall! (agent should help significantly here)
+        before = vmsctl.get_current_memory()
+        vmsctl.dropall()
+        after = vmsctl.get_current_memory()
+        assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
+        log.info("Agent helped to drop %d -> %d pages." % (before, after))
+
+        # VM is not dead...
+        self.assert_root_command(launched, "ps aux")
+        self.assert_root_command(launched, "find / > /dev/null")
+
+        # Clean up
+        self.delete(launched)
+        self.discard(blessed)
+        self.delete(master)
+
