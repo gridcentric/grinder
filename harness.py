@@ -103,13 +103,18 @@ class SecureShell(object):
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
 
+class SCPError(Exception):
+    pass
+
 class TransferChannel(SecureShell):
     def __do_scp(self, source, destination):
         log.debug('scp %s %s %s' % (self.ssh_opts(), source, destination))
         p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] + 
                              [destination], stdout=PIPE, stderr=PIPE)
         stdout, stderr = p.communicate()
-        return p.returncode, stdout, stderr
+        if p.returncode != 0:
+            raise SCPError("Failed scp transfer %s -> %s\n Stderr: %s" %
+                            (source, destination, stderr))
 
     def put_file(self, local_path, remote_path = ''):
         os.stat(local_path)
