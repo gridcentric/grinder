@@ -232,6 +232,12 @@ class VmsctlInterface(object):
         raise VmsctlExecError("Get param %s for VMS ID %s failed. RC: %s\nOutput:\n%s" %
                                 (key, self.vmsid, str(rc), stderr))
 
+    def set_flag(self, key):
+        self.set_param(key, '1')
+
+    def clear_flag(self, key):
+        self.set_param(key, '0')
+
     def get_target(self):
         return int(self.get_param("memory.target"))
 
