@@ -209,7 +209,11 @@ class VmsctlInterface(object):
             raise ValueError("Type of args is %s, should be string or list" 
                                 % str(type(args)))
         try:
-            return self.shell.call(["sudo", "vmsctl"] + args)
+            log.debug("Calling %s on %s." % (str(args), self.host))
+            (rc, stdout, stderr) = self.shell.call(["sudo", "vmsctl"] + args)
+            log.debug("Calling %s on %s\nRC = %d\nStdout: %s\nStderr: %s" % 
+                        (str(args), self.host, rc, stdout, stderr))
+            return (rc, stdout, stderr)
         except Exception as e:
             raise VmsctlExecError("%s failed. Unknown RC.\nOutput:\n%s" %
                                     (str(args), e.strerror))
