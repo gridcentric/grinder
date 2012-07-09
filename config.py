@@ -14,6 +14,7 @@ class Config(object):
 
         self.flavor_name = 'm1.tiny'
         self.image_name = 'uec-oneiric-vmsagent3-root'
+        self.guest_distro = "ubuntu" # Or rpm
         self.key_name = 'openstack-test'
         self.key_path = os.path.join(self.data_path, 'openstack-test.key')
         self.guest_user = 'ubuntu'

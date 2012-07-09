@@ -10,6 +10,8 @@ import sys
 import time
 import unittest
 import re
+import tempfile
+import shutil
 
 import novaclient.exceptions
 
@@ -286,7 +288,39 @@ class VmsctlInterface(object):
                 return eval(' '.join(lines[1:]))
         raise VmsctlExecError("Get info for VMS ID %s failed. RC: %s\nOutput:\n%s" %
                                 (self.vmsid, str(rc), stderr))
+
+def get_jenkins_deploy_script():
+    dirname = tempfile.mkdtemp(prefix='openstack-test-jenkins')
+    name = os.path.join(dirname, "deploy")
+    rc = subprocess.call(("wget --auth-no-challenge --http-user=******** "\
+                         "--http-password=******** "\
+                         "http://********/job/Libvirt-master/ws/deploy"\
+                         " -O %s" % name).split())
+    if rc != 0:
+        return None
+    return name
         
+def remove_jenkins_deploy_script(name):
+    shutil.rmtree(os.path.dirname(name))
+
+# Bring the latest agent from jenkins into the VM
+def auto_install_agent(server, config):
+    user    = config.guest_user
+    key     = config.key_path
+    distro  = config.guest_distro
+    jenkins_download = get_jenkins_deploy_script()
+    if jenkins_download is None:
+        raise RuntimeError("Could not download latest agent from jenkins")
+    ip = get_addrs(server)[0]
+    p = subprocess.Popen('REMOTE="-i %s -o UserKnownHostsFile=/dev/null %s@%s sudo" /bin/bash %s Agent-1 %s '\
+                          'vms-agent' % (key, user, ip, jenkins_download, distro), 
+                          shell=True)
+    (stdout, stderr) = p.communicate()
+    remove_jenkins_deploy_script(jenkins_download)
+    if p.returncode != 0:
+        raise RuntimeError("Deploy script failed (%d), stderr:\n%s" %
+                            (p.returncode, stderr))
+
 def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)
     start = time.time()
