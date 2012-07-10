@@ -297,6 +297,8 @@ class VmsctlInterface(object):
                 raise LookupError("Queried for unavailable param %s in vmsctl %s" %
                                    (str(k), str(self.osid)))
             if str(v) != str(val):
+                log.debug("Could not match param %s from vmsctl %s, got %s expected %s" %
+                            (str(k), str(self.osid), str(val), str(v)))
                 return False
         return True
 
