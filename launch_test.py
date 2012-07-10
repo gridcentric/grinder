@@ -1,6 +1,7 @@
 import json
 import unittest
 import logging
+import os
 
 from gridcentric.nova.client.exceptions import HttpException
 
@@ -28,20 +29,13 @@ class DictWrapper(object):
 def dict_wrapper_list(dict_list):
     return [DictWrapper(d) for d in dict_list]
 
-class LaunchTest(unittest.TestCase):
+class TestLaunch(object):
 
-    def setUp(self):
+    def setup_method(self, method):
         self.config = default_config
         self.client = harness.create_client(self.config)
         self.gcapi = self.client.gcapi
         self.breadcrumb_snapshots = {}
-
-    def get_vmsctl(self, server):
-        """ Returns the VmsctlInfterface for the server """
-        osid = server.id
-        if self.config.openstack_version == 'diablo':
-            osid = server._info['id']
-        return harness.VmsctlInterface(str(osid))
 
     def wait_for_bless(self, blessed):
         harness.wait_while_status(blessed, 'BUILD')
@@ -71,8 +65,10 @@ class LaunchTest(unittest.TestCase):
         self.gcapi.discard_instance(server.id)
         harness.wait_while_exists(server)
 
-    def boot_master(self):
-        master = harness.boot(self.client, harness.test_name, self.config)
+    def boot_master(self, image = None, has_agent = True):
+        conf = self.config
+        conf.guest_has_agent = has_agent
+        master = harness.boot(self.client, harness.test_name, conf, image)
         ip = harness.get_addrs(master)[0]
         shell = harness.SecureShell(ip, self.config)
         breadcrumbs = harness.Breadcrumbs(shell)
@@ -80,6 +76,12 @@ class LaunchTest(unittest.TestCase):
         setattr(master, 'breadcrumbs', breadcrumbs)
         return master
 
+    def root_command(self, master, cmd):
+        ip = harness.get_addrs(master)[0]
+        ssh = harness.SecureRootShell(ip, self.config)
+        ssh.check_output(cmd)
+        master.breadcrumbs.add("Root command %s" % str(cmd))
+         
     def bless(self, master):
         log.info('Blessing %s', str(master.id))
         master.breadcrumbs.add('Pre bless')
@@ -287,7 +289,7 @@ class LaunchTest(unittest.TestCase):
 
         def assert_target(target, expected):
             launched = self.launch(blessed, target=target)
-            vmsctl = self.get_vmsctl(launched)
+            vmsctl = harness.VmsctlInterface(launched)
             assert expected == vmsctl.get_param("memory.target")
             self.delete(launched)
 
@@ -352,3 +354,66 @@ log.close()
 
         self.discard(blessed)
         self.delete(master)
+
+    # There is no good definition for "dropall" has succeeded. However, on
+    # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
+    # of RAM, there should be massive removal of free pages. Settle on a
+    # 50% threshold for now.
+    DROPALL_ACCEPTABLE_FRACTION = 0.5
+
+    def test_agent_hoard_dropall(self, img_distro):
+        (image, distro) = img_distro
+
+        master = self.boot_master(image, has_agent = False)
+
+        # Drop package, install it, trivially ensure
+        harness.auto_install_agent(master, self.config, distro)
+        master.breadcrumbs.add("Installed latest agent")
+        self.root_command(master, "ps aux | grep vmsagent | grep -v "\
+                                  "grep | grep -v ssh")
+
+        # We can bless now, and launch a clone
+        blessed = self.bless(master)
+        launched = self.launch(blessed)
+
+        # Now let's have some vmsctl fun
+        vmsctl = harness.VmsctlInterface(launched, self.config)
+        # For a single clone all pages fetched become sharing nominees.
+        # We want to drop them anyways since they're not really shared
+        vmsctl.set_flag("eviction.dropshared")
+        # We want to see the full effect of hoarding, let's not 
+        # bypass zeros
+        vmsctl.clear_flag("zeros.enabled")
+        # Avoid any chance of eviction other than zero dropping
+        vmsctl.clear_flag("eviction.paging")
+        vmsctl.clear_flag("eviction.sharing")
+        # No target so hoard finishes without triggering dropall
+        vmsctl.clear_target()
+        assert vmsctl.match_expected_params({ "eviction.dropshared"     : 1,
+                                              "zeros.enabled"           : 0,
+                                              "eviction.paging"         : 0,
+                                              "eviction.sharing"        : 0,
+                                              "memory.target"           : 0 })
+
+        # Hoard so dropall makes a splash
+        assert vmsctl.full_hoard()
+
+        # Now dropall! (agent should help significantly here)
+        before = vmsctl.get_current_memory()
+        vmsctl.dropall()
+        after = vmsctl.get_current_memory()
+        assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
+        log.info("Agent helped to drop %d -> %d pages." % (before, after))
+
+        # VM is not dead...
+        self.root_command(launched, "ps aux")
+        self.root_command(launched, "find / > /dev/null")
+
+        # Clean up
+        self.delete(launched)
+        self.discard(blessed)
+        self.delete(master)
+
+def pytest_generate_tests(metafunc):
+    if "img_distro" in metafunc.funcargnames:
+        metafunc.parametrize("img_distro", [("oneiric-agent-ready", "ubuntu")], ids=['Oneiric 64bit'])

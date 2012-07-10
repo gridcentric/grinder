@@ -10,11 +10,14 @@ import sys
 import time
 import unittest
 import re
+import tempfile
+import shutil
 
 import novaclient.exceptions
 
 from gridcentric.nova.client.client import NovaClient
 from novaclient.v1_1.client import Client
+from novaclient.v1_1.servers import Server
 from subprocess import PIPE
 
 from logger import log
@@ -79,7 +82,7 @@ class SecureShell(object):
         # Too hard to support this.
         assert kwargs.get('shell') != True
         # If we get a string, just pass it to the client's shell.
-        if isinstance(args, str):
+        if type(args) in [str, unicode]:
             args = [args]
         log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
         return subprocess.Popen(['ssh'] + self.ssh_opts().split() + 
@@ -103,13 +106,18 @@ class SecureShell(object):
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
 
+class SCPError(Exception):
+    pass
+
 class TransferChannel(SecureShell):
     def __do_scp(self, source, destination):
         log.debug('scp %s %s %s' % (self.ssh_opts(), source, destination))
         p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] + 
                              [destination], stdout=PIPE, stderr=PIPE)
         stdout, stderr = p.communicate()
-        return p.returncode, stdout, stderr
+        if p.returncode != 0:
+            raise SCPError("Failed scp transfer %s -> %s\n Stderr: %s" %
+                            (source, destination, stderr))
 
     def put_file(self, local_path, remote_path = ''):
         os.stat(local_path)
@@ -146,8 +154,16 @@ class VmsctlLookupError(Exception):
     pass
 
 class VmsctlInterface(object):
-    def __init__(self, osid, config = default_config):
-        self.osid   = osid
+    def __init__(self, target, config = default_config):
+        if type(target) in [int, long, unicode, str]:
+            self.osid   = target
+        elif isinstance(target, Server):
+            if config.openstack_version == "diablo":
+                self.osid   = target._info['id']
+            else:
+                self.osid   = target.id
+        else:
+            raise ValueError("Bad target %s." % str(type(target)))
         self.config = config
         self.vmsid  = None
 
@@ -195,7 +211,11 @@ class VmsctlInterface(object):
             raise ValueError("Type of args is %s, should be string or list" 
                                 % str(type(args)))
         try:
-            return self.shell.call(["sudo", "vmsctl"] + args)
+            log.debug("Calling %s on %s." % (str(args), self.host))
+            (rc, stdout, stderr) = self.shell.call(["sudo", "vmsctl"] + args)
+            log.debug("Calling %s on %s\nRC = %d\nStdout: %s\nStderr: %s" % 
+                        (str(args), self.host, rc, stdout, stderr))
+            return (rc, stdout, stderr)
         except Exception as e:
             raise VmsctlExecError("%s failed. Unknown RC.\nOutput:\n%s" %
                                     (str(args), e.strerror))
@@ -217,6 +237,12 @@ class VmsctlInterface(object):
             return stdout.split('\n')[0].strip()
         raise VmsctlExecError("Get param %s for VMS ID %s failed. RC: %s\nOutput:\n%s" %
                                 (key, self.vmsid, str(rc), stderr))
+
+    def set_flag(self, key):
+        self.set_param(key, '1')
+
+    def clear_flag(self, key):
+        self.set_param(key, '0')
 
     def get_target(self):
         return int(self.get_param("memory.target"))
@@ -262,7 +288,53 @@ class VmsctlInterface(object):
                 return eval(' '.join(lines[1:]))
         raise VmsctlExecError("Get info for VMS ID %s failed. RC: %s\nOutput:\n%s" %
                                 (self.vmsid, str(rc), stderr))
+
+    def match_expected_params(self, expected):
+        info = self.info()
+        for (k,v) in expected.items():
+            val = info.get(str(k), None)
+            if val is None:
+                raise LookupError("Queried for unavailable param %s in vmsctl %s" %
+                                   (str(k), str(self.osid)))
+            if str(v) != str(val):
+                log.debug("Could not match param %s from vmsctl %s, got %s expected %s" %
+                            (str(k), str(self.osid), str(val), str(v)))
+                return False
+        return True
+
+def get_jenkins_deploy_script():
+    dirname = tempfile.mkdtemp(prefix='openstack-test-jenkins')
+    name = os.path.join(dirname, "deploy")
+    rc = subprocess.call(("wget --auth-no-challenge --http-user=******** "\
+                         "--http-password=******** "\
+                         "http://********/job/Libvirt-master/ws/deploy"\
+                         " -O %s" % name).split())
+    if rc != 0:
+        return None
+    return name
         
+def remove_jenkins_deploy_script(name):
+    shutil.rmtree(os.path.dirname(name))
+
+# Bring the latest agent from jenkins into the VM
+def auto_install_agent(server, config, distro = None):
+    user    = config.guest_user
+    key     = config.key_path
+    if distro is None:
+        distro = config.guest
+    jenkins_download = get_jenkins_deploy_script()
+    if jenkins_download is None:
+        raise RuntimeError("Could not download latest agent from jenkins")
+    ip = get_addrs(server)[0]
+    p = subprocess.Popen('REMOTE="-i %s %s@%s sudo" /bin/bash %s Agent-1 %s '\
+                          'vms-agent' % (key, user, ip, jenkins_download, distro), 
+                          shell=True)
+    (stdout, stderr) = p.communicate()
+    remove_jenkins_deploy_script(jenkins_download)
+    if p.returncode != 0:
+        raise RuntimeError("Deploy script failed (%d), stderr:\n%s" %
+                            (p.returncode, stderr))
+
 def wait_for(message, condition, duration=15, interval=1):
     log.info('Waiting %ss for %s', duration, message)
     start = time.time()
@@ -304,17 +376,19 @@ def wait_while_exists(server, duration=60):
 def generate_name(prefix):
     return '%s-%d' % (prefix, random.randint(0, 1<<32))
 
-def boot(client, name_prefix, config):
+def boot(client, name_prefix, config, image_name = None):
     name = generate_name(name_prefix)
     flavor = client.flavors.find(name=config.flavor_name)
-    image = client.images.find(name=config.image_name)
+    if image_name is None:
+        image_name = config.image_name
+    image = client.images.find(name=image_name)
     log.info('Booting %s instance named %s', image.name, name)
     server = client.servers.create(name=name,
                                    image=image.id,
                                    flavor=flavor.id,
                                    key_name=config.key_name)
     setattr(server, 'config', config)
-    assert_boot_ok(server)
+    assert_boot_ok(server, config.guest_has_agent)
     return server
 
 def get_addrs(server):
@@ -323,7 +397,7 @@ def get_addrs(server):
         ips.extend(network)
     return ips
 
-def assert_boot_ok(server):
+def assert_boot_ok(server, withagent = True):
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
     ip = get_addrs(server)[0]
@@ -332,8 +406,9 @@ def assert_boot_ok(server):
     wait_for_ssh(shell)
     # Sanity check on hostname
     shell.check_output('hostname')[0] == server.name
-    # Make sure that the vmsagent is running
-    shell.check_output('pidof vmsagent')
+    if withagent:
+        # Make sure that the vmsagent is running
+        shell.check_output('pidof vmsagent')
 
 def assert_raises(exception_type, command, *args, **kwargs):
     try:
