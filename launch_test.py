@@ -416,4 +416,4 @@ log.close()
 
 def pytest_generate_tests(metafunc):
     if "img_distro" in metafunc.funcargnames:
-        metafunc.parametrize("img_distro", [("uec-oneiric-server-agent-deps", "ubuntu")], ids=['Oneiric 64bit'])
+        metafunc.parametrize("img_distro", [("oneiric-agent-ready", "ubuntu")], ids=['Oneiric 64bit'])
