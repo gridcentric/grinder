@@ -64,8 +64,10 @@ class TestLaunch(object):
         self.gcapi.discard_instance(server.id)
         harness.wait_while_exists(server)
 
-    def boot_master(self, image = None):
-        master = harness.boot(self.client, harness.test_name, self.config, image)
+    def boot_master(self, image = None, has_agent = True):
+        conf = self.config
+        conf.guest_has_agent = has_agent
+        master = harness.boot(self.client, harness.test_name, conf, image)
         ip = harness.get_addrs(master)[0]
         shell = harness.SecureShell(ip, self.config)
         breadcrumbs = harness.Breadcrumbs(shell)
@@ -278,7 +280,7 @@ class TestLaunch(object):
     DROPALL_ACCEPTABLE_FRACTION = 0.5
 
     def test_agent_hoard_dropall(self):
-        master = self.boot_master()
+        master = self.boot_master(has_agent = False)
 
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config)
