@@ -315,10 +315,11 @@ def remove_jenkins_deploy_script(name):
     shutil.rmtree(os.path.dirname(name))
 
 # Bring the latest agent from jenkins into the VM
-def auto_install_agent(server, config):
+def auto_install_agent(server, config, distro = None):
     user    = config.guest_user
     key     = config.key_path
-    distro  = config.guest_distro
+    if distro is None:
+        distro = config.guest_distro
     jenkins_download = get_jenkins_deploy_script()
     if jenkins_download is None:
         raise RuntimeError("Could not download latest agent from jenkins")
