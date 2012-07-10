@@ -39,6 +39,13 @@ the test runs on, for instance, with
     
     py.test --hosts=node1,node2
 
+To make using py.test less tedious, store your favourite command-line options in
+pytest.ini. Here's mine:
+
+> $ cat pytest.ini
+> [pytest]
+> addopts=--hosts=node1,node2 -vvv --capture=no
+
 -- A note on ssh keys
 The public/private key pair in this repo will be used for all instance
 interactions. The public key will be installed on the instances being booted.
