@@ -373,10 +373,12 @@ def wait_while_exists(server, duration=60):
 def generate_name(prefix):
     return '%s-%d' % (prefix, random.randint(0, 1<<32))
 
-def boot(client, name_prefix, config):
+def boot(client, name_prefix, config, image_name = None):
     name = generate_name(name_prefix)
     flavor = client.flavors.find(name=config.flavor_name)
-    image = client.images.find(name=config.image_name)
+    if image_name is None:
+        image_name = config.image_name
+    image = client.images.find(name=image_name)
     log.info('Booting %s instance named %s', image.name, name)
     server = client.servers.create(name=name,
                                    image=image.id,

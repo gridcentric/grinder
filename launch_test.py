@@ -64,8 +64,8 @@ class TestLaunch(object):
         self.gcapi.discard_instance(server.id)
         harness.wait_while_exists(server)
 
-    def boot_master(self):
-        master = harness.boot(self.client, harness.test_name, self.config)
+    def boot_master(self, image = None):
+        master = harness.boot(self.client, harness.test_name, self.config, image)
         ip = harness.get_addrs(master)[0]
         shell = harness.SecureShell(ip, self.config)
         breadcrumbs = harness.Breadcrumbs(shell)
