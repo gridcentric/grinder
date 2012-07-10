@@ -1,3 +1,4 @@
+import json
 import unittest
 import logging
 
@@ -34,6 +35,13 @@ class LaunchTest(unittest.TestCase):
         self.client = harness.create_client(self.config)
         self.gcapi = self.client.gcapi
         self.breadcrumb_snapshots = {}
+
+    def get_vmsctl(self, server):
+        """ Returns the VmsctlInfterface for the server """
+        osid = server.id
+        if self.config.openstack_version == 'diablo':
+            osid = server._info['id']
+        return harness.VmsctlInterface(str(osid))
 
     def wait_for_bless(self, blessed):
         harness.wait_while_status(blessed, 'BUILD')
@@ -92,30 +100,40 @@ class LaunchTest(unittest.TestCase):
         master.breadcrumbs.add('Post bless, child is %s' % blessed.id)
         return blessed
 
-    def launch(self, blessed):
-        launched_list = self.gcapi.launch_instance(blessed.id)
+    def launch(self, blessed, target=None, guest_params=None, status='ACTIVE'):
+        log.debug("Launching from %s with target=%s guest_params=%s status=%s"
+                  % (blessed.id, target, guest_params, status))
+        params = {}
+        if target != None:
+            params['target'] = target
+        if guest_params != None:
+            params['guest'] = guest_params
+        launched_list = self.gcapi.launch_instance(blessed.id, params=params)
+
         assert len(launched_list) == 1
         launched = launched_list[0]
         assert launched['id'] != blessed.id
+
         # In essex, the uuid takes the place of the id for instances.
         if self.config.openstack_version != 'essex':
             assert launched['uuid'] != blessed.uuid
-        # TODO: Enable this assert once issue #179 is fixed.
-        # assert int(launched['metadata']['launched_from']) == blessed.id
+
         assert str(self.client.servers.get(launched['id']).metadata['launched_from']) == str(blessed.id)
         assert launched['name'] != blessed.name
         assert blessed.name in launched['name']
         assert launched['status'] in ['ACTIVE', 'BUILD']
+
         launched = self.client.servers.get(launched['id'])
         harness.wait_while_status(launched, 'BUILD')
-        assert launched.status == 'ACTIVE'
-        ip = harness.get_addrs(launched)[0]
-        harness.wait_for_ping(ip)
-        shell = harness.SecureShell(ip, self.config)
-        harness.wait_for_ssh(shell)
-        breadcrumbs = self.breadcrumb_snapshots[blessed.id].instantiate(shell)
-        breadcrumbs.add('Post launch %s' % launched.id)
-        setattr(launched, 'breadcrumbs', breadcrumbs)
+        assert launched.status == status
+        if status == 'ACTIVE':
+            ip = harness.get_addrs(launched)[0]
+            harness.wait_for_ping(ip)
+            shell = harness.SecureShell(ip, self.config)
+            harness.wait_for_ssh(shell)
+            breadcrumbs = self.breadcrumb_snapshots[blessed.id].instantiate(shell)
+            breadcrumbs.add('Post launch %s' % launched.id)
+            setattr(launched, 'breadcrumbs', breadcrumbs)
         return launched
 
     def list_launched(self, id):
@@ -139,8 +157,8 @@ class LaunchTest(unittest.TestCase):
         # Master should still be alive and well at this point.
         master.get()
         assert master.status == 'ACTIVE'
-        master.breadcrumbs.add("Alive after launch attempt.")        
-        
+        master.breadcrumbs.add("Alive after launch attempt.")
+
         self.delete(master)
 
     def test_discard_master(self):
@@ -153,9 +171,9 @@ class LaunchTest(unittest.TestCase):
         master.get()
         assert master.status == 'ACTIVE'
         master.breadcrumbs.add("Alive after discard attempt.")
-        
+
         self.delete(master)
-    
+
     def test_list_blessed_launched_bad_id(self):
         fake_id = '123412341234'
         assert fake_id not in [s.id for s in self.client.servers.list()]
@@ -256,5 +274,81 @@ class LaunchTest(unittest.TestCase):
         assert blessed.status == 'BLESSED'
         launched = self.launch(blessed)
         self.delete(launched)
+        self.discard(blessed)
+        self.delete(master)
+
+    def test_launch_with_target(self):
+
+        master = self.boot_master()
+        blessed = self.bless(master)
+
+        flavor = self.client.flavors.find(name=self.config.flavor_name)
+        flavor_ram = flavor.ram
+
+        def assert_target(target, expected):
+            launched = self.launch(blessed, target=target)
+            vmsctl = self.get_vmsctl(launched)
+            assert expected == vmsctl.get_param("memory.target")
+            self.delete(launched)
+
+        assert_target("-1", "0")
+        assert_target("0", "0")
+        assert_target("1", "1")
+        assert_target("%dmb" % (flavor_ram / 2), "%d" % (256 * (flavor_ram / 2)))
+        assert_target("%dMB" % (flavor_ram), "%d" % (256 * flavor_ram))
+        assert_target("%dMB" % (flavor_ram + 1), "%d" % (256 * (flavor_ram + 1)))
+        assert_target("%dGB" % (flavor_ram), "%d" % (262144 * flavor_ram))
+
+        self.discard(blessed)
+        self.delete(master)
+
+    def test_launch_with_params(self):
+
+        params_script = """#!/usr/bin/env python
+import sys
+import json
+sys.path.append('/etc/gridcentric/common')
+import common
+data = common.parse_params()
+log = file("/tmp/clone.log", "w")
+log.write("%s" % json.dumps(data))
+log.flush()
+log.close()
+"""
+        params_filename = "90_clone_params"
+        master = self.boot_master()
+
+        ip = harness.get_addrs(master)[0]
+        master_shell = harness.SecureShell(ip, self.config)
+        master_shell.check_output('cat >> %s' % params_filename, input=params_script)
+        master_shell.check_output('chmod +x %s' % params_filename)
+        master_shell.check_output('sudo mv %s /etc/gridcentric/clone.d/%s' % (params_filename, params_filename))
+
+        blessed = self.bless(master)
+
+        def assert_guest_params_success(params):
+            """ There parameters should successfully be added to the instance. """
+            launched = self.launch(blessed, guest_params=params)
+            ip = harness.get_addrs(launched)[0]
+            launched_shell = harness.SecureShell(ip, self.config)
+
+            stdout, _ = launched_shell.check_output('sudo cat /tmp/clone.log')
+            inguest_params = json.loads(stdout)
+            for param in params:
+                assert param in inguest_params
+                assert inguest_params[param] == "verified"
+            self.delete(launched)
+
+        def assert_guest_params_failure(params):
+            """ There parameters should cause the launching of the instance to fail. """
+            launched = self.launch(blessed, guest_params=params, status="ERROR")
+            self.delete(launched)
+
+        assert_guest_params_success({})
+        assert_guest_params_success({"test_parameter":"verified"})
+        assert_guest_params_success({"test_parameter":"verified", "test_parameter2":"verified"})
+
+        assert_guest_params_failure({"sometext": "somelargetext" * 1000})
+
         self.discard(blessed)
         self.delete(master)
