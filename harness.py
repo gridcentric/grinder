@@ -289,6 +289,17 @@ class VmsctlInterface(object):
         raise VmsctlExecError("Get info for VMS ID %s failed. RC: %s\nOutput:\n%s" %
                                 (self.vmsid, str(rc), stderr))
 
+    def match_expected_params(self, expected):
+        info = self.info()
+        for (k,v) in expected.items():
+            val = info.get(str(k), None)
+            if val is None:
+                raise LookupError("Queried for unavailable param %s in vmsctl %s" %
+                                   (str(k), str(self.osid)))
+            if str(v) != str(val):
+                return False
+        return True
+
 def get_jenkins_deploy_script():
     dirname = tempfile.mkdtemp(prefix='openstack-test-jenkins')
     name = os.path.join(dirname, "deploy")
