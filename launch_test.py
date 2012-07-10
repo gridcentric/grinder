@@ -284,19 +284,20 @@ class LaunchTest(unittest.TestCase):
 
         flavor = self.client.flavors.find(name=self.config.flavor_name)
         flavor_ram = flavor.ram
-        # Specified target -> expected pages.
-        targets = {"-1": "0",
-                   "0": "0",
-                   "1": "1",
-                   "%dmb" % (flavor_ram / 2): "%d" % (256 * (flavor_ram / 2)),
-                   "%dMB" % (flavor_ram): "%d" % (256 * flavor_ram),
-                   "%dMB" % (flavor_ram + 1): "%d" % (256 * (flavor_ram + 1)),
-                   "%dGB" % (flavor_ram): "%d" % (262144 * flavor_ram)}
-        for target, expected in targets.iteritems():
+
+        def assert_target(target, expected):
             launched = self.launch(blessed, target=target)
             vmsctl = self.get_vmsctl(launched)
             assert expected == vmsctl.get_param("memory.target")
             self.delete(launched)
+
+        assert_target("-1", "0")
+        assert_target("0", "0")
+        assert_target("1", "1")
+        assert_target("%dmb" % (flavor_ram / 2), "%d" % (256 * (flavor_ram / 2)))
+        assert_target("%dMB" % (flavor_ram), "%d" % (256 * flavor_ram))
+        assert_target("%dMB" % (flavor_ram + 1), "%d" % (256 * (flavor_ram + 1)))
+        assert_target("%dGB" % (flavor_ram), "%d" % (262144 * flavor_ram))
 
         self.discard(blessed)
         self.delete(master)
@@ -319,18 +320,14 @@ log.close()
 
         ip = harness.get_addrs(master)[0]
         master_shell = harness.SecureShell(ip, self.config)
-        master_shell.check_output('cat >> %s' % params_filename, input=params_script + '\n')
+        master_shell.check_output('cat >> %s' % params_filename, input=params_script)
         master_shell.check_output('chmod +x %s' % params_filename)
         master_shell.check_output('sudo mv %s /etc/gridcentric/clone.d/%s' % (params_filename, params_filename))
 
         blessed = self.bless(master)
 
-        param_tests = []
-        param_tests.append({})
-        param_tests.append({"test_parameter":"verified"})
-        param_tests.append({"test_parameter":"verified", "test_parameter2":"verified"})
-
-        for params in param_tests:
+        def assert_guest_params_success(params):
+            """ There parameters should successfully be added to the instance. """
             launched = self.launch(blessed, guest_params=params)
             ip = harness.get_addrs(launched)[0]
             launched_shell = harness.SecureShell(ip, self.config)
@@ -342,9 +339,16 @@ log.close()
                 assert inguest_params[param] == "verified"
             self.delete(launched)
 
-        params = {"sometext": "somelargetext" * 1000}
-        launched = self.launch(blessed, guest_params=params, status="ERROR")
-        self.delete(launched)
+        def assert_guest_params_failure(params):
+            """ There parameters should cause the launching of the instance to fail. """
+            launched = self.launch(blessed, guest_params=params, status="ERROR")
+            self.delete(launched)
+
+        assert_guest_params_success({})
+        assert_guest_params_success({"test_parameter":"verified"})
+        assert_guest_params_success({"test_parameter":"verified", "test_parameter2":"verified"})
+
+        assert_guest_params_failure({"sometext": "somelargetext" * 1000})
 
         self.discard(blessed)
         self.delete(master)
