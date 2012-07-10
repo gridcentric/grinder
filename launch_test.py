@@ -271,7 +271,6 @@ class LaunchTest(unittest.TestCase):
         self.discard(blessed)
         self.delete(master)
 
-class LinuxAgentTest(LaunchTest):
     # There is no good definition for "dropall" has succeeded. However, on
     # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
     # of RAM, there should be massive removal of free pages. Settle on a
