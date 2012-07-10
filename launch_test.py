@@ -37,13 +37,6 @@ class TestLaunch(object):
         self.gcapi = self.client.gcapi
         self.breadcrumb_snapshots = {}
 
-    def get_vmsctl(self, server):
-        """ Returns the VmsctlInfterface for the server """
-        osid = server.id
-        if self.config.openstack_version == 'diablo':
-            osid = server._info['id']
-        return harness.VmsctlInterface(str(osid))
-
     def wait_for_bless(self, blessed):
         harness.wait_while_status(blessed, 'BUILD')
         assert blessed.status == 'BLESSED'
@@ -296,7 +289,7 @@ class TestLaunch(object):
 
         def assert_target(target, expected):
             launched = self.launch(blessed, target=target)
-            vmsctl = self.get_vmsctl(launched)
+            vmsctl = harness.VmsctlInterface(launched)
             assert expected == vmsctl.get_param("memory.target")
             self.delete(launched)
 
