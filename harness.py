@@ -82,7 +82,7 @@ class SecureShell(object):
         # Too hard to support this.
         assert kwargs.get('shell') != True
         # If we get a string, just pass it to the client's shell.
-        if isinstance(args, str):
+        if type(args) in [str, unicode]:
             args = [args]
         log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
         return subprocess.Popen(['ssh'] + self.ssh_opts().split() + 
