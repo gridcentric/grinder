@@ -279,11 +279,13 @@ class TestLaunch(object):
     # 50% threshold for now.
     DROPALL_ACCEPTABLE_FRACTION = 0.5
 
-    def test_agent_hoard_dropall(self):
-        master = self.boot_master(has_agent = False)
+    def test_agent_hoard_dropall(self, img_distro):
+        (image, distro) = img_distro
+
+        master = self.boot_master(image, has_agent = False)
 
         # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config)
+        harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
         self.assert_root_command(master, "ps aux | grep vmsagent | grep -v "\
                                          "grep | grep -v ssh")
@@ -340,3 +342,6 @@ class TestLaunch(object):
         self.discard(blessed)
         self.delete(master)
 
+def pytest_generate_tests(metafunc):
+    if "img_distro" in metafunc.funcargnames:
+        metafunc.parametrize("img_distro", [("uec-oneiric-server-agent-deps", "ubuntu")], ids=['Oneiric 64bit'])
