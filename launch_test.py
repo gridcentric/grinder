@@ -86,13 +86,8 @@ class TestLaunch(object):
     def root_command(self, master, cmd):
         ip = harness.get_addrs(master)[0]
         ssh = harness.SecureRootShell(ip, self.config)
-        (rc, stdout, stderr) = ssh.call(cmd)
+        ssh.check_output(cmd)
         master.breadcrumbs.add("Root command %s" % str(cmd))
-        return (rc, stdout, stderr)
-
-    def assert_root_command(self, master, cmd):
-        (rc, stdout, stderr) = self.root_command(master, cmd)
-        assert rc == 0
          
     def bless(self, master):
         log.info('Blessing %s', str(master.id))
@@ -381,22 +376,12 @@ log.close()
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.assert_root_command(master, "ps aux | grep vmsagent | grep -v "\
-                                         "grep | grep -v ssh")
+        self.root_command(master, "ps aux | grep vmsagent | grep -v "\
+                                  "grep | grep -v ssh")
 
-        # We can bless now
-        assert [] == self.list_blessed_ids(master.id)
+        # We can bless now, and launch a clone
         blessed = self.bless(master)
-        assert [blessed.id] == self.list_blessed_ids(master.id)
-
-        # And launch a clone
-        assert [] == self.list_launched_ids(blessed.id)
         launched = self.launch(blessed)
-        assert [launched.id] == self.list_launched_ids(blessed.id)
-
-        launched_addrs = harness.get_addrs(launched)
-        master_addrs = harness.get_addrs(master)
-        assert set(launched_addrs).isdisjoint(master_addrs)
 
         # Now let's have some vmsctl fun
         vmsctl = harness.VmsctlInterface(launched, self.config)
@@ -428,8 +413,8 @@ log.close()
         log.info("Agent helped to drop %d -> %d pages." % (before, after))
 
         # VM is not dead...
-        self.assert_root_command(launched, "ps aux")
-        self.assert_root_command(launched, "find / > /dev/null")
+        self.root_command(launched, "ps aux")
+        self.root_command(launched, "find / > /dev/null")
 
         # Clean up
         self.delete(launched)
