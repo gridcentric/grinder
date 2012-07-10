@@ -372,7 +372,7 @@ def boot(client, name_prefix, config):
                                    flavor=flavor.id,
                                    key_name=config.key_name)
     setattr(server, 'config', config)
-    assert_boot_ok(server)
+    assert_boot_ok(server, config.guest_has_agent)
     return server
 
 def get_addrs(server):
@@ -381,7 +381,7 @@ def get_addrs(server):
         ips.extend(network)
     return ips
 
-def assert_boot_ok(server):
+def assert_boot_ok(server, withagent = True):
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
     ip = get_addrs(server)[0]
@@ -390,8 +390,9 @@ def assert_boot_ok(server):
     wait_for_ssh(shell)
     # Sanity check on hostname
     shell.check_output('hostname')[0] == server.name
-    # Make sure that the vmsagent is running
-    shell.check_output('pidof vmsagent')
+    if withagent:
+        # Make sure that the vmsagent is running
+        shell.check_output('pidof vmsagent')
 
 def assert_raises(exception_type, command, *args, **kwargs):
     try:
