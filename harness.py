@@ -324,7 +324,7 @@ def auto_install_agent(server, config, distro = None):
     if jenkins_download is None:
         raise RuntimeError("Could not download latest agent from jenkins")
     ip = get_addrs(server)[0]
-    p = subprocess.Popen('REMOTE="-i %s -o UserKnownHostsFile=/dev/null %s@%s sudo" /bin/bash %s Agent-1 %s '\
+    p = subprocess.Popen('REMOTE="-i %s %s@%s sudo" /bin/bash %s Agent-1 %s '\
                           'vms-agent' % (key, user, ip, jenkins_download, distro), 
                           shell=True)
     (stdout, stderr) = p.communicate()
