@@ -319,7 +319,7 @@ def auto_install_agent(server, config, distro = None):
     user    = config.guest_user
     key     = config.key_path
     if distro is None:
-        distro = config.guest_distro
+        distro = config.guest
     jenkins_download = get_jenkins_deploy_script()
     if jenkins_download is None:
         raise RuntimeError("Could not download latest agent from jenkins")
