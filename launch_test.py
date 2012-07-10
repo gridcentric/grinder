@@ -28,9 +28,9 @@ class DictWrapper(object):
 def dict_wrapper_list(dict_list):
     return [DictWrapper(d) for d in dict_list]
 
-class LaunchTest(unittest.TestCase):
+class TestLaunch(object):
 
-    def setUp(self):
+    def setup_method(self, method):
         self.config = default_config
         self.client = harness.create_client(self.config)
         self.gcapi = self.client.gcapi
