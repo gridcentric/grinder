@@ -435,8 +435,9 @@ log.close()
     # 50% threshold for now.
     DROPALL_ACCEPTABLE_FRACTION = 0.5
 
-    def test_agent_hoard_dropall(self, img_distro):
-        (image, distro) = img_distro
+    def test_agent_hoard_dropall(self, img_distro_user):
+        (image, distro, user) = img_distro_user
+        self.config.guest_user = user
 
         master = self.boot_master(image, has_agent = False)
 
@@ -488,5 +489,5 @@ log.close()
         self.delete(master)
 
 def pytest_generate_tests(metafunc):
-    if "img_distro" in metafunc.funcargnames:
-        metafunc.parametrize("img_distro", [("oneiric-agent-ready", "ubuntu")], ids=['Oneiric 64bit'])
+    if "img_distro_user" in metafunc.funcargnames:
+        metafunc.parametrize("img_distro_user", [("oneiric-agent-ready", "ubuntu", "ubuntu")], ids=['Oneiric 64bit'])
