@@ -76,10 +76,18 @@ class TestLaunch(object):
         setattr(master, 'breadcrumbs', breadcrumbs)
         return master
 
-    def root_command(self, master, cmd):
+    def root_command(self, master, cmd, expected_rc = None, expected_stdout = None):
         ip = harness.get_addrs(master)[0]
         ssh = harness.SecureRootShell(ip, self.config)
-        ssh.check_output(cmd)
+        if expected_rc is None and expected_stdout is None:
+            ssh.check_output(cmd)
+        else:
+            (rc, _stdout, stderr) = ssh.call(cmd)
+            if expected_rc is not None:
+                assert rc == expected_rc
+            if expected_stdout is not None:
+                stdout = _stdout.split('\n')[:-1]
+                assert stdout == expected_stdout
         master.breadcrumbs.add("Root command %s" % str(cmd))
          
     def bless(self, master):
@@ -355,6 +363,68 @@ log.close()
         self.discard(blessed)
         self.delete(master)
 
+    def check_agent_running(self, vm):
+        self.root_command(vm, "ps aux | grep vmsagent | grep -v grep | grep -v ssh")
+        
+    def test_agent_double_install(self):
+        master = self.boot_master(has_agent = False)
+        # Drop package, install it, trivially ensure
+        harness.auto_install_agent(master, self.config, self.config.guest)
+        master.breadcrumbs.add("Installed latest agent")
+        self.check_agent_running(master)
+
+        # Drop package, install it, trivially ensure
+        harness.auto_install_agent(master, self.config, self.config.guest)
+        master.breadcrumbs.add("Re-installed latest agent")
+        self.check_agent_running(master)
+
+        self.delete(master)
+        
+    def test_agent_dkms(self):
+        master = self.boot_master(has_agent = False)
+
+        # Drop package, install it, trivially ensure
+        harness.auto_install_agent(master, self.config, self.config.guest)
+        master.breadcrumbs.add("Installed latest agent")
+        self.check_agent_running(master)
+
+        # Remove blobs
+        self.root_command(master, "rm -f /var/lib/vms/*")
+        master.breadcrumbs.add("Removed cached blobs")
+
+        # Now force dkms to sweat
+        self.root_command(master, "service vmsagent restart")
+        self.check_agent_running(master)
+
+        # Check a single new blob exists
+        self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout = ['1'])
+        # Check that it is good enough even if we kneecap dkms and modules
+        self.root_command(master, "rm -f /usr/sbin/dkms /sbin/insmod /sbin/modprobe")
+        self.root_command(master, "refresh-vms")
+        master.breadcrumbs.add("Recreated kernel blob")
+
+        self.delete(master)
+        
+    def test_agent_install_remove_install(self):
+        master = self.boot_master(has_agent = False)
+
+        # Drop package, install it, trivially ensure
+        harness.auto_install_agent(master, self.config, self.config.guest)
+        master.breadcrumbs.add("Installed latest agent")
+        self.check_agent_running(master)
+
+        # Remove package, ensure its paths are gone
+        self.root_command(master, "dpkg -r vms-agent")
+        self.root_command(master, "stat /var/lib/vms", expected_rc = 1)
+        master.breadcrumbs.add("Removed latest agent")
+
+        # Re-install
+        harness.auto_install_agent(master, self.config, self.config.guest)
+        master.breadcrumbs.add("Re-installed latest agent")
+        self.check_agent_running(master)
+
+        self.delete(master)
+
     # There is no good definition for "dropall" has succeeded. However, on
     # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
     # of RAM, there should be massive removal of free pages. Settle on a
@@ -369,8 +439,7 @@ log.close()
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.root_command(master, "ps aux | grep vmsagent | grep -v "\
-                                  "grep | grep -v ssh")
+        self.check_agent_running(master)
 
         # We can bless now, and launch a clone
         blessed = self.bless(master)
