@@ -363,20 +363,24 @@ log.close()
         self.discard(blessed)
         self.delete(master)
 
-    def check_agent_running(self, vm):
-        self.root_command(vm, "ps aux | grep vmsagent | grep -v grep | grep -v ssh")
+    def check_agent_running(self, vm, distro):
+        if distro == 'ubuntu':
+            self.root_command(vm, "dpkg -l vms-agent | grep ^ii")
+        elif distro == 'centos':
+            self.root_command(vm, "rpm -qa | grep vms-agent")
+        self.root_command(vm, "pidof vmsagent")
         
     def test_agent_double_install(self):
         master = self.boot_master(has_agent = False)
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, self.config.guest)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master)
+        self.check_agent_running(master, self.config.guest)
 
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, self.config.guest)
         master.breadcrumbs.add("Re-installed latest agent")
-        self.check_agent_running(master)
+        self.check_agent_running(master, self.config.guest)
 
         self.delete(master)
         
@@ -386,7 +390,7 @@ log.close()
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, self.config.guest)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master)
+        self.check_agent_running(master, self.config.guest)
 
         # Remove blobs
         self.root_command(master, "rm -f /var/lib/vms/*")
@@ -394,7 +398,7 @@ log.close()
 
         # Now force dkms to sweat
         self.root_command(master, "service vmsagent restart")
-        self.check_agent_running(master)
+        self.check_agent_running(master, self.config.guest)
 
         # Check a single new blob exists
         self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout = ['1'])
@@ -411,7 +415,7 @@ log.close()
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, self.config.guest)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master)
+        self.check_agent_running(master, self.config.guest)
 
         # Remove package, ensure its paths are gone
         self.root_command(master, "dpkg -r vms-agent")
@@ -421,7 +425,7 @@ log.close()
         # Re-install
         harness.auto_install_agent(master, self.config, self.config.guest)
         master.breadcrumbs.add("Re-installed latest agent")
-        self.check_agent_running(master)
+        self.check_agent_running(master, self.config.guest)
 
         self.delete(master)
 
@@ -439,7 +443,7 @@ log.close()
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master)
+        self.check_agent_running(master, self.config.guest)
 
         # We can bless now, and launch a clone
         blessed = self.bless(master)
