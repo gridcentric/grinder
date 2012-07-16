@@ -444,7 +444,11 @@ log.close()
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
+
+        # Sometimes dkms and depmod will take over a ton of memory in the page
+        # cache. Throw that away so it can be freed later by dropall
+        self.root_command(master, "echo 3 > /proc/sys/vm/drop_caches")
 
         # We can bless now, and launch a clone
         blessed = self.bless(master)
