@@ -71,11 +71,20 @@ class SecureShell(object):
         self.host = host
         self.key_path = config.key_path
         self.user = config.guest_user
+        # By default ssh does not allocate a pseudo-tty (if asked to exec a
+        # single command, from our harness). However, some programs may require
+        # tty, e.g. sudo on CentOS 6.3. Assume a tty is needed unless
+        # explicitly disabled, as in cases in which we want to manage stdin
+        self.maybe_tty = True
 
     def ssh_opts(self):
+        if self.maybe_tty:
+            tty_arg = '-tt '
+        else:
+            tty_arg = ''
         return '-o UserKnownHostsFile=/dev/null ' \
                '-o StrictHostKeyChecking=no ' \
-               '-i %s ' % (self.key_path)
+               '%s -i %s ' % (tty_arg, self.key_path)
 
     def popen(self, args, **kwargs):
         # Too hard to support this.
@@ -101,6 +110,8 @@ class SecureShell(object):
 
     def call(self, args, **kwargs):
         input=kwargs.pop('input', None)
+        if input is not None:
+            self.maybe_tty = False
         p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, **kwargs)
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
@@ -145,6 +156,8 @@ class HostSecureShell(SecureShell):
         self.host = host
         self.key_path = config.key_path
         self.user = config.host_user
+        # This is a good choice as long as we launch tests on Ubuntu hosts
+        self.maybe_tty = False
 
 class VmsctlExecError(Exception):
     pass
