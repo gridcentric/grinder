@@ -459,4 +459,4 @@ class Breadcrumbs(object):
         else:
             stdout, stderr = self.shell.check_output('cat %s' % self.filename)
             log.debug('Got breadcrumbs: %s', stdout.split('\n'))
-            assert stdout.split('\n')[:-1] == list(self.trail)
+            assert [x.strip('\r') for x in stdout.split('\n')[:-1]] == list(self.trail)
