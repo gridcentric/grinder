@@ -190,7 +190,7 @@ class VmsctlInterface(object):
                 pass
         if self.vmsid is None:
             raise VmsctlLookupError("Could not find Openstack instance %s in servers %s." %
-                                    (str(osid), str(self.config.hosts)))
+                                    (str(self.osid), str(self.config.hosts)))
 
         # Now that we have the host establish the shell
         self.shell = HostSecureShell(self.host, self.config)
