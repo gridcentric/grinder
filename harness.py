@@ -75,10 +75,10 @@ class SecureShell(object):
         # single command, from our harness). However, some programs may require
         # tty, e.g. sudo on CentOS 6.3. Assume a tty is needed unless
         # explicitly disabled, as in cases in which we want to manage stdin
-        self.maybe_tty = True
+        self.alloc_tty = True
 
-    def ssh_opts(self):
-        if self.maybe_tty:
+    def ssh_opts(self, use_tty):
+        if use_tty:
             tty_arg = '-tt '
         else:
             tty_arg = ''
@@ -92,8 +92,12 @@ class SecureShell(object):
         # If we get a string, just pass it to the client's shell.
         if type(args) in [str, unicode]:
             args = [args]
-        log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
-        return subprocess.Popen(['ssh'] + self.ssh_opts().split() + 
+        # Do we need to allocate a tty?
+        use_tty = kwargs.pop('use_tty', self.alloc_tty)
+        if kwargs.get('stdin', None) is not None:
+            use_tty = False
+        log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(use_tty), ' '.join(args))
+        return subprocess.Popen(['ssh'] + self.ssh_opts(use_tty).split() + 
                                 ['%s@%s' % (self.user, self.host)] + args, **kwargs)
 
     def check_output(self, args, **kwargs):
@@ -111,8 +115,10 @@ class SecureShell(object):
     def call(self, args, **kwargs):
         input=kwargs.pop('input', None)
         if input is not None:
-            self.maybe_tty = False
-        p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, **kwargs)
+            use_tty = False
+        else:
+            use_tty = self.alloc_tty
+        p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, use_tty=use_tty, **kwargs)
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
 
@@ -157,7 +163,7 @@ class HostSecureShell(SecureShell):
         self.key_path = config.key_path
         self.user = config.host_user
         # This is a good choice as long as we launch tests on Ubuntu hosts
-        self.maybe_tty = False
+        self.alloc_tty = False
 
 class VmsctlExecError(Exception):
     pass
