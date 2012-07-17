@@ -71,11 +71,20 @@ class SecureShell(object):
         self.host = host
         self.key_path = config.key_path
         self.user = config.guest_user
+        # By default ssh does not allocate a pseudo-tty (if asked to exec a
+        # single command, from our harness). However, some programs may require
+        # tty, e.g. sudo on CentOS 6.3. Assume a tty is needed unless
+        # explicitly disabled, as in cases in which we want to manage stdin
+        self.alloc_tty = True
 
-    def ssh_opts(self):
+    def ssh_opts(self, use_tty):
+        if use_tty:
+            tty_arg = '-tt '
+        else:
+            tty_arg = ''
         return '-o UserKnownHostsFile=/dev/null ' \
                '-o StrictHostKeyChecking=no ' \
-               '-i %s ' % (self.key_path)
+               '%s -i %s ' % (tty_arg, self.key_path)
 
     def popen(self, args, **kwargs):
         # Too hard to support this.
@@ -83,8 +92,12 @@ class SecureShell(object):
         # If we get a string, just pass it to the client's shell.
         if type(args) in [str, unicode]:
             args = [args]
-        log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(), ' '.join(args))
-        return subprocess.Popen(['ssh'] + self.ssh_opts().split() + 
+        # Do we need to allocate a tty?
+        use_tty = kwargs.pop('use_tty', self.alloc_tty)
+        if kwargs.get('stdin', None) is not None:
+            use_tty = False
+        log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(use_tty), ' '.join(args))
+        return subprocess.Popen(['ssh'] + self.ssh_opts(use_tty).split() + 
                                 ['%s@%s' % (self.user, self.host)] + args, **kwargs)
 
     def check_output(self, args, **kwargs):
@@ -101,7 +114,11 @@ class SecureShell(object):
 
     def call(self, args, **kwargs):
         input=kwargs.pop('input', None)
-        p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, **kwargs)
+        if input is not None:
+            use_tty = False
+        else:
+            use_tty = self.alloc_tty
+        p = self.popen(args, stdout=PIPE, stderr=PIPE, stdin=PIPE, use_tty=use_tty, **kwargs)
         stdout, stderr = p.communicate(input)
         return p.returncode, stdout, stderr
 
@@ -145,6 +162,8 @@ class HostSecureShell(SecureShell):
         self.host = host
         self.key_path = config.key_path
         self.user = config.host_user
+        # This is a good choice as long as we launch tests on Ubuntu hosts
+        self.alloc_tty = False
 
 class VmsctlExecError(Exception):
     pass
@@ -177,7 +196,7 @@ class VmsctlInterface(object):
                 pass
         if self.vmsid is None:
             raise VmsctlLookupError("Could not find Openstack instance %s in servers %s." %
-                                    (str(osid), str(self.config.hosts)))
+                                    (str(self.osid), str(self.config.hosts)))
 
         # Now that we have the host establish the shell
         self.shell = HostSecureShell(self.host, self.config)
@@ -306,7 +325,7 @@ def get_jenkins_deploy_script():
     name = os.path.join(dirname, "deploy")
     rc = subprocess.call(("wget --auth-no-challenge --http-user=******** "\
                          "--http-password=******** "\
-                         "http://********/job/Libvirt-master/ws/deploy"\
+                         "http://********/job/build/ws/deploy"\
                          " -O %s" % name).split())
     if rc != 0:
         return None
@@ -459,4 +478,4 @@ class Breadcrumbs(object):
         else:
             stdout, stderr = self.shell.check_output('cat %s' % self.filename)
             log.debug('Got breadcrumbs: %s', stdout.split('\n'))
-            assert stdout.split('\n')[:-1] == list(self.trail)
+            assert [x.strip('\r') for x in stdout.split('\n')[:-1]] == list(self.trail)

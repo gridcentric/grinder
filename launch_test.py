@@ -363,6 +363,13 @@ log.close()
         self.discard(blessed)
         self.delete(master)
 
+    # Agent tests. We test for installation and dkms variants. We do these on
+    # both main distros (Ubuntu and CentOS).
+    # We also perform a more thorough test that exercises the introspection
+    # functionality of an installed agent. We launch clone/hoard/dropall cycles
+    # to get the maximum bang for buck from free page detection. We exercise
+    # this cycle on both distros and *all* bitnesses (32 bit, PAE, 64 bit).
+    # Hence the parameterization at the bottom.
     def check_agent_running(self, vm, distro):
         if distro == 'ubuntu':
             self.root_command(vm, "dpkg -l vms-agent | grep ^ii")
@@ -370,27 +377,33 @@ log.close()
             self.root_command(vm, "rpm -qa | grep vms-agent")
         self.root_command(vm, "pidof vmsagent")
         
-    def test_agent_double_install(self):
-        master = self.boot_master(has_agent = False)
+    def test_agent_double_install(self, img_distro_user):
+        (image, distro, user) = img_distro_user
+        self.config.guest_user = user
+
+        master = self.boot_master(image, has_agent = False)
         # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, self.config.guest)
+        harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
 
         # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, self.config.guest)
+        harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Re-installed latest agent")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
 
         self.delete(master)
         
-    def test_agent_dkms(self):
-        master = self.boot_master(has_agent = False)
+    def test_agent_dkms(self, img_distro_user):
+        (image, distro, user) = img_distro_user
+        self.config.guest_user = user
+
+        master = self.boot_master(image, has_agent = False)
 
         # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, self.config.guest)
+        harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
 
         # Remove blobs
         self.root_command(master, "rm -f /var/lib/vms/*")
@@ -398,7 +411,7 @@ log.close()
 
         # Now force dkms to sweat
         self.root_command(master, "service vmsagent restart")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
 
         # Check a single new blob exists
         self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout = ['1'])
@@ -409,13 +422,16 @@ log.close()
 
         self.delete(master)
         
-    def test_agent_install_remove_install(self):
-        master = self.boot_master(has_agent = False)
+    def test_agent_install_remove_install(self, img_distro_user):
+        (image, distro, user) = img_distro_user
+        self.config.guest_user = user
+
+        master = self.boot_master(image, has_agent = False)
 
         # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, self.config.guest)
+        harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
 
         # Remove package, ensure its paths are gone
         self.root_command(master, "dpkg -r vms-agent")
@@ -423,9 +439,9 @@ log.close()
         master.breadcrumbs.add("Removed latest agent")
 
         # Re-install
-        harness.auto_install_agent(master, self.config, self.config.guest)
+        harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Re-installed latest agent")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
 
         self.delete(master)
 
@@ -435,15 +451,20 @@ log.close()
     # 50% threshold for now.
     DROPALL_ACCEPTABLE_FRACTION = 0.5
 
-    def test_agent_hoard_dropall(self, img_distro):
-        (image, distro) = img_distro
+    def test_agent_hoard_dropall(self, img_distro_user):
+        (image, distro, user) = img_distro_user
+        self.config.guest_user = user
 
         master = self.boot_master(image, has_agent = False)
 
         # Drop package, install it, trivially ensure
         harness.auto_install_agent(master, self.config, distro)
         master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, self.config.guest)
+        self.check_agent_running(master, distro)
+
+        # Sometimes dkms and depmod will take over a ton of memory in the page
+        # cache. Throw that away so it can be freed later by dropall
+        self.root_command(master, "echo 3 > /proc/sys/vm/drop_caches")
 
         # We can bless now, and launch a clone
         blessed = self.bless(master)
@@ -488,5 +509,30 @@ log.close()
         self.delete(master)
 
 def pytest_generate_tests(metafunc):
-    if "img_distro" in metafunc.funcargnames:
-        metafunc.parametrize("img_distro", [("oneiric-agent-ready", "ubuntu")], ids=['Oneiric 64bit'])
+    if "img_distro_user" in metafunc.funcargnames:
+        if metafunc.function.__name__ == "test_agent_hoard_dropall":
+            metafunc.parametrize("img_distro_user", [
+                                ("oneiric-agent-ready", "ubuntu", "ubuntu"),
+                                ("precise-32bit-agent-ready", "ubuntu", "root"),
+                                ("precise-PAE-agent-ready", "ubuntu", "root"),
+                                ("centos-6.3-PAE-agent-ready", "centos", "root"),
+                                ("centos-6.3-32bit-agent-ready", "centos", "root"),
+                                ("centos-6.3-amd64-agent-ready", "centos", "root")
+                                    ], ids=[
+                                            'Oneiric 64bit',
+                                            'Precise 32bit',
+                                            'Precise PAE',
+                                            'Centos63 PAE',
+                                            'Centos63 32bit',
+                                            'Centos63 64bit'
+                                ])
+        elif metafunc.function.__name__ in [ "test_agent_double_install",\
+                                             "test_agent_dkms",\
+                                             "test_agent_install_remove_install" ]:
+            metafunc.parametrize("img_distro_user", [
+                                ("oneiric-agent-ready", "ubuntu", "ubuntu"),
+                                ("centos-6.3-amd64-agent-ready", "centos", "root")
+                                    ], ids=[
+                                            'Oneiric 64bit',
+                                            'Centos63 64bit'
+                                ])
