@@ -8,7 +8,7 @@ from gridcentric.nova.client.exceptions import HttpException
 import harness
 
 from logger import log
-from config import default_config, DEFAULT_TIMEOUT
+from config import default_config
 
 class TestMigration(unittest.TestCase):
 
@@ -31,7 +31,7 @@ class TestMigration(unittest.TestCase):
         assert host != dest
         return host, dest
 
-    def wait_while_host(self, host, duration=DEFAULT_TIMEOUT):
+    def wait_while_host(self, host):
         def condition():
             if host != self.config.id_to_hostname(self.server.tenant_id,
                                                   self.server.hostId):
@@ -39,15 +39,15 @@ class TestMigration(unittest.TestCase):
             self.server.get()
             return False
         harness.wait_for('%s to not be on host %s' % (self.server.id, host),
-                         condition, duration)
+                         condition)
 
     def assert_server_alive(self, host):
         self.server.get()
         assert self.server.hostId == \
             self.config.hostname_to_id(self.server.tenant_id, host)
         assert self.server.status == 'ACTIVE'
-        harness.wait_for_ping(self.ip, duration=DEFAULT_TIMEOUT)
-        harness.wait_for_ssh(self.shell, duration=DEFAULT_TIMEOUT)
+        harness.wait_for_ping(self.ip)
+        harness.wait_for_ssh(self.shell)
         self.breadcrumbs.add('alive on host %s' % host)
 
     def migrate(self, host, dest):
