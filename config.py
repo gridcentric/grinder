@@ -23,6 +23,14 @@ class Config(object):
         self.guest_user = 'ubuntu'
         self.openstack_version = "essex"
         self.host_user = "tester"
+        self.default_timeout = DEFAULT_TIMEOUT
+
+    # If we are provided the default timeout, update it to the one we have
+    # loaded in the config
+    def update_timeout(self, timeout):
+        if timeout == DEFAULT_TIMEOUT:
+            timeout = self.default_timeout
+        return timeout
 
     def hostname_to_id(self, tenant_id, hostname):
         if self.openstack_version == "essex":

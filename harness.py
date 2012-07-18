@@ -354,6 +354,7 @@ def auto_install_agent(server, config, distro = None):
                             (p.returncode, stderr))
 
 def wait_for(message, condition, duration=DEFAULT_TIMEOUT, interval=1):
+    duration = default_config.update_timeout(duration)
     log.info('Waiting %ss for %s', duration, message)
     start = time.time()
     while True:
