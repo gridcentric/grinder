@@ -2,6 +2,8 @@ import inspect
 import os
 import hashlib
 
+DEFAULT_TIMEOUT = 60
+
 class Config(object):
 
     def __init__(self):
