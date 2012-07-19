@@ -382,74 +382,84 @@ log.close()
         save_user = self.config.guest_user
         self.config.guest_user = user
 
-        master = self.boot_master(image, has_agent = False)
-        # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, distro)
-        master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, distro)
+        try:
+            master = self.boot_master(image, has_agent = False)
+            # Drop package, install it, trivially ensure
+            harness.auto_install_agent(master, self.config, distro)
+            master.breadcrumbs.add("Installed latest agent")
+            self.check_agent_running(master, distro)
 
-        # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, distro)
-        master.breadcrumbs.add("Re-installed latest agent")
-        self.check_agent_running(master, distro)
+            # Drop package, install it, trivially ensure
+            harness.auto_install_agent(master, self.config, distro)
+            master.breadcrumbs.add("Re-installed latest agent")
+            self.check_agent_running(master, distro)
 
-        self.delete(master)
-        self.config.guest_user = save_user
+            self.delete(master)
+        finally:
+            self.config.guest_user = save_user
         
     def test_agent_dkms(self, img_distro_user):
         (image, distro, user) = img_distro_user
         save_user = self.config.guest_user
         self.config.guest_user = user
 
-        master = self.boot_master(image, has_agent = False)
+        try:
+            master = self.boot_master(image, has_agent = False)
 
-        # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, distro)
-        master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, distro)
+            # Drop package, install it, trivially ensure
+            harness.auto_install_agent(master, self.config, distro)
+            master.breadcrumbs.add("Installed latest agent")
+            self.check_agent_running(master, distro)
 
-        # Remove blobs
-        self.root_command(master, "rm -f /var/lib/vms/*")
-        master.breadcrumbs.add("Removed cached blobs")
+            # Remove blobs
+            self.root_command(master, "rm -f /var/lib/vms/*")
+            master.breadcrumbs.add("Removed cached blobs")
 
-        # Now force dkms to sweat
-        self.root_command(master, "service vmsagent restart")
-        self.check_agent_running(master, distro)
+            # Now force dkms to sweat
+            assert False
+            self.root_command(master, "service vmsagent restart")
+            self.check_agent_running(master, distro)
 
-        # Check a single new blob exists
-        self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout = ['1'])
-        # Check that it is good enough even if we kneecap dkms and modules
-        self.root_command(master, "rm -f /usr/sbin/dkms /sbin/insmod /sbin/modprobe")
-        self.root_command(master, "refresh-vms")
-        master.breadcrumbs.add("Recreated kernel blob")
+            # Check a single new blob exists
+            self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout = ['1'])
+            # Check that it is good enough even if we kneecap dkms and modules
+            self.root_command(master, "rm -f /usr/sbin/dkms /sbin/insmod /sbin/modprobe")
+            self.root_command(master, "refresh-vms")
+            master.breadcrumbs.add("Recreated kernel blob")
 
-        self.delete(master)
-        self.config.guest_user = save_user
+            self.delete(master)
+        finally:
+            self.config.guest_user = save_user
         
     def test_agent_install_remove_install(self, img_distro_user):
         (image, distro, user) = img_distro_user
         save_user = self.config.guest_user
         self.config.guest_user = user
 
-        master = self.boot_master(image, has_agent = False)
+        try:
+            master = self.boot_master(image, has_agent = False)
 
-        # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, distro)
-        master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, distro)
+            # Drop package, install it, trivially ensure
+            harness.auto_install_agent(master, self.config, distro)
+            master.breadcrumbs.add("Installed latest agent")
+            self.check_agent_running(master, distro)
 
-        # Remove package, ensure its paths are gone
-        self.root_command(master, "dpkg -r vms-agent")
-        self.root_command(master, "stat /var/lib/vms", expected_rc = 1)
-        master.breadcrumbs.add("Removed latest agent")
+            # Remove package, ensure its paths are gone
+            if distro == 'ubuntu':
+                self.root_command(master, "dpkg -r vms-agent")
+            elif distro == 'centos':
+                self.root_command(master, "rpm -e vms-agent")
+            self.root_command(master, "stat /var/lib/vms", expected_rc = 1)
+            master.breadcrumbs.add("Removed latest agent")
 
-        # Re-install
-        harness.auto_install_agent(master, self.config, distro)
-        master.breadcrumbs.add("Re-installed latest agent")
-        self.check_agent_running(master, distro)
+            # Re-install
+            harness.auto_install_agent(master, self.config, distro)
+            master.breadcrumbs.add("Re-installed latest agent")
+            self.check_agent_running(master, distro)
 
-        self.delete(master)
-        self.config.guest_user = save_user
+            self.delete(master)
+        finally:
+            self.config.guest_user = save_user
 
     # There is no good definition for "dropall" has succeeded. However, on
     # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
@@ -462,59 +472,61 @@ log.close()
         save_user = self.config.guest_user
         self.config.guest_user = user
 
-        master = self.boot_master(image, has_agent = False)
+        try:
+            master = self.boot_master(image, has_agent = False)
 
-        # Drop package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config, distro)
-        master.breadcrumbs.add("Installed latest agent")
-        self.check_agent_running(master, distro)
+            # Drop package, install it, trivially ensure
+            harness.auto_install_agent(master, self.config, distro)
+            master.breadcrumbs.add("Installed latest agent")
+            self.check_agent_running(master, distro)
 
-        # Sometimes dkms and depmod will take over a ton of memory in the page
-        # cache. Throw that away so it can be freed later by dropall
-        self.root_command(master, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
+            # Sometimes dkms and depmod will take over a ton of memory in the page
+            # cache. Throw that away so it can be freed later by dropall
+            self.root_command(master, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
 
-        # We can bless now, and launch a clone
-        blessed = self.bless(master)
-        launched = self.launch(blessed)
+            # We can bless now, and launch a clone
+            blessed = self.bless(master)
+            launched = self.launch(blessed)
 
-        # Now let's have some vmsctl fun
-        vmsctl = harness.VmsctlInterface(launched, self.config)
-        # For a single clone all pages fetched become sharing nominees.
-        # We want to drop them anyways since they're not really shared
-        vmsctl.set_flag("eviction.dropshared")
-        # We want to see the full effect of hoarding, let's not 
-        # bypass zeros
-        vmsctl.clear_flag("zeros.enabled")
-        # Avoid any chance of eviction other than zero dropping
-        vmsctl.clear_flag("eviction.paging")
-        vmsctl.clear_flag("eviction.sharing")
-        # No target so hoard finishes without triggering dropall
-        vmsctl.clear_target()
-        assert vmsctl.match_expected_params({ "eviction.dropshared"     : 1,
-                                              "zeros.enabled"           : 0,
-                                              "eviction.paging"         : 0,
-                                              "eviction.sharing"        : 0,
-                                              "memory.target"           : 0 })
+            # Now let's have some vmsctl fun
+            vmsctl = harness.VmsctlInterface(launched, self.config)
+            # For a single clone all pages fetched become sharing nominees.
+            # We want to drop them anyways since they're not really shared
+            vmsctl.set_flag("eviction.dropshared")
+            # We want to see the full effect of hoarding, let's not 
+            # bypass zeros
+            vmsctl.clear_flag("zeros.enabled")
+            # Avoid any chance of eviction other than zero dropping
+            vmsctl.clear_flag("eviction.paging")
+            vmsctl.clear_flag("eviction.sharing")
+            # No target so hoard finishes without triggering dropall
+            vmsctl.clear_target()
+            assert vmsctl.match_expected_params({ "eviction.dropshared"     : 1,
+                                                  "zeros.enabled"           : 0,
+                                                  "eviction.paging"         : 0,
+                                                  "eviction.sharing"        : 0,
+                                                  "memory.target"           : 0 })
 
-        # Hoard so dropall makes a splash
-        assert vmsctl.full_hoard()
+            # Hoard so dropall makes a splash
+            assert vmsctl.full_hoard()
 
-        # Now dropall! (agent should help significantly here)
-        before = vmsctl.get_current_memory()
-        vmsctl.dropall()
-        after = vmsctl.get_current_memory()
-        assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
-        log.info("Agent helped to drop %d -> %d pages." % (before, after))
+            # Now dropall! (agent should help significantly here)
+            before = vmsctl.get_current_memory()
+            vmsctl.dropall()
+            after = vmsctl.get_current_memory()
+            assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
+            log.info("Agent helped to drop %d -> %d pages." % (before, after))
 
-        # VM is not dead...
-        self.root_command(launched, "ps aux")
-        self.root_command(launched, "find / > /dev/null")
+            # VM is not dead...
+            self.root_command(launched, "ps aux")
+            self.root_command(launched, "find / > /dev/null")
 
-        # Clean up
-        self.delete(launched)
-        self.discard(blessed)
-        self.delete(master)
-        self.config.guest_user = save_user
+            # Clean up
+            self.delete(launched)
+            self.discard(blessed)
+            self.delete(master)
+        finally:
+            self.config.guest_user = save_user
 
 def pytest_generate_tests(metafunc):
     if "img_distro_user" in metafunc.funcargnames:
