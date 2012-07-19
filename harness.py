@@ -94,7 +94,8 @@ class SecureShell(object):
             args = [args]
         # Do we need to allocate a tty?
         use_tty = kwargs.pop('use_tty', self.alloc_tty)
-        if kwargs.get('stdin', None) is not None:
+        _stdin = kwargs.get('stdin', None)
+        if _stdin is not None and _stdin is not PIPE:
             use_tty = False
         log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(use_tty), ' '.join(args))
         return subprocess.Popen(['ssh'] + self.ssh_opts(use_tty).split() + 

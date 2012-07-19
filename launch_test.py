@@ -379,6 +379,7 @@ log.close()
         
     def test_agent_double_install(self, img_distro_user):
         (image, distro, user) = img_distro_user
+        save_user = self.config.guest_user
         self.config.guest_user = user
 
         master = self.boot_master(image, has_agent = False)
@@ -393,9 +394,11 @@ log.close()
         self.check_agent_running(master, distro)
 
         self.delete(master)
+        self.config.guest_user = save_user
         
     def test_agent_dkms(self, img_distro_user):
         (image, distro, user) = img_distro_user
+        save_user = self.config.guest_user
         self.config.guest_user = user
 
         master = self.boot_master(image, has_agent = False)
@@ -421,9 +424,11 @@ log.close()
         master.breadcrumbs.add("Recreated kernel blob")
 
         self.delete(master)
+        self.config.guest_user = save_user
         
     def test_agent_install_remove_install(self, img_distro_user):
         (image, distro, user) = img_distro_user
+        save_user = self.config.guest_user
         self.config.guest_user = user
 
         master = self.boot_master(image, has_agent = False)
@@ -444,6 +449,7 @@ log.close()
         self.check_agent_running(master, distro)
 
         self.delete(master)
+        self.config.guest_user = save_user
 
     # There is no good definition for "dropall" has succeeded. However, on
     # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
@@ -453,6 +459,7 @@ log.close()
 
     def test_agent_hoard_dropall(self, img_distro_user):
         (image, distro, user) = img_distro_user
+        save_user = self.config.guest_user
         self.config.guest_user = user
 
         master = self.boot_master(image, has_agent = False)
@@ -464,7 +471,7 @@ log.close()
 
         # Sometimes dkms and depmod will take over a ton of memory in the page
         # cache. Throw that away so it can be freed later by dropall
-        self.root_command(master, "echo 3 > /proc/sys/vm/drop_caches")
+        self.root_command(master, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
 
         # We can bless now, and launch a clone
         blessed = self.bless(master)
@@ -507,6 +514,7 @@ log.close()
         self.delete(launched)
         self.discard(blessed)
         self.delete(master)
+        self.config.guest_user = save_user
 
 def pytest_generate_tests(metafunc):
     if "img_distro_user" in metafunc.funcargnames:
