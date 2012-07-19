@@ -353,7 +353,8 @@ def auto_install_agent(server, config, distro = None):
         raise RuntimeError("Deploy script failed (%d), stderr:\n%s" %
                             (p.returncode, stderr))
 
-def wait_for(message, condition, duration=15, interval=1):
+def wait_for(message, condition, interval=1):
+    duration = int(default_config.ops_timeout)
     log.info('Waiting %ss for %s', duration, message)
     start = time.time()
     while True:
@@ -364,32 +365,31 @@ def wait_for(message, condition, duration=15, interval=1):
             raise Exception('Timeout: waited %ss for %s' % (duration, message))
         time.sleep(min(interval, remaining))
 
-def wait_while_status(server, status, duration=60):
+def wait_while_status(server, status):
     def condition():
         if server.status != status:
             return True
         server.get()
         return False
     wait_for('%s on ID %s to finish' % (status, str(server.id)),
-             condition, duration)
+             condition)
 
-def wait_for_ping(ip, duration=60):
+def wait_for_ping(ip):
     wait_for('ping %s to respond' % ip,
-             lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0,
-             duration=duration)
+             lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0)
 
-def wait_for_ssh(ssh, duration=600):
+def wait_for_ssh(ssh):
     wait_for('ssh %s to respond' % ssh.host,
-             lambda: ssh.call('true')[0] == 0, duration=duration)
+             lambda: ssh.call('true')[0] == 0)
 
-def wait_while_exists(server, duration=60):
+def wait_while_exists(server):
     def condition():
         try:
             server.get()
             return False
         except novaclient.exceptions.NotFound:
             return True
-    wait_for('server %s to not exist' % server.id, condition, duration=duration)
+    wait_for('server %s to not exist' % server.id, condition)
 
 def generate_name(prefix):
     # If we're running within a jenkins environment, use the build number as

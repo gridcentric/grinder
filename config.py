@@ -2,6 +2,8 @@ import inspect
 import os
 import hashlib
 
+DEFAULT_TIMEOUT = 60
+
 class Config(object):
 
     def __init__(self):
@@ -21,6 +23,7 @@ class Config(object):
         self.guest_user = 'ubuntu'
         self.openstack_version = "essex"
         self.host_user = "tester"
+        self.ops_timeout = DEFAULT_TIMEOUT
 
     def hostname_to_id(self, tenant_id, hostname):
         if self.openstack_version == "essex":
