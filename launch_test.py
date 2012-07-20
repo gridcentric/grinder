@@ -416,7 +416,6 @@ log.close()
             master.breadcrumbs.add("Removed cached blobs")
 
             # Now force dkms to sweat
-            assert False
             self.root_command(master, "service vmsagent restart")
             self.check_agent_running(master, distro)
 
