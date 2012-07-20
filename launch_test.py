@@ -86,7 +86,7 @@ class TestLaunch(object):
             if expected_rc is not None:
                 assert rc == expected_rc
             if expected_stdout is not None:
-                stdout = _stdout.split('\n')[:-1]
+                stdout = [ x.strip('\r') for x  in _stdout.split('\n')[:-1] ]
                 assert stdout == expected_stdout
         master.breadcrumbs.add("Root command %s" % str(cmd))
          
