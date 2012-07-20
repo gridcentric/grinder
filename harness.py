@@ -58,7 +58,8 @@ def create_nova_client(config):
         return Client(username=os.environ['NOVA_USERNAME'],
                       api_key=os.environ['NOVA_API_KEY'],
                       project_id=os.environ['NOVA_PROJECT_ID'],
-                      auth_url=os.environ['NOVA_URL'])
+                      auth_url=os.environ['NOVA_URL'],
+                      service_type='compute')
 
 def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''
@@ -69,7 +70,7 @@ def create_client(config):
 class SecureShell(object):
     def __init__(self, host, config):
         self.host = host
-        self.key_path = config.key_path
+        self.key_path = config.guest_key_path
         self.user = config.guest_user
         # By default ssh does not allocate a pseudo-tty (if asked to exec a
         # single command, from our harness). However, some programs may require
@@ -161,7 +162,7 @@ class SecureRootShell(SecureShell):
 class HostSecureShell(SecureShell):
     def __init__(self, host, config):
         self.host = host
-        self.key_path = config.key_path
+        self.key_path = config.host_key_path
         self.user = config.host_user
         # This is a good choice as long as we launch tests on Ubuntu hosts
         self.alloc_tty = False
@@ -338,7 +339,7 @@ def remove_jenkins_deploy_script(name):
 # Bring the latest agent from jenkins into the VM
 def auto_install_agent(server, config, distro = None):
     user    = config.guest_user
-    key     = config.key_path
+    key     = config.guest_key_path
     if distro is None:
         distro = config.guest
     jenkins_download = get_jenkins_deploy_script()
@@ -412,7 +413,7 @@ def boot(client, name_prefix, config, image_name = None):
     server = client.servers.create(name=name,
                                    image=image.id,
                                    flavor=flavor.id,
-                                   key_name=config.key_name)
+                                   key_name=config.guest_key_name)
     setattr(server, 'config', config)
     assert_boot_ok(server, config.guest_has_agent)
     return server

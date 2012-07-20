@@ -18,11 +18,12 @@ class Config(object):
         self.image_name = 'uec-oneiric-vmsagent3-root'
         self.guest = "ubuntu"
         self.guest_has_agent = True
-        self.key_name = 'openstack-test'
-        self.key_path = os.path.join(self.data_path, 'openstack-test.key')
+        self.guest_key_name = 'openstack-test'
+        self.guest_key_path = os.path.join(self.data_path, 'openstack-test.key')
         self.guest_user = 'ubuntu'
         self.openstack_version = "essex"
         self.host_user = "tester"
+        self.host_key_path = os.path.join(self.data_path, 'openstack-test.key')
         self.ops_timeout = DEFAULT_TIMEOUT
 
     def hostname_to_id(self, tenant_id, hostname):
