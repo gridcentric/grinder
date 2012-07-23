@@ -291,7 +291,8 @@ class VmsctlInterface(object):
     def full_hoard(self, rate = '25', wait_seconds = 120, threshold = 0.9):
         self.launch_hoard(rate)
         tries = 0
-        while float(self.get_current_memory()) <= (threshold * float(self.get_max_memory())):
+        maxmem = self.get_max_memory()
+        while float(self.get_current_memory()) <= (threshold * float(maxmem)):
             time.sleep(1)
             tries += 1
             if tries >= wait_seconds:
