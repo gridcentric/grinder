@@ -479,13 +479,13 @@ log.close()
         (major, minor) = [ int(x) for x in self.config.vms_version.split('.') ]
         return (agent >= 1) and (major >= 2) and (minor >= 4)
 
+    # Test agent-0 with vms2.4 and agent-1 with vms2.3
     def test_cross_agent(self):
-        if not self.__agent_can_dropall():
-            # Means we have old vms
-            pytest.skip("Cross agent test only valid with newer VMS")
-
         agent_version_save = self.config.agent_version
-        self.config.agent_version = '0'
+        if self.__agent_can_dropall():
+            self.config.agent_version = '0'
+        else:
+            self.config.agent_version = '1'
         try:
             master = self.boot_master("oneiric-agent-ready", has_agent = False)
 
