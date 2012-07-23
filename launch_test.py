@@ -479,6 +479,34 @@ log.close()
         (major, minor) = [ int(x) for x in self.config.vms_version.split('.') ]
         return (agent >= 1) and (major >= 2) and (minor >= 4)
 
+    def test_cross_agent(self):
+        if not self.__agent_can_dropall():
+            # Means we have old vms
+            pytest.skip("Cross agent test only valid with newer VMS")
+
+        agent_version_save = self.config.agent_version
+        self.config.agent_version = '0'
+        try:
+            master = self.boot_master("oneiric-agent-ready", has_agent = False)
+
+            # Drop package, install it, trivially ensure
+            harness.auto_install_agent(master, self.config, self.config.guest)
+            master.breadcrumbs.add("Installed agent version zero")
+            self.check_agent_running(master, self.config.guest)
+
+            blessed = self.bless(master)
+            launched = self.launch(blessed)
+
+            # VM is not dead...
+            self.root_command(launched, "ps aux")
+            self.root_command(launched, "find / > /dev/null")
+
+            self.delete(launched)
+            self.discard(blessed)
+            self.delete(master)
+        finally:
+            self.config.agent_version = agent_version_save
+
     def test_agent_hoard_dropall(self, img_distro_user):
         (image, distro, user) = img_distro_user
         save_user = self.config.guest_user
