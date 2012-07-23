@@ -25,6 +25,8 @@ class Config(object):
         self.host_user = "tester"
         self.host_key_path = os.path.join(self.data_path, 'openstack-test.key')
         self.ops_timeout = DEFAULT_TIMEOUT
+        self.agent_version = '1'
+        self.vms_version = '2.4'
 
     def hostname_to_id(self, tenant_id, hostname):
         if self.openstack_version == "essex":

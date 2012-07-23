@@ -13,6 +13,8 @@ from config import default_config
 if default_config.openstack_version == 'essex':
     from novaclient.exceptions import ClientException
 
+import pytest
+
 class DictWrapper(object):
     def __init__(self, d):
         self.d = d
@@ -399,6 +401,9 @@ log.close()
             self.config.guest_user = save_user
         
     def test_agent_dkms(self, img_distro_user):
+        if self.config.agent_version == '0':
+            pytest.skip("Agent version 0 does not use dkms")
+
         (image, distro, user) = img_distro_user
         save_user = self.config.guest_user
         self.config.guest_user = user
@@ -466,6 +471,14 @@ log.close()
     # 50% threshold for now.
     DROPALL_ACCEPTABLE_FRACTION = 0.5
 
+    # With agent version 1 (or higher) and vms 2.4 (or higher) we can perform a
+    # dropall with no need for eviction.paging. With agent version zero or vms
+    # 2.3, we cannot perform dropall.
+    def __agent_can_dropall(self):
+        agent = int(self.config.agent_version)
+        (major, minor) = [ int(x) for x in self.config.vms_version.split('.') ]
+        return (agent >= 1) and (major >= 2) and (minor >= 4)
+
     def test_agent_hoard_dropall(self, img_distro_user):
         (image, distro, user) = img_distro_user
         save_user = self.config.guest_user
@@ -479,9 +492,10 @@ log.close()
             master.breadcrumbs.add("Installed latest agent")
             self.check_agent_running(master, distro)
 
-            # Sometimes dkms and depmod will take over a ton of memory in the page
-            # cache. Throw that away so it can be freed later by dropall
-            self.root_command(master, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
+            if self.__agent_can_dropall():
+                # Sometimes dkms and depmod will take over a ton of memory in the page
+                # cache. Throw that away so it can be freed later by dropall
+                self.root_command(master, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
 
             # We can bless now, and launch a clone
             blessed = self.bless(master)
@@ -509,12 +523,13 @@ log.close()
             # Hoard so dropall makes a splash
             assert vmsctl.full_hoard()
 
-            # Now dropall! (agent should help significantly here)
-            before = vmsctl.get_current_memory()
-            vmsctl.dropall()
-            after = vmsctl.get_current_memory()
-            assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
-            log.info("Agent helped to drop %d -> %d pages." % (before, after))
+            if self.__agent_can_dropall():
+                # Now dropall! (agent should help significantly here)
+                before = vmsctl.get_current_memory()
+                vmsctl.dropall()
+                after = vmsctl.get_current_memory()
+                assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
+                log.info("Agent helped to drop %d -> %d pages." % (before, after))
 
             # VM is not dead...
             self.root_command(launched, "ps aux")

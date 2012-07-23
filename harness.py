@@ -291,7 +291,8 @@ class VmsctlInterface(object):
     def full_hoard(self, rate = '25', wait_seconds = 120, threshold = 0.9):
         self.launch_hoard(rate)
         tries = 0
-        while float(self.get_current_memory()) <= (threshold * float(self.get_max_memory())):
+        maxmem = self.get_max_memory()
+        while float(self.get_current_memory()) <= (threshold * float(maxmem)):
             time.sleep(1)
             tries += 1
             if tries >= wait_seconds:
@@ -346,8 +347,8 @@ def auto_install_agent(server, config, distro = None):
     if jenkins_download is None:
         raise RuntimeError("Could not download latest agent from jenkins")
     ip = get_addrs(server)[0]
-    p = subprocess.Popen('REMOTE="-i %s %s@%s sudo" /bin/bash %s Agent-1 %s '\
-                          'vms-agent' % (key, user, ip, jenkins_download, distro), 
+    p = subprocess.Popen('REMOTE="-i %s %s@%s sudo" /bin/bash %s Agent-%s %s '\
+                          'vms-agent' % (key, user, ip, jenkins_download, config.agent_version, distro), 
                           shell=True)
     (stdout, stderr) = p.communicate()
     remove_jenkins_deploy_script(jenkins_download)
