@@ -3,8 +3,6 @@ import socket
 import unittest
 import time
 
-from gridcentric.nova.client.exceptions import HttpException
-
 import harness
 
 from logger import log
@@ -64,7 +62,7 @@ class TestMigration(unittest.TestCase):
         log.info('Expecting Migration %s to %s to fail',
                  str(self.server.id), dest)
         self.breadcrumbs.add('pre expected fail migration to %s' % dest)
-        e = harness.assert_raises(HttpException,
+        e = harness.assert_raises(self.client.gcapi.exception,
                                   self.client.gcapi.migrate_instance,
                                   self.server.id, dest)
         assert e.code == 500
