@@ -209,9 +209,7 @@ class SecureRootShell(SecureShell):
 
 class HostSecureShell(SecureShell):
     def __init__(self, host, config):
-        self.host = host
-        self.key_path = config.host_key_path
-        self.user = config.host_user
+        SecureShell.__init__(self, host, config)
         # This is a good choice as long as we launch tests on Ubuntu hosts
         self.alloc_tty = False
 
