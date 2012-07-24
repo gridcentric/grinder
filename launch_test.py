@@ -3,15 +3,10 @@ import unittest
 import logging
 import os
 
-from gridcentric.nova.client.exceptions import HttpException
-
 import harness
 
 from logger import log
 from config import default_config
-
-if default_config.openstack_version == 'essex':
-    from novaclient.exceptions import ClientException
 
 import pytest
 
@@ -99,9 +94,11 @@ class TestLaunch(object):
         assert len(blessed_list) == 1
         blessed = blessed_list[0]
         assert blessed['id'] != master.id
-        # In essex, the uuid takes the place of the id for instances.
-        if self.config.openstack_version != 'essex':
+
+        # Post-essex, the uuid takes the place of the id for instances.
+        if self.config.openstack_version == 'diablo':
             assert blessed['uuid'] != master.uuid
+
         assert str(blessed['metadata']['blessed_from']) == str(master.id)
         assert blessed['name'] != master.name
         assert master.name in blessed['name']
@@ -126,8 +123,8 @@ class TestLaunch(object):
         launched = launched_list[0]
         assert launched['id'] != blessed.id
 
-        # In essex, the uuid takes the place of the id for instances.
-        if self.config.openstack_version != 'essex':
+        # Post-essex, the uuid takes the place of the id for instances.
+        if self.config.openstack_version == 'diablo':
             assert launched['uuid'] != blessed.uuid
 
         assert str(self.client.servers.get(launched['id']).metadata['launched_from']) == str(blessed.id)
@@ -163,7 +160,7 @@ class TestLaunch(object):
     def test_launch_master(self):
         master = self.boot_master()
 
-        e = harness.assert_raises(HttpException, self.launch, master)
+        e = harness.assert_raises(self.gcapi.exception, self.launch, master)
         assert e.code == 500
 
         # Master should still be alive and well at this point.
@@ -176,7 +173,7 @@ class TestLaunch(object):
     def test_discard_master(self):
         master = self.boot_master()
 
-        e = harness.assert_raises(HttpException, self.discard, master)
+        e = harness.assert_raises(self.gcapi.exception, self.discard, master)
         assert e.code == 500
 
         # Master should still be alive and well at this point.
@@ -258,7 +255,7 @@ class TestLaunch(object):
         master = self.boot_master()
         blessed = self.bless(master)
         launched1 = self.launch(blessed)
-        e = harness.assert_raises(HttpException, self.discard, blessed)
+        e = harness.assert_raises(self.gcapi.exception, self.discard, blessed)
         assert e.code == 500
         # Make sure that we can still launch after a failed discard.
         launched2 = self.launch(blessed)
@@ -270,17 +267,17 @@ class TestLaunch(object):
     def test_cannot_delete_blessed(self):
         master = self.boot_master()
         blessed = self.bless(master)
-        if self.config.openstack_version == 'essex':
-            # In Essex, attempting to delete a blessed instance raises a
-            # ClientException in novaclient.
-            e = harness.assert_raises(ClientException, blessed.delete)
-            assert e.code == 409
-        else:
+        if self.config.openstack_version == 'diablo':
             # blessed.delete does not fail per se b/c it's nova compute that can't
             # handle the delete of a BLESSED instance. Hence, if nova compute were
             # buggy and did indeed delete the BLESSED instance, then we might not
             # catch it because the buggy deletion races with the launch below.
             blessed.delete()
+        else:
+            # Post-essex, attempting to delete a blessed instance raises a
+            # self.gcapi.exception in novaclient.
+            e = harness.assert_raises(self.gcapi.exception, blessed.delete)
+            assert e.code == 409
 
         blessed.get()
         assert blessed.status == 'BLESSED'

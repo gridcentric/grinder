@@ -14,7 +14,6 @@ import shutil
 
 import novaclient.exceptions
 
-from gridcentric.nova.client.client import NovaClient
 from novaclient.v1_1.client import Client
 from novaclient.v1_1.servers import Server
 from subprocess import PIPE
@@ -25,46 +24,94 @@ from config import default_config
 # This is set by pytest_runtest_setup in conftest.py.
 test_name = ''
 
+# This class serves as an adaptor for different versions of the API.
+# In Diablo, we ship a special gc-api tool that can be used to interact
+# directly with the Gridcentric API endpoints. From Essex onwards, the
+# novaclient-gridcentric package is capable of directly extending the
+# novaclient tools with Gridcentric hooks. For simplicity, we generally
+# write to the older API, then have this class translate to the newer
+# extensions.
+
+class NovaClientGcApi(object):
+    def __init__(self, novaclient):
+        self.novaclient = novaclient
+
+    def discard_instance(self, *args, **kwargs):
+        return self.novaclient.gridcentric.discard(*args, **kwargs)
+
+    def launch_instance(self, *args, **kwargs):
+        params = kwargs.get('params', {})
+        guest  = params.get('guest', {})
+        target = params.get('target', "0")
+        return map(lambda x: x._info, self.novaclient.gridcentric.launch(*args, target=target, guest_params=guest))
+
+    def bless_instance(self, *args, **kwargs):
+        return map(lambda x: x._info, self.novaclient.gridcentric.bless(*args, **kwargs))
+
+    def list_blessed_instances(self, *args, **kwargs):
+        return map(lambda x: x._info, self.novaclient.gridcentric.list_blessed(*args, **kwargs))
+
+    def list_launched_instances(self, *args, **kwargs):
+        return map(lambda x: x._info, self.novaclient.gridcentric.list_launched(*args, **kwargs))
+
+    def migrate_instance(self, *args, **kwargs):
+        return self.novaclient.gridcentric.migrate(*args, **kwargs)
+
 def create_gcapi_client(config):
     '''Creates a NovaClient from the environment variables.'''
-    # If we're on essex, we'll need to talk to the v2 authentication
+    # If we're >= Essex, we'll need to talk to the v2 authentication
     # system, which requires us to provide a service_type as a
     # target. Otherwise fall back to v1 authentication method.
-    if config.openstack_version == 'essex':
-        return NovaClient(auth_url=os.environ['OS_AUTH_URL'],
-                          user=os.environ['OS_USERNAME'],
-                          apikey=os.environ['OS_PASSWORD'],
-                          project=os.environ['OS_TENANT_NAME'],
-                          default_version=os.environ.get('NOVA_VERSION', 'v2.0'))
-    else:
+    if config.openstack_version == 'diablo':
+        # Return the gridcentric packaged client (default is not extensible).
+        from gridcentric.nova.client.client import NovaClient
         return NovaClient(auth_url=os.environ['NOVA_URL'],
                           user=os.environ['NOVA_USERNAME'],
                           apikey=os.environ['NOVA_API_KEY'],
                           project=os.environ.get('NOVA_PROJECT_ID'),
                           default_version=os.environ.get('NOVA_VERSION', 'v1.1'))
 
+    else:
+        # Return the gridcentric extensions from the standard client.
+        novaclient = create_nova_client(config)
+        return NovaClientGcApi(novaclient)
+
 def create_nova_client(config):
     '''Creates a nova Client from the environment variables.'''
-    # If we're on essex, we'll need to talk to the v2 authentication
+    # If we're >= Essex, we'll need to talk to the v2 authentication
     # system, which requires us to provide a service_type as a
     # target. Otherwise fall back to v1 authentication method.
-    if config.openstack_version == 'essex':
-        return Client(username=os.environ['OS_USERNAME'],
-                      api_key=os.environ['OS_PASSWORD'],
-                      project_id=os.environ['OS_TENANT_NAME'],
-                      auth_url=os.environ['OS_AUTH_URL'],
-                      service_type='compute')
-    else:
+    if config.openstack_version == 'diablo':
         return Client(username=os.environ['NOVA_USERNAME'],
                       api_key=os.environ['NOVA_API_KEY'],
                       project_id=os.environ['NOVA_PROJECT_ID'],
                       auth_url=os.environ['NOVA_URL'],
                       service_type='compute')
+    else:
+        from novaclient import shell
+        extensions = shell.OpenStackComputeShell()._discover_extensions("1.1")
+        return Client(extensions=extensions,
+                      username=os.environ['OS_USERNAME'],
+                      api_key=os.environ['OS_PASSWORD'],
+                      project_id=os.environ['OS_TENANT_NAME'],
+                      auth_url=os.environ['OS_AUTH_URL'],
+                      service_type=os.environ['NOVA_SERVICE_TYPE'],
+                      service_name=os.environ['NOVA_SERVICE_NAME'])
+
+def find_exception(config):
+    if config.openstack_version == 'diablo':
+        from gridcentric.nova.client.exceptions import HttpException
+        return HttpException
+    else:
+        from novaclient.exceptions import ClientException
+        return ClientException
 
 def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''
     client = create_nova_client(config)
-    setattr(client, 'gcapi', create_gcapi_client(config))
+    gcapi  = create_gcapi_client(config)
+    setattr(gcapi, 'exception', find_exception(config))
+    setattr(client, 'gcapi', gcapi)
     return client
 
 class SecureShell(object):
@@ -205,14 +252,14 @@ class VmsctlInterface(object):
 
     def __osid_to_vmsid(self, host):
         shell = HostSecureShell(host, self.config)
-        if self.config.openstack_version == 'essex':
-            (rc, stdout, stderr) = shell.call(
-                    "ps aux | grep qemu-system | grep %s | grep -v ssh | awk '{print $2}'" %
-                        self.osid)
-        else:
+        if self.config.openstack_version == 'diablo':
             (rc, stdout, stderr) = shell.call(
                     "ps aux | grep qemu-system | grep %08x | grep -v ssh | awk '{print $2}'" %
                         int(self.osid))
+        else:
+            (rc, stdout, stderr) = shell.call(
+                    "ps aux | grep qemu-system | grep %s | grep -v ssh | awk '{print $2}'" %
+                        self.osid)
         if rc != 0:
             raise VmsctlLookupError("Openstack ID %s could not be matched to a VMS ID on "\
                                     "host %s." % (str(self.osid), host))
