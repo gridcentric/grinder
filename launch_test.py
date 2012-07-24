@@ -315,6 +315,8 @@ class TestLaunch(object):
         self.delete(master)
 
     def test_launch_with_params(self):
+        if int(self.config.agent_version) < 1:
+            pytest.skip('Need agent version 1 for guest parameters.')
 
         params_script = """#!/usr/bin/env python
 import sys
