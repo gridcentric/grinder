@@ -555,7 +555,7 @@ class Breadcrumbs(object):
     def __init__(self, shell):
         self.shell = shell
         self.trail = []
-        self.filename = '/tmp/test-breadcrumbs-%d' % random.randint(0, 1 << 32)
+        self.filename = '/dev/shm/test-breadcrumbs-%d' % random.randint(0, 1<<32)
 
     class Snapshot(object):
         def __init__(self, breadcrumbs):
