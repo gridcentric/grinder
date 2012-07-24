@@ -121,9 +121,10 @@ class SecureShell(object):
         self.user = config.guest_user
         # By default ssh does not allocate a pseudo-tty (if asked to exec a
         # single command, from our harness). However, some programs may require
-        # tty, e.g. sudo on CentOS 6.3. Assume a tty is needed unless
-        # explicitly disabled, as in cases in which we want to manage stdin
-        self.alloc_tty = True
+        # tty, e.g. sudo on CentOS 6.3. If we're running on CentOS, assume a tty
+        # is needed unless explicitly disabled, as in cases in which we want to
+        # manage stdin
+        self.alloc_tty = config.guest == 'centos'
 
     def ssh_opts(self, use_tty):
         if use_tty:
