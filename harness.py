@@ -288,9 +288,12 @@ class VmsctlInterface(object):
                                     (str(args), e.strerror))
 
     def __set_call(self, args):
+        if self.config.parse_vms_version() <= (2,3):
+            expected_rc = 1
+        else:
+            expected_rc = 0
         (rc, stdout, stderr) = self.__do_call(args)
-        # Calls that set a parameter return a 1
-        if rc == 0:
+        if rc == expected_rc:
             return stdout
         raise VmsctlExecError("Set param %s for VMS ID %s to %s failed. "\
                               "RC: %s\nOutput:\n%s" % (key, self.vmsid, 

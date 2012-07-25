@@ -475,8 +475,8 @@ log.close()
     # 2.3, we cannot perform dropall.
     def __agent_can_dropall(self):
         agent = int(self.config.agent_version)
-        (major, minor) = [ int(x) for x in self.config.vms_version.split('.') ]
-        return (agent >= 1) and (major >= 2) and (minor >= 4)
+        (major, minor) = self.config.parse_vms_version()
+        return (agent >= 1) and ((major, minor) >= (2, 4))
 
     # Test agent-0 with vms2.4 and agent-1 with vms2.3
     def test_cross_agent(self):

@@ -45,4 +45,8 @@ class Config(object):
             hostname = id_to_hostname(tenant_id, hostId)
         return [host for host in self.hosts if host != hostname]
 
+    def parse_vms_version(self):
+        (major, minor) = [ int(x) for x in self.vms_version.split('.')[:2] ]
+        return (major, minor)
+
 default_config = Config()
