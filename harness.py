@@ -214,6 +214,24 @@ class HostSecureShell(SecureShell):
         # This is a good choice as long as we launch tests on Ubuntu hosts
         self.alloc_tty = False
 
+    def get_vmsfs_stats(self, genid = None):
+        if genid is None:
+            path = '/sys/fs/vmsfs/stats'
+        else:
+            path = '/sys/fs/vmsfs/%s' % genid
+        (rc, stdout, stderr) = self.call('sudo cat %s' % path)
+        if rc != 0:
+            raise Exception("sudo cat %s failed with rc %d\nStderr: %s"
+                             % (path, rc, stderr))
+        # Post-process
+        lines = [ x.strip() for x in stdout.split('\n')[:-1] ]
+        statsdict = {}
+        for line in lines:
+            m = re.match('([a-z_]+): ([0-9]+) -', line)
+            (key, value) = m.groups()
+            statsdict[key] = long(value)
+        return statsdict
+
 class VmsctlExecError(Exception):
     pass
 
@@ -295,8 +313,20 @@ class VmsctlInterface(object):
         (rc, stdout, stderr) = self.__do_call(args)
         if rc == expected_rc:
             return stdout
-        else:
-            raise VmsctlExecError("Set (%s) returned '%d': %s" % (str(args), rc, stderr))
+        raise VmsctlExecError("Set call %s failed. "\
+                              "RC: %s\nOutput:\n%s" % (str(args), 
+                                                       str(rc), stderr))
+    def __action_call(self, action):
+        (rc, stdout, stderr) = self.__do_call([action, self.vmsid])
+        if rc != 0:
+            raise VmsctlExecError("Action %s on ID %s RC %d.\nStdout: %s"
+                                    % (action, str(self.vmsid), rc, stderr))
+
+    def pause(self):
+        self.__action_call("pause")
+
+    def unpause(self):
+        self.__action_call("unpause")
 
     def set_param(self, key, value):
         self.__set_call(["set", self.vmsid, key, str(value)])
@@ -359,6 +389,10 @@ class VmsctlInterface(object):
                 return eval(' '.join(lines[1:]))
         raise VmsctlExecError("Get info for VMS ID %s failed. RC: %s\nOutput:\n%s" %
                                 (self.vmsid, str(rc), stderr))
+
+    def get_generation(self):
+        info = self.info()
+        return info['generation']
 
     def match_expected_params(self, expected):
         info = self.info()
