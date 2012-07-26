@@ -86,7 +86,10 @@ class TestLaunch(object):
                 stdout = [ x.strip('\r') for x  in _stdout.split('\n')[:-1] ]
                 assert stdout == expected_stdout
         master.breadcrumbs.add("Root command %s" % str(cmd))
-         
+
+    def drop_caches(self, vm):
+        self.root_command(vm, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
+
     def bless(self, master):
         log.info('Blessing %s', str(master.id))
         master.breadcrumbs.add('Pre bless')
@@ -522,7 +525,7 @@ log.close()
             if self.__agent_can_dropall():
                 # Sometimes dkms and depmod will take over a ton of memory in the page
                 # cache. Throw that away so it can be freed later by dropall
-                self.root_command(master, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
+                self.drop_caches(master)
 
             # We can bless now, and launch a clone
             blessed = self.bless(master)
