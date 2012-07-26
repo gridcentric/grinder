@@ -380,7 +380,7 @@ log.close()
         elif distro == 'centos':
             self.root_command(vm, "rpm -qa | grep vms-agent")
         self.root_command(vm, "pidof vmsagent")
-        
+
     def test_agent_double_install(self, img_distro_user):
         (image, distro, user) = img_distro_user
         save_user = self.config.guest_user
@@ -401,7 +401,7 @@ log.close()
             self.delete(master)
         finally:
             self.config.guest_user = save_user
-        
+
     def test_agent_dkms(self, img_distro_user):
         if self.config.agent_version == '0':
             pytest.skip("Agent version 0 does not use dkms")
@@ -436,7 +436,7 @@ log.close()
             self.delete(master)
         finally:
             self.config.guest_user = save_user
-        
+
     def test_agent_install_remove_install(self, img_distro_user):
         (image, distro, user) = img_distro_user
         save_user = self.config.guest_user
@@ -536,7 +536,7 @@ log.close()
             # For a single clone all pages fetched become sharing nominees.
             # We want to drop them anyways since they're not really shared
             vmsctl.set_flag("eviction.dropshared")
-            # We want to see the full effect of hoarding, let's not 
+            # We want to see the full effect of hoarding, let's not
             # bypass zeros
             vmsctl.clear_flag("zeros.enabled")
             # Avoid any chance of eviction other than zero dropping
