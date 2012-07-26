@@ -295,9 +295,21 @@ class VmsctlInterface(object):
         (rc, stdout, stderr) = self.__do_call(args)
         if rc == expected_rc:
             return stdout
-        raise VmsctlExecError("Set param %s for VMS ID %s to %s failed. "\
-                              "RC: %s\nOutput:\n%s" % (key, self.vmsid, 
-                                                    str(value), str(rc), stderr))
+        raise VmsctlExecError("Set call %s failed. "\
+                              "RC: %s\nOutput:\n%s" % (str(args), 
+                                                       str(rc), stderr))
+    def __action_call(self, action):
+        (rc, stdout, stderr) = self.__do_call([action, self.vmsid])
+        if rc != 0:
+            raise VmsctlExecError("Action %s on ID %s RC %d.\nStdout: %s"
+                                    % (action, str(self.vmsid), rc, stderr))
+
+    def pause(self):
+        self.__action_call("pause")
+
+    def unpause(self):
+        self.__action_call("unpause")
+
     def set_param(self, key, value):
         self.__set_call(["set", self.vmsid, key, str(value)])
 
