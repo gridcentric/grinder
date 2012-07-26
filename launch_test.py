@@ -572,6 +572,102 @@ log.close()
         finally:
             self.config.guest_user = save_user
 
+    # We will launch clones until SHARE_COUNT hit the same host */
+    SHARE_COUNT = 2
+    # When share-hoarding across a bunch of stopped clones, we expect
+    # the resident to allocated ratio to SHARE_RATIO * num of clones
+    # i.e. for two clones, 80% more resident than allocated.
+    SHARE_RATIO = 0.9
+
+    def test_sharing(self):
+        master = self.boot_master()
+        blessed = self.bless(master)
+
+        # Launch until we have SHARE_COUNT clones on one host
+        hostdict = {}
+        clonelist = []
+        while True:
+            clone = self.launch(blessed)
+            # Surely a simpler way to do this
+            vmsctl = harness.VmsctlInterface(clone, self.config)
+            clonelist.append((clone, vmsctl))
+            host = vmsctl.host
+            (hostcount, host_clone_list) = hostdict.get(host, (0, []))
+            hostcount += 1
+            host_clone_list.append((clone, vmsctl))
+            hostdict[host] = (hostcount, host_clone_list)
+            if hostcount == self.SHARE_COUNT:
+                break
+
+        # Figure out the generation ID
+        genid = clonelist[0][1].get_generation()
+        for (clone, vmsctl) in clonelist:
+            assert vmsctl.get_generation() == genid
+
+        # The last added clone pushed its host to the expected count
+        sharinghost = clonelist[-1][1].host
+        (hostcount, sharingclones) = hostdict[sharinghost]
+        assert hostcount == self.SHARE_COUNT
+
+        # Set all these guys up
+        for (clone, vmsctl) in sharingclones:
+            vmsctl.pause()
+            vmsctl.set_flag("share.enabled")
+            vmsctl.set_flag("share.onfetch")
+            # We want it to fetch and share zero pages as well. We want the
+            # full hoard to complete up to the max footprint. Otherwise our
+            # arithmetic below will be borked
+            vmsctl.clear_flag("zeros.enabled")
+            vmsctl.clear_target()
+
+        # Make them hoard
+        for (clone, vmsctl) in sharingclones:
+            assert vmsctl.full_hoard()
+
+        # There should be significant sharing going on now
+        ssh = harness.HostSecureShell(sharinghost, self.config)
+        stats = ssh.get_vmsfs_stats(genid)
+        resident        = stats['cur_resident']
+        allocated       = stats['cur_allocated']
+        expect_ratio    = float(self.SHARE_COUNT) * self.SHARE_RATIO
+        real_ratio      = float(resident) / float(allocated)
+        log.debug("For %d clones on host %s: resident %d allocated %d ratio %f expect %f"
+                    % (self.SHARE_COUNT, sharinghost, resident, allocated, real_ratio, expect_ratio))
+        assert real_ratio > expect_ratio
+
+        # Release the brakes on the clones and assert some cow happened
+        for (clone, vmsctl) in sharingclones:
+            vmsctl.unpause()
+        stats = ssh.get_vmsfs_stats(genid)
+        assert stats['sh_cow'] > 0
+
+        # Get into one clone and cause significant CoW
+        (clone, vmsctl) = sharingclones[0]
+        # Make room
+        self.drop_caches(clone)
+        # Figure out the right place where tmpfs is mounted
+        if self.config.guest == 'ubuntu':
+            tmpfs = '/run/shm'
+        else:
+            tmpfs = '/dev/shm'
+        zerofile = os.path.join(tmpfs, "file")
+        # Calculate file size, 256 MiB or 90% of the max
+        maxmem = vmsctl.get_max_memory()
+        target = min(256*256, int(0.9 * float(maxmem)))
+        # The tmpfs should be allowed to fit the file plus 4MiBs of headroom (inodes and blah)
+        tmpfs_size = (target + (256*4)) * 4096
+        self.root_command(clone, "mount -o remount,size=%d %s" % (tmpfs_size, tmpfs))
+        # And do it
+        self.root_command(clone, "dd if=/dev/zero of=%s bs=4k count=%d" % (zerofile, target))
+        stats = ssh.get_vmsfs_stats(genid)
+        assert stats['sh_cow'] > target
+
+        # Clean up
+        for (clone, vmsctl) in clonelist:
+            self.delete(clone)
+        self.discard(blessed)
+        self.discard(master)
+
 def pytest_generate_tests(metafunc):
     if "img_distro_user" in metafunc.funcargnames:
         if metafunc.function.__name__ == "test_agent_hoard_dropall":
