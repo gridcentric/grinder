@@ -372,6 +372,10 @@ class VmsctlInterface(object):
         raise VmsctlExecError("Get info for VMS ID %s failed. RC: %s\nOutput:\n%s" %
                                 (self.vmsid, str(rc), stderr))
 
+    def get_generation(self):
+        info = self.info()
+        return info['generation']
+
     def match_expected_params(self, expected):
         info = self.info()
         for (k,v) in expected.items():
