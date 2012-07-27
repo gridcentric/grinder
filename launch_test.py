@@ -658,7 +658,7 @@ log.close()
         tmpfs_size = (target + (256*4)) * 4096
         self.root_command(clone, "mount -o remount,size=%d %s" % (tmpfs_size, tmpfs))
         # And do it
-        self.root_command(clone, "dd if=/dev/zero of=%s bs=4k count=%d" % (zerofile, target))
+        self.root_command(clone, "dd if=/dev/urandom of=%s bs=4k count=%d" % (zerofile, target))
         stats = ssh.get_vmsfs_stats(genid)
         assert stats['sh_cow'] > target
 
