@@ -576,8 +576,8 @@ log.close()
     SHARE_COUNT = 2
     # When share-hoarding across a bunch of stopped clones, we expect
     # the resident to allocated ratio to SHARE_RATIO * num of clones
-    # i.e. for two clones, 80% more resident than allocated.
-    SHARE_RATIO = 0.9
+    # i.e. for two clones, 60% more resident than allocated.
+    SHARE_RATIO = 0.8
 
     def test_sharing(self):
         master = self.boot_master()
