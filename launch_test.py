@@ -683,7 +683,7 @@ log.close()
         for (clone, vmsctl) in clonelist:
             self.delete(clone)
         self.discard(blessed)
-        self.discard(master)
+        self.delete(master)
 
 def pytest_generate_tests(metafunc):
     if "img_distro_user" in metafunc.funcargnames:
