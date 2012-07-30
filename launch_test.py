@@ -62,7 +62,7 @@ class TestLaunch(object):
         self.gcapi.discard_instance(server.id)
         harness.wait_while_exists(server)
 
-    def boot_master(self, image = None, has_agent = True):
+    def boot_master(self, image=None, has_agent=True):
         conf = self.config
         conf.guest_has_agent = has_agent
         master = harness.boot(self.client, harness.test_name, conf, image)
@@ -73,7 +73,7 @@ class TestLaunch(object):
         setattr(master, 'breadcrumbs', breadcrumbs)
         return master
 
-    def root_command(self, master, cmd, expected_rc = None, expected_stdout = None):
+    def root_command(self, master, cmd, expected_rc=None, expected_stdout=None):
         ip = harness.get_addrs(master)[0]
         ssh = harness.SecureRootShell(ip, self.config)
         if expected_rc is None and expected_stdout is None:
@@ -404,7 +404,7 @@ log.close()
         self.config.guest_user = user
 
         try:
-            master = self.boot_master(image, has_agent = False)
+            master = self.boot_master(image, has_agent=False)
             # Drop package, install it, trivially ensure
             harness.auto_install_agent(master, self.config, distro)
             master.breadcrumbs.add("Installed latest agent")
@@ -428,7 +428,7 @@ log.close()
         self.config.guest_user = user
 
         try:
-            master = self.boot_master(image, has_agent = False)
+            master = self.boot_master(image, has_agent=False)
 
             # Drop package, install it, trivially ensure
             harness.auto_install_agent(master, self.config, distro)
@@ -444,7 +444,7 @@ log.close()
             self.check_agent_running(master, distro)
 
             # Check a single new blob exists
-            self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout = ['1'])
+            self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout=['1'])
             # Check that it is good enough even if we kneecap dkms and modules
             self.root_command(master, "rm -f /usr/sbin/dkms /sbin/insmod /sbin/modprobe")
             self.root_command(master, "refresh-vms")
@@ -460,7 +460,7 @@ log.close()
         self.config.guest_user = user
 
         try:
-            master = self.boot_master(image, has_agent = False)
+            master = self.boot_master(image, has_agent=False)
 
             # Drop package, install it, trivially ensure
             harness.auto_install_agent(master, self.config, distro)
@@ -472,7 +472,7 @@ log.close()
                 self.root_command(master, "dpkg -r vms-agent")
             elif distro == 'centos':
                 self.root_command(master, "rpm -e vms-agent")
-            self.root_command(master, "stat /var/lib/vms", expected_rc = 1)
+            self.root_command(master, "stat /var/lib/vms", expected_rc=1)
             master.breadcrumbs.add("Removed latest agent")
 
             # Re-install
@@ -506,7 +506,7 @@ log.close()
         else:
             self.config.agent_version = '1'
         try:
-            master = self.boot_master("oneiric-agent-ready", has_agent = False)
+            master = self.boot_master("oneiric-agent-ready", has_agent=False)
 
             # Drop package, install it, trivially ensure
             harness.auto_install_agent(master, self.config, self.config.guest)
@@ -532,7 +532,7 @@ log.close()
         self.config.guest_user = user
 
         try:
-            master = self.boot_master(image, has_agent = False)
+            master = self.boot_master(image, has_agent=False)
 
             # Drop package, install it, trivially ensure
             harness.auto_install_agent(master, self.config, distro)
@@ -575,7 +575,7 @@ log.close()
                 before = vmsctl.get_current_memory()
                 vmsctl.dropall()
                 after = vmsctl.get_current_memory()
-                assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
+                assert (float(before) * self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
                 log.info("Agent helped to drop %d -> %d pages." % (before, after))
 
             # VM is not dead...
@@ -644,10 +644,10 @@ log.close()
         # There should be significant sharing going on now
         ssh = harness.HostSecureShell(sharinghost, self.config)
         stats = ssh.get_vmsfs_stats(genid)
-        resident        = stats['cur_resident']
-        allocated       = stats['cur_allocated']
-        expect_ratio    = float(self.SHARE_COUNT) * self.SHARE_RATIO
-        real_ratio      = float(resident) / float(allocated)
+        resident = stats['cur_resident']
+        allocated = stats['cur_allocated']
+        expect_ratio = float(self.SHARE_COUNT) * self.SHARE_RATIO
+        real_ratio = float(resident) / float(allocated)
         log.debug("For %d clones on host %s: resident %d allocated %d ratio %f expect %f"
                     % (self.SHARE_COUNT, sharinghost, resident, allocated, real_ratio, expect_ratio))
         assert real_ratio > expect_ratio
@@ -670,9 +670,9 @@ log.close()
         zerofile = os.path.join(tmpfs, "file")
         # Calculate file size, 256 MiB or 90% of the max
         maxmem = vmsctl.get_max_memory()
-        target = min(256*256, int(0.9 * float(maxmem)))
+        target = min(256 * 256, int(0.9 * float(maxmem)))
         # The tmpfs should be allowed to fit the file plus 4MiBs of headroom (inodes and blah)
-        tmpfs_size = (target + (256*4)) * 4096
+        tmpfs_size = (target + (256 * 4)) * 4096
         self.root_command(clone, "mount -o remount,size=%d %s" % (tmpfs_size, tmpfs))
         # And do it
         self.root_command(clone, "dd if=/dev/urandom of=%s bs=4k count=%d" % (zerofile, target))
@@ -703,8 +703,8 @@ def pytest_generate_tests(metafunc):
                                             'Centos63 32bit',
                                             'Centos63 64bit'
                                 ])
-        elif metafunc.function.__name__ in [ "test_agent_double_install",\
-                                             "test_agent_dkms",\
+        elif metafunc.function.__name__ in [ "test_agent_double_install", \
+                                             "test_agent_dkms", \
                                              "test_agent_install_remove_install" ]:
             metafunc.parametrize("img_distro_user", [
                                 ("oneiric-agent-ready", "ubuntu", "ubuntu"),
