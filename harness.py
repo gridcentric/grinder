@@ -1,6 +1,6 @@
 import hashlib
 import inspect
-import os 
+import os
 import random
 import shlex
 import socket
@@ -41,7 +41,7 @@ class NovaClientGcApi(object):
 
     def launch_instance(self, *args, **kwargs):
         params = kwargs.get('params', {})
-        guest  = params.get('guest', {})
+        guest = params.get('guest', {})
         target = params.get('target', "0")
         return map(lambda x: x._info, self.novaclient.gridcentric.launch(*args, target=target, guest_params=guest))
 
@@ -109,7 +109,7 @@ def find_exception(config):
 def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''
     client = create_nova_client(config)
-    gcapi  = create_gcapi_client(config)
+    gcapi = create_gcapi_client(config)
     setattr(gcapi, 'exception', find_exception(config))
     setattr(client, 'gcapi', gcapi)
     return client
@@ -146,7 +146,7 @@ class SecureShell(object):
         if _stdin is not None and _stdin is not PIPE:
             use_tty = False
         log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(use_tty), ' '.join(args))
-        return subprocess.Popen(['ssh'] + self.ssh_opts(use_tty).split() + 
+        return subprocess.Popen(['ssh'] + self.ssh_opts(use_tty).split() +
                                 ['%s@%s' % (self.user, self.host)] + args, **kwargs)
 
     def check_output(self, args, **kwargs):
@@ -162,7 +162,7 @@ class SecureShell(object):
         return stdout, stderr
 
     def call(self, args, **kwargs):
-        input=kwargs.pop('input', None)
+        input = kwargs.pop('input', None)
         if input is not None:
             use_tty = False
         else:
@@ -177,18 +177,18 @@ class SCPError(Exception):
 class TransferChannel(SecureShell):
     def __do_scp(self, source, destination):
         log.debug('scp %s %s %s' % (self.ssh_opts(), source, destination))
-        p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] + 
+        p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] +
                              [destination], stdout=PIPE, stderr=PIPE)
         stdout, stderr = p.communicate()
         if p.returncode != 0:
             raise SCPError("Failed scp transfer %s -> %s\n Stderr: %s" %
                             (source, destination, stderr))
 
-    def put_file(self, local_path, remote_path = ''):
+    def put_file(self, local_path, remote_path=''):
         os.stat(local_path)
         return self.__do_scp(local_path, '%s@%s:%s' % (self.user, self.host, remote_path))
 
-    def get_file(self, remote_path, local_path = '.'):
+    def get_file(self, remote_path, local_path='.'):
         if local_path != '.':
             try:
                 os.stat(local_path)
@@ -214,7 +214,7 @@ class HostSecureShell(SecureShell):
         # This is a good choice as long as we launch tests on Ubuntu hosts
         self.alloc_tty = False
 
-    def get_vmsfs_stats(self, genid = None):
+    def get_vmsfs_stats(self, genid=None):
         if genid is None:
             path = '/sys/fs/vmsfs/stats'
         else:
@@ -239,24 +239,24 @@ class VmsctlLookupError(Exception):
     pass
 
 class VmsctlInterface(object):
-    def __init__(self, target, config = default_config):
+    def __init__(self, target, config=default_config):
         if type(target) in [int, long, unicode, str]:
-            self.osid   = target
+            self.osid = target
         elif isinstance(target, Server):
             if config.openstack_version == "diablo":
-                self.osid   = target._info['id']
+                self.osid = target._info['id']
             else:
-                self.osid   = target.id
+                self.osid = target.id
         else:
             raise ValueError("Bad target %s." % str(type(target)))
         self.config = config
-        self.vmsid  = None
+        self.vmsid = None
 
         # Try to find on which host the instance is located
         for host in self.config.hosts:
             try:
-                self.vmsid  = self.__osid_to_vmsid(host)
-                self.host   = host
+                self.vmsid = self.__osid_to_vmsid(host)
+                self.host = host
                 break
             except VmsctlLookupError:
                 # Try the next one if any
@@ -293,12 +293,12 @@ class VmsctlInterface(object):
         if isinstance(args, str) or isinstance(args, unicode):
             args = args.split()
         if not isinstance(args, list):
-            raise ValueError("Type of args is %s, should be string or list" 
+            raise ValueError("Type of args is %s, should be string or list"
                                 % str(type(args)))
         try:
             log.debug("Calling %s on %s." % (str(args), self.host))
             (rc, stdout, stderr) = self.shell.call(["sudo", "vmsctl"] + args)
-            log.debug("Calling %s on %s\nRC = %d\nStdout: %s\nStderr: %s" % 
+            log.debug("Calling %s on %s\nRC = %d\nStdout: %s\nStderr: %s" %
                         (str(args), self.host, rc, stdout, stderr))
             return (rc, stdout, stderr)
         except Exception as e:
@@ -306,7 +306,7 @@ class VmsctlInterface(object):
                                     (str(args), e.strerror))
 
     def __set_call(self, args):
-        if self.config.parse_vms_version() <= (2,3):
+        if self.config.parse_vms_version() <= (2, 3):
             expected_rc = 1
         else:
             expected_rc = 0
@@ -314,7 +314,7 @@ class VmsctlInterface(object):
         if rc == expected_rc:
             return stdout
         raise VmsctlExecError("Set call %s failed. "\
-                              "RC: %s\nOutput:\n%s" % (str(args), 
+                              "RC: %s\nOutput:\n%s" % (str(args),
                                                        str(rc), stderr))
     def __action_call(self, action):
         (rc, stdout, stderr) = self.__do_call([action, self.vmsid])
@@ -362,13 +362,13 @@ class VmsctlInterface(object):
     def dropall(self):
         self.__set_call(["dropall", self.vmsid])
 
-    def launch_hoard(self, rate = '25'):
+    def launch_hoard(self, rate='25'):
         self.__set_call(["hoard", self.vmsid, str(rate)])
 
     def stop_hoard(self):
         self.set_param("hoard", "0")
 
-    def full_hoard(self, rate = '25', wait_seconds = 120, threshold = 0.9):
+    def full_hoard(self, rate='25', wait_seconds=120, threshold=0.9):
         self.launch_hoard(rate)
         tries = 0
         maxmem = self.get_max_memory()
@@ -396,7 +396,7 @@ class VmsctlInterface(object):
 
     def match_expected_params(self, expected):
         info = self.info()
-        for (k,v) in expected.items():
+        for (k, v) in expected.items():
             val = info.get(str(k), None)
             if val is None:
                 raise LookupError("Queried for unavailable param %s in vmsctl %s" %
@@ -417,14 +417,14 @@ def get_jenkins_deploy_script():
     if rc != 0:
         return None
     return name
-        
+
 def remove_jenkins_deploy_script(name):
     shutil.rmtree(os.path.dirname(name))
 
 # Bring the latest agent from jenkins into the VM
-def auto_install_agent(server, config, distro = None):
-    user    = config.guest_user
-    key     = config.guest_key_path
+def auto_install_agent(server, config, distro=None):
+    user = config.guest_user
+    key = config.guest_key_path
     if distro is None:
         distro = config.guest
     jenkins_download = get_jenkins_deploy_script()
@@ -432,7 +432,7 @@ def auto_install_agent(server, config, distro = None):
         raise RuntimeError("Could not download latest agent from jenkins")
     ip = get_addrs(server)[0]
     p = subprocess.Popen('REMOTE="-i %s %s@%s sudo" /bin/bash %s Agent-%s %s '\
-                          'vms-agent' % (key, user, ip, jenkins_download, config.agent_version, distro), 
+                          'vms-agent' % (key, user, ip, jenkins_download, config.agent_version, distro),
                           shell=True)
     (stdout, stderr) = p.communicate()
     remove_jenkins_deploy_script(jenkins_download)
@@ -485,10 +485,10 @@ def generate_name(prefix):
     if os.getenv("BUILD_NUMBER"):
         suffix = os.getenv("BUILD_NUMBER")
     else:
-        suffix = str(random.randint(0, 1<<32))
+        suffix = str(random.randint(0, 1 << 32))
     return '%s-%s' % (prefix, suffix)
 
-def boot(client, name_prefix, config, image_name = None):
+def boot(client, name_prefix, config, image_name=None):
     name = generate_name(name_prefix)
     flavor = client.flavors.find(name=config.flavor_name)
     if image_name is None:
@@ -509,7 +509,7 @@ def get_addrs(server):
         ips.extend(network)
     return ips
 
-def assert_boot_ok(server, withagent = True):
+def assert_boot_ok(server, withagent=True):
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
     ip = get_addrs(server)[0]
@@ -527,15 +527,36 @@ def assert_raises(exception_type, command, *args, **kwargs):
         command(*args, **kwargs)
         assert False and 'Expected exception of type %s' % exception_type
     except Exception, e:
-        assert type(e) ==  exception_type
+        assert type(e) == exception_type
         log.debug('Got expected exception %s', e)
         return e
+
+def get_iptables_rules(server, host=None, config=default_config):
+    if host == None:
+        # Determine the host from the server.
+        host = config.id_to_hostname(server.tenant_id, server.hostId)
+    host_shell = HostSecureShell(host, config)
+
+    compute_iptables_chain = "nova-compute-local"
+    server_iptables_chain = "nova-compute-inst-%s" % (str(server._info['id']))
+
+    def get_rules(iptables_chain):
+        stdout, stderr = host_shell.check_output("sudo iptables -L %s" % (iptables_chain))
+        rules = stdout.split("\n")[2:]
+        return rules
+    # Check if the server has iptables rules
+    for rule in get_rules(compute_iptables_chain):
+        if server_iptables_chain in rule:
+            # This server has rules defined on this host. Grab the server's rules
+            return get_rules(server_iptables_chain)
+    # Otherwise there are no rules so return an empty list.
+    return []
 
 class Breadcrumbs(object):
     def __init__(self, shell):
         self.shell = shell
         self.trail = []
-        self.filename = '/tmp/test-breadcrumbs-%d' % random.randint(0, 1<<32)
+        self.filename = '/tmp/test-breadcrumbs-%d' % random.randint(0, 1 << 32)
 
     class Snapshot(object):
         def __init__(self, breadcrumbs):

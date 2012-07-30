@@ -50,6 +50,7 @@ class TestMigration(unittest.TestCase):
 
     def migrate(self, host, dest):
         log.info('Migrating %s to %s', str(self.server.id), dest)
+        pre_migrate_iptables = harness.get_iptables_rules(self.server, host)
         self.assert_server_alive(host)
         self.breadcrumbs.add('pre migration to %s' % dest)
         self.client.gcapi.migrate_instance(self.server.id, dest)
@@ -57,6 +58,10 @@ class TestMigration(unittest.TestCase):
         harness.wait_while_status(self.server, 'MIGRATING')
         self.assert_server_alive(dest)
         self.breadcrumbs.add('post migration to %s' % dest)
+
+        # Assert that the iptables rules have been cleaned up.
+        assert [] == harness.get_iptables_rules(self.server, host)
+        assert pre_migrate_iptables == harness.get_iptables_rules(self.server, dest)
 
     def fail_migrate(self, host, dest):
         log.info('Expecting Migration %s to %s to fail',
