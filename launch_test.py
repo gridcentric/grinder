@@ -289,6 +289,23 @@ class TestLaunch(object):
         self.discard(blessed)
         self.delete(master)
 
+    def test_launch_iptables_rules(self):
+
+        master = self.boot_master()
+
+        blessed = self.bless(master)
+        launched = self.launch(blessed)
+
+        # The iptables rules applied to the master should also be applied to the launched
+        # instance.
+        assert harness.get_iptables_rules(master) == harness.get_iptables_rules(launched)
+
+        self.delete(launched)
+        assert [] == harness.get_iptables_rules(launched)
+
+        self.discard(blessed)
+        self.delete(master)
+
     def test_launch_with_target(self):
 
         master = self.boot_master()

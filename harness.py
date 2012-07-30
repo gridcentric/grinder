@@ -531,6 +531,27 @@ def assert_raises(exception_type, command, *args, **kwargs):
         log.debug('Got expected exception %s', e)
         return e
 
+def get_iptables_rules(server, host=None, config=default_config):
+    if host == None:
+        # Determine the host from the server.
+        host = config.id_to_hostname(server.tenant_id, server.hostId)
+    host_shell = HostSecureShell(host, config)
+
+    compute_iptables_chain = "nova-compute-local"
+    server_iptables_chain = "nova-compute-inst-%s" % (str(server._info['id']))
+
+    def get_rules(iptables_chain):
+        stdout, stderr = host_shell.check_output("sudo iptables -L %s" % (iptables_chain))
+        rules = stdout.split("\n")[2:]
+        return rules
+    # Check if the server has iptables rules
+    for rule in get_rules(compute_iptables_chain):
+        if server_iptables_chain in rule:
+            # This server has rules defined on this host. Grab the server's rules
+            return get_rules(server_iptables_chain)
+    # Otherwise there are no rules so return an empty list.
+    return []
+
 class Breadcrumbs(object):
     def __init__(self, shell):
         self.shell = shell
