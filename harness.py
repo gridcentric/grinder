@@ -103,8 +103,8 @@ def find_exception(config):
         from gridcentric.nova.client.exceptions import HttpException
         return HttpException
     else:
-        from novaclient.exceptions import ClientException
-        return ClientException
+        from novaclient.exceptions import BadRequest
+        return BadRequest
 
 def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''

@@ -164,7 +164,7 @@ class TestLaunch(object):
         master = self.boot_master()
 
         e = harness.assert_raises(self.gcapi.exception, self.launch, master)
-        assert e.code == 500
+        assert e.code == 400
 
         # Master should still be alive and well at this point.
         master.get()
