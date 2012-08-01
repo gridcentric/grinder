@@ -177,7 +177,7 @@ class TestLaunch(object):
         master = self.boot_master()
 
         e = harness.assert_raises(self.gcapi.exception, self.discard, master)
-        assert e.code == 500
+        assert e.code == 400
 
         # Master should still be alive and well at this point.
         master.get()
@@ -259,7 +259,7 @@ class TestLaunch(object):
         blessed = self.bless(master)
         launched1 = self.launch(blessed)
         e = harness.assert_raises(self.gcapi.exception, self.discard, blessed)
-        assert e.code == 500
+        assert e.code == 400
         # Make sure that we can still launch after a failed discard.
         launched2 = self.launch(blessed)
         self.delete(launched1)
