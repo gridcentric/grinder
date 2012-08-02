@@ -493,6 +493,10 @@ log.close()
     SHARE_RATIO = 0.8
 
     def test_sharing(self, image_finder):
+        # vms 2.3 and earlier don't have per-generation vmsfs stats.
+        if self.config.parse_vms_version() < (2, 4):
+            pytest.skip("Need vms 2.4 to test sharing")
+
         master = self.boot_master(image_finder)
         blessed = self.bless(master)
 
