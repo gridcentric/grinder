@@ -91,6 +91,10 @@ def create_nova_client(config):
     else:
         from novaclient import shell
         extensions = shell.OpenStackComputeShell()._discover_extensions("1.1")
+        if 'gridcentric' not in [e.name for e in extensions]:
+            raise Exception('You don\'t have the gridcentric extension for the '
+                            'nova client installed. It\'s in the '
+                            'novaclient-gridcentric package.')
         return Client(extensions=extensions,
                       username=os.environ['OS_USERNAME'],
                       api_key=os.environ['OS_PASSWORD'],
