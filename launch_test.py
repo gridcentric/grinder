@@ -563,18 +563,13 @@ log.close()
         (clone, vmsctl) = sharingclones[0]
         # Make room
         self.drop_caches(clone)
-        # Figure out the right place where tmpfs is mounted
-        if self.config.guest == 'ubuntu':
-            tmpfs = '/run/shm'
-        else:
-            tmpfs = '/dev/shm'
-        zerofile = os.path.join(tmpfs, "file")
+        zerofile = os.path.join('/dev/shm/file')
         # Calculate file size, 256 MiB or 90% of the max
         maxmem = vmsctl.get_max_memory()
         target = min(256 * 256, int(0.9 * float(maxmem)))
         # The tmpfs should be allowed to fit the file plus 4MiBs of headroom (inodes and blah)
         tmpfs_size = (target + (256 * 4)) * 4096
-        self.root_command(clone, "mount -o remount,size=%d %s" % (tmpfs_size, tmpfs))
+        self.root_command(clone, "mount -o remount,size=%d /dev/shm" % (tmpfs_size))
         # And do it
         self.root_command(clone, "dd if=/dev/urandom of=%s bs=4k count=%d" % (zerofile, target))
         stats = ssh.get_vmsfs_stats(genid)
