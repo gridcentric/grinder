@@ -558,7 +558,10 @@ def assert_raises(exception_type, command, *args, **kwargs):
         command(*args, **kwargs)
         assert False and 'Expected exception of type %s' % exception_type
     except Exception, e:
-        assert type(e) == exception_type
+        if not isinstance(e, exception_type):
+            log.exception('Expected exception of type %s, got %s instead.' %
+                          (exception_type, type(e)))
+            raise
         log.debug('Got expected exception %s', e)
         return e
 
