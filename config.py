@@ -54,7 +54,7 @@ class Config(object):
         self.default_distros=['cirros']
         # Name to prefix to all of the tests. Defaults to Jenkins-$BUILD_NUMBER
         # if BUILD_NUMBER is set in the env. Otherwise, defaults to
-        # $USER@$HOST-$PID.
+        # $USER@$HOST-$PPID-$PID.
         self.run_name = None
 
         # The images available in Glance for the tests to use. The tests need
@@ -85,7 +85,11 @@ class Config(object):
             if os.getenv('BUILD_NUMBER'):
                 self.run_name = 'Jenkins-%s' % os.getenv('BUILD_NUMBER')
             else:
-                self.run_name = '%s@%s-%d' % (getuser(), gethostname(), os.getpid())
+                pid = os.getpid()
+                ppid = os.getppid()
+                user = getuser()
+                host = gethostname()
+                self.run_name = '%s@%s-%d-%d' % (user, host, ppid, pid)
 
         for image in self.images:
             if image.key == None:
