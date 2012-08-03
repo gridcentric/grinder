@@ -387,6 +387,7 @@ log.close()
             self.root_command(master, "rpm -e vms-agent")
         elif master.image_config.distro == 'cirros':
             self.root_command(master, "/etc/init.d/vmsagent stop")
+            self.root_command(master, "rm -rf /var/lib/vms")
         self.root_command(master, "stat /var/lib/vms", expected_rc = 1)
         master.breadcrumbs.add("Removed latest agent")
 
