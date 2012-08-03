@@ -2,6 +2,9 @@ import inspect
 import os
 import hashlib
 
+from getpass import getuser
+from socket import gethostname
+
 DEFAULT_TIMEOUT = 60
 SOURCE_DIR = os.path.dirname(inspect.getfile(inspect.currentframe()))
 DEFAULT_KEY = os.path.join(SOURCE_DIR, 'openstack-test.key')
@@ -49,6 +52,10 @@ class Config(object):
         # The distro to use for non-distro tests (i.e., tests that aren't
         # sensitive to the distro).
         self.default_distros=['cirros']
+        # Name to prefix to all of the tests. Defaults to Jenkins-$BUILD_NUMBER
+        # if BUILD_NUMBER is set in the env. Otherwise, defaults to
+        # $USER@$HOST-$PID.
+        self.run_name = None
 
         # The images available in Glance for the tests to use. The tests need
         # images of certain distributions for certain architectures; hence the
@@ -74,6 +81,12 @@ class Config(object):
         return list(set([i.distro for i in self.images]))
 
     def post_config(self):
+        if self.run_name == None:
+            if os.getenv('BUILD_NUMBER'):
+                self.run_name = 'Jenkins-%s' % os.getenv('BUILD_NUMBER')
+            else:
+                self.run_name = '%s@%s-%d' % (getuser(), gethostname(), os.getpid())
+
         for image in self.images:
             if image.key == None:
                 image.key = DEFAULT_KEY
