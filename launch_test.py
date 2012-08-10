@@ -259,6 +259,9 @@ class TestLaunch(object):
         assert [] == self.gcapi.list_launched_instances(fake_id)
 
     def test_launch_with_target(self, image_finder):
+        if self.config.parse_vms_version() < (2, 4):
+           pytest.skip('memory target needs vms 2.4 or later')
+
         master = self.boot_master(image_finder)
         blessed = self.bless(master)
 
