@@ -27,10 +27,6 @@ class Config(object):
         # injected key. Instead, we assume that the Image instances have the
         # public key corresponding to Image.guest_key_path.
         self.guest_key_name = 'openstack-test'
-        # Not used.
-        self.guest_key_path = 'Deprecated'
-        # Not used.
-        self.guest_user = 'Deprecated'
         # The version of openstack running on the hosts. Either "diablo" or
         # "essex".
         self.openstack_version = "essex"
