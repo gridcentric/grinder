@@ -27,7 +27,6 @@ def dict_wrapper_list(dict_list):
     return [DictWrapper(d) for d in dict_list]
 
 class TestLaunch(object):
-
     def setup_method(self, method):
         self.config = default_config
         self.client = harness.create_client(self.config)
@@ -62,20 +61,22 @@ class TestLaunch(object):
         self.gcapi.discard_instance(server.id)
         harness.wait_while_exists(server)
 
-    def boot_master(self, image=None, has_agent=True):
-        conf = self.config
-        conf.guest_has_agent = has_agent
-        master = harness.boot(self.client, harness.test_name, conf, image)
-        ip = harness.get_addrs(master)[0]
-        shell = harness.SecureShell(ip, self.config)
-        breadcrumbs = harness.Breadcrumbs(shell)
+    def boot_master(self, image_finder, agent_version=None):
+        image_config = image_finder.find(self.client, self.config)
+        master = harness.boot(self.client, self.config, image_config)
+        breadcrumbs = harness.Breadcrumbs(master)
         breadcrumbs.add('Booted master %s' % master.id)
         setattr(master, 'breadcrumbs', breadcrumbs)
+        if agent_version == None:
+            agent_version = self.config.agent_version
+        # Drop agent package, install it, trivially ensure
+        harness.auto_install_agent(master, self.config.agent_version)
+        master.breadcrumbs.add("Installed agent version %s" % agent_version)
+        harness.check_agent_running(master)
         return master
 
-    def root_command(self, master, cmd, expected_rc=None, expected_stdout=None):
-        ip = harness.get_addrs(master)[0]
-        ssh = harness.SecureRootShell(ip, self.config)
+    def root_command(self, server, cmd, expected_rc = None, expected_stdout = None):
+        ssh = harness.SecureRootShell(server)
         if expected_rc is None and expected_stdout is None:
             ssh.check_output(cmd)
         else:
@@ -85,7 +86,7 @@ class TestLaunch(object):
             if expected_stdout is not None:
                 stdout = [ x.strip('\r') for x  in _stdout.split('\n')[:-1] ]
                 assert stdout == expected_stdout
-        master.breadcrumbs.add("Root command %s" % str(cmd))
+        server.breadcrumbs.add("Root command %s" % str(cmd))
 
     def drop_caches(self, vm):
         self.root_command(vm, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
@@ -106,7 +107,8 @@ class TestLaunch(object):
         assert blessed['name'] != master.name
         assert master.name in blessed['name']
         assert blessed['status'] in ['BUILD', 'BLESSED']
-        blessed = self.client.servers.get(blessed['id'])
+        blessed = harness.get_server(blessed['id'], self.client,
+                                     self.config, master.image_config)
         self.breadcrumb_snapshots[blessed.id] = master.breadcrumbs.snapshot()
         self.wait_for_bless(blessed)
         master.breadcrumbs.add('Post bless, child is %s' % blessed.id)
@@ -135,15 +137,14 @@ class TestLaunch(object):
         assert blessed.name in launched['name']
         assert launched['status'] in ['ACTIVE', 'BUILD']
 
-        launched = self.client.servers.get(launched['id'])
+        launched = harness.get_server(launched['id'], self.client, self.config, blessed.image_config)
         harness.wait_while_status(launched, 'BUILD')
         assert launched.status == status
         if status == 'ACTIVE':
             ip = harness.get_addrs(launched)[0]
-            harness.wait_for_ping(ip)
-            shell = harness.SecureShell(ip, self.config)
-            harness.wait_for_ssh(shell)
-            breadcrumbs = self.breadcrumb_snapshots[blessed.id].instantiate(shell)
+            harness.wait_for_ping(launched)
+            harness.wait_for_ssh(launched)
+            breadcrumbs = self.breadcrumb_snapshots[blessed.id].instantiate(launched)
             breadcrumbs.add('Post launch %s' % launched.id)
             setattr(launched, 'breadcrumbs', breadcrumbs)
         return launched
@@ -160,138 +161,83 @@ class TestLaunch(object):
     def list_blessed_ids(self, id):
         return [blessed.id for blessed in self.list_blessed(id)]
 
-    def test_launch_master(self):
-        master = self.boot_master()
+    def test_bless_launch(self, image_finder):
+        master = self.boot_master(image_finder)
 
+        ### Can't launch master
         e = harness.assert_raises(self.gcapi.exception, self.launch, master)
-        assert e.code == 400
+        assert e.code / 100 == 4 or e.code / 100 == 5
 
-        # Master should still be alive and well at this point.
-        master.get()
-        assert master.status == 'ACTIVE'
-        master.breadcrumbs.add("Alive after launch attempt.")
-
-        self.delete(master)
-
-    def test_discard_master(self):
-        master = self.boot_master()
-
+        ### Can't discard master
         e = harness.assert_raises(self.gcapi.exception, self.discard, master)
-        assert e.code == 400
+        assert e.code / 100 == 4 or e.code / 100 == 5
 
-        # Master should still be alive and well at this point.
-        master.get()
-        assert master.status == 'ACTIVE'
-        master.breadcrumbs.add("Alive after discard attempt.")
-
-        self.delete(master)
-
-    def test_list_blessed_launched_bad_id(self):
-        fake_id = '123412341234'
-        assert fake_id not in [s.id for s in self.client.servers.list()]
-        assert [] == self.gcapi.list_blessed_instances(fake_id)
-        assert [] == self.gcapi.list_launched_instances(fake_id)
-
-    def test_bless_launch(self):
-        master = self.boot_master()
-
+        ### Simple bless and launch
         assert [] == self.list_blessed_ids(master.id)
-        blessed = self.bless(master)
-        assert [blessed.id] == self.list_blessed_ids(master.id)
+        blessed_a = self.bless(master)
+        assert [blessed_a.id] == self.list_blessed_ids(master.id)
 
-        assert [] == self.list_launched_ids(blessed.id)
-        launched = self.launch(blessed)
-        assert [launched.id] == self.list_launched_ids(blessed.id)
+        assert [] == self.list_launched_ids(blessed_a.id)
+        launched_a1 = self.launch(blessed_a)
+        assert [launched_a1.id] == self.list_launched_ids(blessed_a.id)
 
-        launched_addrs = harness.get_addrs(launched)
+        launched_addrs = harness.get_addrs(launched_a1)
         master_addrs = harness.get_addrs(master)
         assert set(launched_addrs).isdisjoint(master_addrs)
 
-        self.delete(launched)
-        self.discard(blessed)
-        self.delete(master)
-
-    def test_multi_bless(self):
-        master = self.boot_master()
-        blessed1 = self.bless(master)
-        # TODO: This wait_for_bless is necessary because there's a race in
-        # blessing when pausing & unpausing qemu. Once we add some
-        # synchronization to nova-gc, we can remove this wait_for_bless.
-        blessed2 = self.bless(master)
-
-        blessed_ids = self.list_blessed_ids(master.id)
-        assert sorted([blessed1.id, blessed2.id]) == sorted(blessed_ids)
-
-        launched1 = self.launch(blessed1)
-        launched2 = self.launch(blessed2)
-
-        assert [launched1.id] == self.list_launched_ids(blessed1.id)
-        assert [launched2.id] == self.list_launched_ids(blessed2.id)
-
-        self.delete(launched1)
-        self.delete(launched2)
-        self.delete(master)
-        self.discard(blessed1)
-        self.discard(blessed2)
-
-    def test_multi_launch(self):
-        master = self.boot_master()
-        blessed = self.bless(master)
-        launched1 = self.launch(blessed)
-        launched2 = self.launch(blessed)
-        launched_ids = self.list_launched_ids(blessed.id)
-        assert sorted([launched1.id, launched2.id]) == sorted(launched_ids)
-        self.delete(launched1)
-        self.delete(launched2)
-        self.discard(blessed)
-        self.delete(master)
-
-    def test_delete_master_before_launch(self):
-        master = self.boot_master()
-        blessed = self.bless(master)
-        self.delete(master)
-        launched = self.launch(blessed)
-        self.delete(launched)
-        self.discard(blessed)
-
-    def test_cannot_discard_blessed_with_launched(self):
-        master = self.boot_master()
-        blessed = self.bless(master)
-        launched1 = self.launch(blessed)
-        e = harness.assert_raises(self.gcapi.exception, self.discard, blessed)
-        assert e.code == 400
-        # Make sure that we can still launch after a failed discard.
-        launched2 = self.launch(blessed)
-        self.delete(launched1)
-        self.delete(launched2)
-        self.discard(blessed)
-        self.delete(master)
-
-    def test_cannot_delete_blessed(self):
-        master = self.boot_master()
-        blessed = self.bless(master)
+        ### Cannot delete blessed
         if self.config.openstack_version == 'diablo':
             # blessed.delete does not fail per se b/c it's nova compute that can't
             # handle the delete of a BLESSED instance. Hence, if nova compute were
             # buggy and did indeed delete the BLESSED instance, then we might not
             # catch it because the buggy deletion races with the launch below.
-            blessed.delete()
+            blessed_a.delete()
         else:
             # Post-essex, attempting to delete a blessed instance raises a
             # self.gcapi.exception in novaclient.
-            e = harness.assert_raises(self.gcapi.exception, blessed.delete)
-            assert e.code == 409
+            e = harness.assert_raises(self.gcapi.exception, blessed_a.delete)
+            assert e.code / 100 == 4
 
-        blessed.get()
-        assert blessed.status == 'BLESSED'
-        launched = self.launch(blessed)
-        self.delete(launched)
-        self.discard(blessed)
+        blessed_a.get()
+        assert blessed_a.status == 'BLESSED'
+
+        ### Multiple blesses
+        blessed_b = self.bless(master)
+
+        blessed_ids = self.list_blessed_ids(master.id)
+        assert sorted([blessed_a.id, blessed_b.id]) == sorted(blessed_ids)
+
+        launched_b1 = self.launch(blessed_b)
+        assert [launched_a1.id] == self.list_launched_ids(blessed_a.id)
+        assert [launched_b1.id] == self.list_launched_ids(blessed_b.id)
+
+        ### Multiple launches
+        launched_a2 = self.launch(blessed_a)
+        launched_ids = self.list_launched_ids(blessed_a.id)
+        assert sorted([launched_a1.id, launched_a2.id]) == sorted(launched_ids)
+
+        ### Delete master before launch
         self.delete(master)
+        launched_a3 = self.launch(blessed_a)
 
-    def test_launch_iptables_rules(self):
+        ### Cannot discard blessed with launched
+        e = harness.assert_raises(self.gcapi.exception, self.discard, blessed_b)
+        assert e.code / 100 == 4 or e.code / 100 == 5
+        # Make sure that we can still launch after a failed discard.
+        launched_b2 = self.launch(blessed_b)
+        self.delete(launched_b1)
+        self.delete(launched_b2)
+        self.discard(blessed_b)
 
-        master = self.boot_master()
+        ### Clean everything else up
+        self.delete(launched_a1)
+        self.delete(launched_a2)
+        self.delete(launched_a3)
+        self.discard(blessed_a)
+
+    def test_launch_iptables_rules(self, image_finder):
+
+        master = self.boot_master(image_finder)
 
         blessed = self.bless(master)
         launched = self.launch(blessed)
@@ -306,9 +252,17 @@ class TestLaunch(object):
         self.discard(blessed)
         self.delete(master)
 
-    def test_launch_with_target(self):
+    def test_list_blessed_launched_bad_id(self, image_finder):
+        fake_id = '123412341234'
+        assert fake_id not in [s.id for s in self.client.servers.list()]
+        assert [] == self.gcapi.list_blessed_instances(fake_id)
+        assert [] == self.gcapi.list_launched_instances(fake_id)
 
-        master = self.boot_master()
+    def test_launch_with_target(self, image_finder):
+        if self.config.parse_vms_version() < (2, 4):
+           pytest.skip('memory target needs vms 2.4 or later')
+
+        master = self.boot_master(image_finder)
         blessed = self.bless(master)
 
         flavor = self.client.flavors.find(name=self.config.flavor_name)
@@ -316,7 +270,7 @@ class TestLaunch(object):
 
         def assert_target(target, expected):
             launched = self.launch(blessed, target=target)
-            vmsctl = harness.VmsctlInterface(launched)
+            vmsctl = harness.VmsctlInterface(launched, self.config)
             assert expected == vmsctl.get_param("memory.target")
             self.delete(launched)
 
@@ -331,7 +285,7 @@ class TestLaunch(object):
         self.discard(blessed)
         self.delete(master)
 
-    def test_launch_with_params(self):
+    def test_launch_with_params(self, image_finder):
         if int(self.config.agent_version) < 1:
             pytest.skip('Need agent version 1 for guest parameters.')
 
@@ -347,10 +301,10 @@ log.flush()
 log.close()
 """
         params_filename = "90_clone_params"
-        master = self.boot_master()
+        master = self.boot_master(image_finder)
 
         ip = harness.get_addrs(master)[0]
-        master_shell = harness.SecureShell(ip, self.config)
+        master_shell = harness.SecureShell(master)
         master_shell.check_output('cat >> %s' % params_filename, input=params_script)
         master_shell.check_output('chmod +x %s' % params_filename)
         master_shell.check_output('sudo mv %s /etc/gridcentric/clone.d/%s' % (params_filename, params_filename))
@@ -360,8 +314,7 @@ log.close()
         def assert_guest_params_success(params):
             """ There parameters should successfully be added to the instance. """
             launched = self.launch(blessed, guest_params=params)
-            ip = harness.get_addrs(launched)[0]
-            launched_shell = harness.SecureShell(ip, self.config)
+            launched_shell = harness.SecureShell(launched)
 
             stdout, _ = launched_shell.check_output('sudo cat /tmp/clone.log')
             inguest_params = json.loads(stdout)
@@ -391,98 +344,62 @@ log.close()
     # to get the maximum bang for buck from free page detection. We exercise
     # this cycle on both distros and *all* bitnesses (32 bit, PAE, 64 bit).
     # Hence the parameterization at the bottom.
-    def check_agent_running(self, vm, distro):
-        if distro == 'ubuntu':
-            self.root_command(vm, "dpkg -l vms-agent | grep ^ii")
-        elif distro == 'centos':
-            self.root_command(vm, "rpm -qa | grep vms-agent")
-        self.root_command(vm, "pidof vmsagent")
+    @harness.distrotest()
+    def test_agent_double_install(self, image_finder):
+        master = self.boot_master(image_finder)
 
-    def test_agent_double_install(self, img_distro_user):
-        (image, distro, user) = img_distro_user
-        save_user = self.config.guest_user
-        self.config.guest_user = user
+        # Reinstall the agent. Shouldn't see any errors.
+        harness.auto_install_agent(master, self.config.agent_version)
+        master.breadcrumbs.add("Re-installed latest agent")
+        harness.check_agent_running(master)
 
-        try:
-            master = self.boot_master(image, has_agent=False)
-            # Drop package, install it, trivially ensure
-            harness.auto_install_agent(master, self.config, distro)
-            master.breadcrumbs.add("Installed latest agent")
-            self.check_agent_running(master, distro)
+        self.delete(master)
 
-            # Drop package, install it, trivially ensure
-            harness.auto_install_agent(master, self.config, distro)
-            master.breadcrumbs.add("Re-installed latest agent")
-            self.check_agent_running(master, distro)
-
-            self.delete(master)
-        finally:
-            self.config.guest_user = save_user
-
-    def test_agent_dkms(self, img_distro_user):
+    @harness.distrotest(exclude=['cirros'])
+    def test_agent_dkms(self, image_finder):
         if self.config.agent_version == '0':
             pytest.skip("Agent version 0 does not use dkms")
 
-        (image, distro, user) = img_distro_user
-        save_user = self.config.guest_user
-        self.config.guest_user = user
+        master = self.boot_master(image_finder)
 
-        try:
-            master = self.boot_master(image, has_agent=False)
+        # Remove blobs
+        self.root_command(master, "rm -f /var/lib/vms/*")
+        master.breadcrumbs.add("Removed cached blobs")
 
-            # Drop package, install it, trivially ensure
-            harness.auto_install_agent(master, self.config, distro)
-            master.breadcrumbs.add("Installed latest agent")
-            self.check_agent_running(master, distro)
+        # Now force dkms to sweat
+        self.root_command(master, "service vmsagent restart")
+        harness.check_agent_running(master)
 
-            # Remove blobs
-            self.root_command(master, "rm -f /var/lib/vms/*")
-            master.breadcrumbs.add("Removed cached blobs")
+        # Check a single new blob exists
+        self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout = ['1'])
+        # Check that it is good enough even if we kneecap dkms and modules
+        self.root_command(master, "rm -f /usr/sbin/dkms /sbin/insmod /sbin/modprobe")
+        self.root_command(master, "refresh-vms")
+        master.breadcrumbs.add("Recreated kernel blob")
 
-            # Now force dkms to sweat
-            self.root_command(master, "service vmsagent restart")
-            self.check_agent_running(master, distro)
+        self.delete(master)
 
-            # Check a single new blob exists
-            self.root_command(master, "ls -1 /var/lib/vms | wc -l", expected_stdout=['1'])
-            # Check that it is good enough even if we kneecap dkms and modules
-            self.root_command(master, "rm -f /usr/sbin/dkms /sbin/insmod /sbin/modprobe")
-            self.root_command(master, "refresh-vms")
-            master.breadcrumbs.add("Recreated kernel blob")
+    @harness.distrotest()
+    def test_agent_install_remove_install(self, image_finder):
+        master = self.boot_master(image_finder)
 
-            self.delete(master)
-        finally:
-            self.config.guest_user = save_user
+        # Remove package, ensure its paths are gone
+        if master.image_config.distro == 'ubuntu':
+            self.root_command(master, "dpkg -r vms-agent")
+        elif master.image_config.distro == 'centos':
+            self.root_command(master, "rpm -e vms-agent")
+        elif master.image_config.distro == 'cirros':
+            self.root_command(master, "/etc/init.d/vmsagent stop")
+            self.root_command(master, "rm -rf /var/lib/vms")
+        self.root_command(master, "stat /var/lib/vms", expected_rc = 1)
+        master.breadcrumbs.add("Removed latest agent")
 
-    def test_agent_install_remove_install(self, img_distro_user):
-        (image, distro, user) = img_distro_user
-        save_user = self.config.guest_user
-        self.config.guest_user = user
+        # Re-install
+        harness.auto_install_agent(master, self.config.agent_version)
+        master.breadcrumbs.add("Re-installed latest agent")
+        harness.check_agent_running(master)
 
-        try:
-            master = self.boot_master(image, has_agent=False)
-
-            # Drop package, install it, trivially ensure
-            harness.auto_install_agent(master, self.config, distro)
-            master.breadcrumbs.add("Installed latest agent")
-            self.check_agent_running(master, distro)
-
-            # Remove package, ensure its paths are gone
-            if distro == 'ubuntu':
-                self.root_command(master, "dpkg -r vms-agent")
-            elif distro == 'centos':
-                self.root_command(master, "rpm -e vms-agent")
-            self.root_command(master, "stat /var/lib/vms", expected_rc=1)
-            master.breadcrumbs.add("Removed latest agent")
-
-            # Re-install
-            harness.auto_install_agent(master, self.config, distro)
-            master.breadcrumbs.add("Re-installed latest agent")
-            self.check_agent_running(master, distro)
-
-            self.delete(master)
-        finally:
-            self.config.guest_user = save_user
+        self.delete(master)
 
     # There is no good definition for "dropall" has succeeded. However, on
     # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
@@ -499,95 +416,78 @@ log.close()
         return (agent >= 1) and ((major, minor) >= (2, 4))
 
     # Test agent-0 with vms2.4 and agent-1 with vms2.3
-    def test_cross_agent(self):
-        agent_version_save = self.config.agent_version
+    @harness.archtest()
+    def test_cross_agent(self, image_finder):
         if self.__agent_can_dropall():
-            self.config.agent_version = '0'
+            agent_version = '0'
         else:
-            self.config.agent_version = '1'
-        try:
-            master = self.boot_master("oneiric-agent-ready", has_agent=False)
+            agent_version = '1'
 
-            # Drop package, install it, trivially ensure
-            harness.auto_install_agent(master, self.config, self.config.guest)
-            master.breadcrumbs.add("Installed agent version zero")
-            self.check_agent_running(master, self.config.guest)
+        master = self.boot_master(image_finder, agent_version=agent_version)
 
-            blessed = self.bless(master)
-            launched = self.launch(blessed)
+        blessed = self.bless(master)
+        launched = self.launch(blessed)
 
-            # VM is not dead...
-            self.root_command(launched, "ps aux")
-            self.root_command(launched, "find / > /dev/null")
+        # VM is not dead...
+        self.root_command(launched, "ps aux")
+        self.root_command(launched, "find / > /dev/null")
 
-            self.delete(launched)
-            self.discard(blessed)
-            self.delete(master)
-        finally:
-            self.config.agent_version = agent_version_save
+        self.delete(launched)
+        self.discard(blessed)
+        self.delete(master)
 
-    def test_agent_hoard_dropall(self, img_distro_user):
-        (image, distro, user) = img_distro_user
-        save_user = self.config.guest_user
-        self.config.guest_user = user
+    @harness.archtest()
+    @harness.distrotest()
+    def test_agent_hoard_dropall(self, image_finder):
+        master = self.boot_master(image_finder)
 
-        try:
-            master = self.boot_master(image, has_agent=False)
+        if self.__agent_can_dropall():
+            # Sometimes dkms and depmod will take over a ton of memory in the page
+            # cache. Throw that away so it can be freed later by dropall
+            self.root_command(master, "echo 3 | sudo tee /proc/sys/vm/drop_caches")
 
-            # Drop package, install it, trivially ensure
-            harness.auto_install_agent(master, self.config, distro)
-            master.breadcrumbs.add("Installed latest agent")
-            self.check_agent_running(master, distro)
+        # We can bless now, and launch a clone
+        blessed = self.bless(master)
+        launched = self.launch(blessed)
 
-            if self.__agent_can_dropall():
-                # Sometimes dkms and depmod will take over a ton of memory in the page
-                # cache. Throw that away so it can be freed later by dropall
-                self.drop_caches(master)
+        # Now let's have some vmsctl fun
+        vmsctl = harness.VmsctlInterface(launched, self.config)
+        # For a single clone all pages fetched become sharing nominees.
+        # We want to drop them anyways since they're not really shared
+        vmsctl.set_flag("eviction.dropshared")
+        # We want to see the full effect of hoarding, let's not
+        # bypass zeros
+        vmsctl.clear_flag("zeros.enabled")
+        # Avoid any chance of eviction other than zero dropping
+        vmsctl.clear_flag("eviction.paging")
+        vmsctl.clear_flag("eviction.sharing")
+        # No target so hoard finishes without triggering dropall
+        vmsctl.clear_target()
+        assert vmsctl.match_expected_params({ "eviction.dropshared"     : 1,
+                                              "zeros.enabled"           : 0,
+                                              "eviction.paging"         : 0,
+                                              "eviction.sharing"        : 0,
+                                              "memory.target"           : 0 })
 
-            # We can bless now, and launch a clone
-            blessed = self.bless(master)
-            launched = self.launch(blessed)
+        # Hoard so dropall makes a splash
+        assert vmsctl.full_hoard()
 
-            # Now let's have some vmsctl fun
-            vmsctl = harness.VmsctlInterface(launched, self.config)
-            # For a single clone all pages fetched become sharing nominees.
-            # We want to drop them anyways since they're not really shared
-            vmsctl.set_flag("eviction.dropshared")
-            # We want to see the full effect of hoarding, let's not
-            # bypass zeros
-            vmsctl.clear_flag("zeros.enabled")
-            # Avoid any chance of eviction other than zero dropping
-            vmsctl.clear_flag("eviction.paging")
-            vmsctl.clear_flag("eviction.sharing")
-            # No target so hoard finishes without triggering dropall
-            vmsctl.clear_target()
-            assert vmsctl.match_expected_params({ "eviction.dropshared"     : 1,
-                                                  "zeros.enabled"           : 0,
-                                                  "eviction.paging"         : 0,
-                                                  "eviction.sharing"        : 0,
-                                                  "memory.target"           : 0 })
+        if self.__agent_can_dropall():
+            # Now dropall! (agent should help significantly here)
+            before = vmsctl.get_current_memory()
+            vmsctl.dropall()
+            after = vmsctl.get_current_memory()
+            assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
+            log.info("Agent helped to drop %d -> %d pages." % (before, after))
 
-            # Hoard so dropall makes a splash
-            assert vmsctl.full_hoard()
+        # VM is not dead...
+        self.root_command(launched, "ps aux")
+        self.root_command(launched, "find / > /dev/null")
 
-            if self.__agent_can_dropall():
-                # Now dropall! (agent should help significantly here)
-                before = vmsctl.get_current_memory()
-                vmsctl.dropall()
-                after = vmsctl.get_current_memory()
-                assert (float(before) * self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
-                log.info("Agent helped to drop %d -> %d pages." % (before, after))
-
-            # VM is not dead...
-            self.root_command(launched, "ps aux")
-            self.root_command(launched, "find / > /dev/null")
-
-            # Clean up
-            self.delete(launched)
-            self.discard(blessed)
-            self.delete(master)
-        finally:
-            self.config.guest_user = save_user
+        # Clean up
+        self.delete(launched)
+        self.discard(blessed)
+        self.delete(master)
 
     # We will launch clones until SHARE_COUNT hit the same host */
     SHARE_COUNT = 2
@@ -596,8 +496,12 @@ log.close()
     # i.e. for two clones, 60% more resident than allocated.
     SHARE_RATIO = 0.8
 
-    def test_sharing(self):
-        master = self.boot_master()
+    def test_sharing(self, image_finder):
+        # vms 2.3 and earlier don't have per-generation vmsfs stats.
+        if self.config.parse_vms_version() < (2, 4):
+            pytest.skip("Need vms 2.4 to test sharing")
+
+        master = self.boot_master(image_finder)
         blessed = self.bless(master)
 
         # Launch until we have SHARE_COUNT clones on one host
@@ -662,18 +566,13 @@ log.close()
         (clone, vmsctl) = sharingclones[0]
         # Make room
         self.drop_caches(clone)
-        # Figure out the right place where tmpfs is mounted
-        if self.config.guest == 'ubuntu':
-            tmpfs = '/run/shm'
-        else:
-            tmpfs = '/dev/shm'
-        zerofile = os.path.join(tmpfs, "file")
+        zerofile = os.path.join('/dev/shm/file')
         # Calculate file size, 256 MiB or 90% of the max
         maxmem = vmsctl.get_max_memory()
         target = min(256 * 256, int(0.9 * float(maxmem)))
         # The tmpfs should be allowed to fit the file plus 4MiBs of headroom (inodes and blah)
         tmpfs_size = (target + (256 * 4)) * 4096
-        self.root_command(clone, "mount -o remount,size=%d %s" % (tmpfs_size, tmpfs))
+        self.root_command(clone, "mount -o remount,size=%d /dev/shm" % (tmpfs_size))
         # And do it
         self.root_command(clone, "dd if=/dev/urandom of=%s bs=4k count=%d" % (zerofile, target))
         stats = ssh.get_vmsfs_stats(genid)
@@ -684,32 +583,3 @@ log.close()
             self.delete(clone)
         self.discard(blessed)
         self.delete(master)
-
-def pytest_generate_tests(metafunc):
-    if "img_distro_user" in metafunc.funcargnames:
-        if metafunc.function.__name__ == "test_agent_hoard_dropall":
-            metafunc.parametrize("img_distro_user", [
-                                ("oneiric-agent-ready", "ubuntu", "ubuntu"),
-                                ("precise-32bit-agent-ready", "ubuntu", "root"),
-                                ("precise-PAE-agent-ready", "ubuntu", "root"),
-                                ("centos-6.3-PAE-agent-ready", "centos", "root"),
-                                ("centos-6.3-32bit-agent-ready", "centos", "root"),
-                                ("centos-6.3-amd64-agent-ready", "centos", "root")
-                                    ], ids=[
-                                            'Oneiric 64bit',
-                                            'Precise 32bit',
-                                            'Precise PAE',
-                                            'Centos63 PAE',
-                                            'Centos63 32bit',
-                                            'Centos63 64bit'
-                                ])
-        elif metafunc.function.__name__ in [ "test_agent_double_install", \
-                                             "test_agent_dkms", \
-                                             "test_agent_install_remove_install" ]:
-            metafunc.parametrize("img_distro_user", [
-                                ("oneiric-agent-ready", "ubuntu", "ubuntu"),
-                                ("centos-6.3-amd64-agent-ready", "centos", "root")
-                                    ], ids=[
-                                            'Oneiric 64bit',
-                                            'Centos63 64bit'
-                                ])

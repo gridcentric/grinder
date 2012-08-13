@@ -8,16 +8,16 @@ import harness
 from logger import log
 from config import default_config
 
-class TestMigration(unittest.TestCase):
+class TestMigration(object):
 
-    def setUp(self):
+    def boot_master(self, image_finder):
         self.config = default_config
         self.client = harness.create_client(self.config)
-        self.server = harness.boot(self.client, harness.test_name, self.config)
-        self.ip = self.server.networks.values()[0][0]
-        self.shell = harness.SecureShell(self.ip, self.config)
-        self.breadcrumbs = harness.Breadcrumbs(self.shell)
+        image_config = image_finder.find(self.client, self.config)
+        self.server = harness.boot(self.client, self.config, image_config)
+        self.breadcrumbs = harness.Breadcrumbs(self.server)
         self.breadcrumbs.add('booted %s' % self.server.name)
+        harness.auto_install_agent(self.server, self.config.agent_version)
 
     def get_host(self):
         return self.config.id_to_hostname(self.server.tenant_id,
@@ -44,8 +44,8 @@ class TestMigration(unittest.TestCase):
         assert self.server.hostId == \
             self.config.hostname_to_id(self.server.tenant_id, host)
         assert self.server.status == 'ACTIVE'
-        harness.wait_for_ping(self.ip)
-        harness.wait_for_ssh(self.shell)
+        harness.wait_for_ping(self.server)
+        harness.wait_for_ssh(self.server)
         self.breadcrumbs.add('alive on host %s' % host)
 
     def migrate(self, host, dest):
@@ -70,35 +70,36 @@ class TestMigration(unittest.TestCase):
         e = harness.assert_raises(self.client.gcapi.exception,
                                   self.client.gcapi.migrate_instance,
                                   self.server.id, dest)
-        assert e.code == 500
+        assert e.code / 100 == 4 or e.code / 100 == 5
         self.assert_server_alive(host)
         self.breadcrumbs.add('post expected fail migration to %s' % dest)
 
-    def test_back_and_forth(self):
+    def test_migration_errors(self, image_finder):
+        self.boot_master(image_finder)
+        host = self.get_host()
+
+        # Destination does not exist.
+        dest = 'this-host-does-not-exist'
+        self.fail_migrate(host, dest)
+
+        # Destination does not have openstack.
+        dest = self.config.hosts_without_openstack[0]
+        self.fail_migrate(host, dest)
+
+        # Cannot migrate to self.
+        dest = host
+        self.fail_migrate(host, dest)
+
+        # Clean everything up.
+        self.server.delete()
+        harness.wait_while_exists(self.server)
+
+    def test_back_and_forth(self, image_finder):
+        self.boot_master(image_finder)
         host, dest = self.get_host_dest()
         self.migrate(host, dest)
         self.migrate(dest, host)
         self.migrate(host, dest)
         self.migrate(dest, host)
-        self.server.delete()
-        harness.wait_while_exists(self.server)
-
-    def test_dest_does_not_exist(self):
-        host = self.get_host()
-        dest = 'this-host-does-not-exist'
-        self.fail_migrate(host, dest)
-        self.server.delete()
-        harness.wait_while_exists(self.server)
-
-    def test_dest_does_not_have_openstack(self):
-        host = self.get_host()
-        dest = self.config.hosts_without_openstack[0]
-        self.fail_migrate(host, dest)
-        self.server.delete()
-        harness.wait_while_exists(self.server)
-
-    def test_migrate_self(self):
-        host = self.get_host()
-        self.fail_migrate(host, host)
         self.server.delete()
         harness.wait_while_exists(self.server)

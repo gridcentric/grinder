@@ -2,3 +2,5 @@
 .*~
 .*.swp
 pytest.ini
+logs/*.xml
+html/*.html

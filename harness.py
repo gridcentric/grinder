@@ -11,6 +11,7 @@ import unittest
 import re
 import tempfile
 import shutil
+import pytest
 
 import novaclient.exceptions
 
@@ -90,6 +91,10 @@ def create_nova_client(config):
     else:
         from novaclient import shell
         extensions = shell.OpenStackComputeShell()._discover_extensions("1.1")
+        if 'gridcentric' not in [e.name for e in extensions]:
+            raise Exception('You don\'t have the gridcentric extension for the '
+                            'nova client installed. It\'s in the '
+                            'novaclient-gridcentric package.')
         return Client(extensions=extensions,
                       username=os.environ['OS_USERNAME'],
                       api_key=os.environ['OS_PASSWORD'],
@@ -103,8 +108,8 @@ def find_exception(config):
         from gridcentric.nova.client.exceptions import HttpException
         return HttpException
     else:
-        from novaclient.exceptions import BadRequest
-        return BadRequest
+        from novaclient.exceptions import ClientException
+        return ClientException
 
 def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''
@@ -115,17 +120,34 @@ def create_client(config):
     return client
 
 class SecureShell(object):
-    def __init__(self, host, config):
+    def __init__(self, host, key_path=None, user=None):
+        '''Host can either be a string (ip address or hostname) or a Server. If
+           host is a server, then key_path and user may be optionally specified
+           to override host.image_config.'''
+        if isinstance(host, Server):
+            server = host
+            host = get_addrs(host)[0]
+            if key_path == None:
+                key_path = server.image_config.key
+            if user == None:
+                user = server.image_config.user
+        else:
+            server = None
+            if key_path == None or user == None:
+                raise TypeError('key_path and user must be specified')
+
         self.host = host
-        self.key_path = config.guest_key_path
-        self.user = config.guest_user
+        self.key_path = key_path
+        self.user = user
         # By default ssh does not allocate a pseudo-tty (if asked to exec a
         # single command, from our harness). However, some programs may require
-        # tty, e.g. sudo on CentOS 6.3. Assume a tty is needed unless
-        # explicitly disabled, as in cases in which we want to manage stdin
-        self.alloc_tty = True
+        # tty, e.g. sudo on CentOS 6.3. If we're running on CentOS, assume a tty
+        # is needed unless explicitly disabled, as in cases in which we want to
+        # manage stdin
+        self.alloc_tty = server != None and\
+                         server.image_config.distro == 'centos'
 
-    def ssh_opts(self, use_tty):
+    def ssh_opts(self, use_tty=False):
         if use_tty:
             tty_arg = '-tt '
         else:
@@ -133,6 +155,9 @@ class SecureShell(object):
         return '-o UserKnownHostsFile=/dev/null ' \
                '-o StrictHostKeyChecking=no ' \
                '%s -i %s ' % (tty_arg, self.key_path)
+
+    def ssh_args(self, use_tty=False):
+        return '%s %s@%s' % (self.ssh_opts(use_tty), self.user, self.host)
 
     def popen(self, args, **kwargs):
         # Too hard to support this.
@@ -145,9 +170,9 @@ class SecureShell(object):
         _stdin = kwargs.get('stdin', None)
         if _stdin is not None and _stdin is not PIPE:
             use_tty = False
-        log.debug('ssh %s@%s %s %s', self.user, self.host, self.ssh_opts(use_tty), ' '.join(args))
-        return subprocess.Popen(['ssh'] + self.ssh_opts(use_tty).split() +
-                                ['%s@%s' % (self.user, self.host)] + args, **kwargs)
+        command = ['ssh'] + self.ssh_args(use_tty).split() + args
+        log.debug(' '.join(command))
+        return subprocess.Popen(command, **kwargs)
 
     def check_output(self, args, **kwargs):
         returncode, stdout, stderr = self.call(args, **kwargs)
@@ -174,10 +199,13 @@ class SecureShell(object):
 class SCPError(Exception):
     pass
 
-class TransferChannel(SecureShell):
+class TransferChannel(object):
+    def __init__(self, ssh):
+        self.ssh = ssh
+
     def __do_scp(self, source, destination):
-        log.debug('scp %s %s %s' % (self.ssh_opts(), source, destination))
-        p = subprocess.Popen(['scp'] + self.ssh_opts().split() + [source] +
+        log.debug('scp %s %s %s' % (self.ssh.ssh_opts(), source, destination))
+        p = subprocess.Popen(['scp'] + self.ssh.ssh_opts().split() + [source] +
                              [destination], stdout=PIPE, stderr=PIPE)
         stdout, stderr = p.communicate()
         if p.returncode != 0:
@@ -186,7 +214,7 @@ class TransferChannel(SecureShell):
 
     def put_file(self, local_path, remote_path=''):
         os.stat(local_path)
-        return self.__do_scp(local_path, '%s@%s:%s' % (self.user, self.host, remote_path))
+        return self.__do_scp(local_path, '%s@%s:%s' % (self.ssh.user, self.ssh.host, remote_path))
 
     def get_file(self, remote_path, local_path='.'):
         if local_path != '.':
@@ -195,22 +223,15 @@ class TransferChannel(SecureShell):
             except OSError:
                 # Could be a filename that does not yet exist. But its directory should
                 os.stat(os.path.dirname(local_path))
-        return self.__do_scp('%s@%s:%s' % (self.user, self.host, remote_path), local_path)
+        return self.__do_scp('%s@%s:%s' % (self.ssh.user, self.ssh.host, remote_path), local_path)
 
 class SecureRootShell(SecureShell):
-    def call(self, args, **kwargs):
-        if isinstance(args, str):
-            args = [args]
-        elif not isinstance(args, list):
-            raise ValueError("Args of %s, must be list or string" % str(type(args)))
-        args = ['sudo'] + args
-        return SecureShell.call(self, args, **kwargs)
+    def ssh_args(self, use_tty=False):
+        return SecureShell.ssh_args(self, use_tty) + ' sudo'
 
 class HostSecureShell(SecureShell):
     def __init__(self, host, config):
-        self.host = host
-        self.key_path = config.host_key_path
-        self.user = config.host_user
+        SecureShell.__init__(self, host, config.host_key_path, config.host_user)
         # This is a good choice as long as we launch tests on Ubuntu hosts
         self.alloc_tty = False
 
@@ -239,7 +260,7 @@ class VmsctlLookupError(Exception):
     pass
 
 class VmsctlInterface(object):
-    def __init__(self, target, config=default_config):
+    def __init__(self, target, config):
         if type(target) in [int, long, unicode, str]:
             self.osid = target
         elif isinstance(target, Server):
@@ -422,23 +443,35 @@ def remove_jenkins_deploy_script(name):
     shutil.rmtree(os.path.dirname(name))
 
 # Bring the latest agent from jenkins into the VM
-def auto_install_agent(server, config, distro=None):
-    user = config.guest_user
-    key = config.guest_key_path
-    if distro is None:
-        distro = config.guest
+def auto_install_agent(server, agent_version):
+    distro = server.image_config.distro
+    log.info('Installing agent version %s on %s' % (agent_version, server.id))
     jenkins_download = get_jenkins_deploy_script()
     if jenkins_download is None:
         raise RuntimeError("Could not download latest agent from jenkins")
-    ip = get_addrs(server)[0]
-    p = subprocess.Popen('REMOTE="-i %s %s@%s sudo" /bin/bash %s Agent-%s %s '\
-                          'vms-agent' % (key, user, ip, jenkins_download, config.agent_version, distro),
-                          shell=True)
+    shell = SecureRootShell(server)
+    command = ['/bin/bash', jenkins_download,
+               '-m', server.image_config.arch,
+               '-r', server.image_config.distro,
+               '-d', '192.168.1.3',
+               '-R', shell.ssh_args(),
+               'Agent-%s' % agent_version,
+               'vms-agent']
+    log.debug(' '.join(command))
+    p = subprocess.Popen(command)
     (stdout, stderr) = p.communicate()
     remove_jenkins_deploy_script(jenkins_download)
     if p.returncode != 0:
         raise RuntimeError("Deploy script failed (%d), stderr:\n%s" %
                             (p.returncode, stderr))
+
+def check_agent_running(server):
+    shell = SecureRootShell(server)
+    if server.image_config.distro == 'ubuntu':
+        shell.check_output("dpkg -l vms-agent | grep ^ii")
+    elif server.image_config.distro == 'centos':
+        shell.check_output("rpm -qa | grep vms-agent")
+    shell.check_output("pidof vmsagent")
 
 def wait_for(message, condition, interval=1):
     duration = int(default_config.ops_timeout)
@@ -461,11 +494,15 @@ def wait_while_status(server, status):
     wait_for('%s on ID %s to finish' % (status, str(server.id)),
              condition)
 
-def wait_for_ping(ip):
+def wait_for_ping(server):
+    addrs = get_addrs(server)
+    assert len(addrs) > 0
+    ip = addrs[0]
     wait_for('ping %s to respond' % ip,
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0)
 
-def wait_for_ssh(ssh):
+def wait_for_ssh(server):
+    ssh = SecureShell(server)
     wait_for('ssh %s to respond' % ssh.host,
              lambda: ssh.call('true')[0] == 0)
 
@@ -478,29 +515,30 @@ def wait_while_exists(server):
             return True
     wait_for('server %s to not exist' % server.id, condition)
 
-def generate_name(prefix):
-    # If we're running within a jenkins environment, use the build number as
-    # the unique test identifier. Otherwise, we use the unique identifier
-    # generated by the test framework.
-    if os.getenv("BUILD_NUMBER"):
-        suffix = os.getenv("BUILD_NUMBER")
-    else:
-        suffix = str(random.randint(0, 1 << 32))
-    return '%s-%s' % (prefix, suffix)
-
-def boot(client, name_prefix, config, image_name=None):
-    name = generate_name(name_prefix)
+def boot(client, config, image_config=None):
+    name = '%s-%s' % (config.run_name, test_name)
     flavor = client.flavors.find(name=config.flavor_name)
-    if image_name is None:
-        image_name = config.image_name
-    image = client.images.find(name=image_name)
+    if image_config == None:
+        finder = ImageFinder()
+        # Prefer to use CirrOS because it's so much smaller and therefore makes
+        # migration and blessing faster. Fall back to Ubuntu.
+        finder.add('cirros', '64')
+        finder.add('ubuntu', '64')
+        image_config = finder.find(client, config)
+    image = client.images.find(name=image_config.name)
     log.info('Booting %s instance named %s', image.name, name)
     server = client.servers.create(name=name,
                                    image=image.id,
-                                   flavor=flavor.id,
-                                   key_name=config.guest_key_name)
-    setattr(server, 'config', config)
-    assert_boot_ok(server, config.guest_has_agent)
+                                   flavor=flavor.id)
+    server = get_server(server.id, client, config, image_config)
+    setattr(server, 'image_config', image_config)
+    assert_boot_ok(server)
+    return server
+
+
+def get_server(id, client, config, image_config):
+    server = client.servers.get(id)
+    setattr(server, 'image_config', image_config)
     return server
 
 def get_addrs(server):
@@ -509,25 +547,21 @@ def get_addrs(server):
         ips.extend(network)
     return ips
 
-def assert_boot_ok(server, withagent=True):
+def assert_boot_ok(server):
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
-    ip = get_addrs(server)[0]
-    shell = SecureShell(ip, server.config)
-    wait_for_ping(ip)
-    wait_for_ssh(shell)
-    # Sanity check on hostname
-    shell.check_output('hostname')[0] == server.name
-    if withagent:
-        # Make sure that the vmsagent is running
-        shell.check_output('pidof vmsagent')
+    wait_for_ping(server)
+    wait_for_ssh(server)
 
 def assert_raises(exception_type, command, *args, **kwargs):
     try:
         command(*args, **kwargs)
         assert False and 'Expected exception of type %s' % exception_type
     except Exception, e:
-        assert type(e) == exception_type
+        if not isinstance(e, exception_type):
+            log.exception('Expected exception of type %s, got %s instead.' %
+                          (exception_type, type(e)))
+            raise
         log.debug('Got expected exception %s', e)
         return e
 
@@ -553,18 +587,18 @@ def get_iptables_rules(server, host=None, config=default_config):
     return []
 
 class Breadcrumbs(object):
-    def __init__(self, shell):
-        self.shell = shell
+    def __init__(self, server):
+        self.shell = SecureShell(server)
         self.trail = []
-        self.filename = '/tmp/test-breadcrumbs-%d' % random.randint(0, 1 << 32)
+        self.filename = '/dev/shm/test-breadcrumbs-%d' % random.randint(0, 1<<32)
 
     class Snapshot(object):
         def __init__(self, breadcrumbs):
             self.trail = list(breadcrumbs.trail)
             self.filename = breadcrumbs.filename
 
-        def instantiate(self, shell):
-            result = Breadcrumbs(shell)
+        def instantiate(self, server):
+            result = Breadcrumbs(server)
             result.trail = list(self.trail)
             result.filename = self.filename
             return result
@@ -587,3 +621,73 @@ class Breadcrumbs(object):
             stdout, stderr = self.shell.check_output('cat %s' % self.filename)
             log.debug('Got breadcrumbs: %s', stdout.split('\n'))
             assert [x.strip('\r') for x in stdout.split('\n')[:-1]] == list(self.trail)
+
+class NoImageFoundError(Exception):
+    pass
+
+class ImageFinder(object):
+    def __init__(self, skip_on_error=False):
+        self.queries = []
+        self.skip_on_error = skip_on_error
+
+    def add(self, distro, arch):
+        self.queries.append((distro, arch))
+
+    def find(self, client, config):
+        for distro, arch in self.queries:
+            for image in config.get_images(distro, arch):
+                try:
+                    found = client.images.find(name=image.name)
+                    return image
+                except Exception:
+                    log.debug('Image %s not found, skipping', image.name)
+        if self.skip_on_error:
+            pytest.skip()
+        else:
+            raise NoImageFoundError()
+
+    @staticmethod
+    def parametrize(metafunc, arg_name, distros, archs, skip_on_error=False):
+        finders = []
+        ids = []
+        for distro in distros:
+            for arch in archs:
+                finder = ImageFinder(skip_on_error)
+                finder.add(distro, arch)
+                finders.append(finder)
+                ids.append('%s %s' % (distro, arch))
+        metafunc.parametrize(arg_name, finders, ids=ids)
+
+def mark_test(fn, **kwargs):
+    metadata = getattr(fn, '__test_markers', {})
+    metadata.update(kwargs)
+    setattr(fn, '__test_markers', metadata)
+    return fn
+
+def list_filter(l, exclude=None, include=None):
+    if exclude == None:
+        exclude = []
+    if include != None:
+        l = l + include
+    return [e for e in l if e not in exclude]
+
+def get_test_marker(fn, marker, default=None):
+    return getattr(fn, '__test_markers', {}).get(marker, default)
+
+def archtest(exclude=None, include=None):
+    def _inner(fn):
+        archs = list_filter(default_config.get_all_archs(), exclude, include)
+        return mark_test(fn, archs=archs)
+    return _inner
+
+def get_test_archs(fn):
+    return get_test_marker(fn, 'archs', default_config.default_archs)
+
+def distrotest(exclude=None, include=None):
+    def _inner(fn):
+        distros = list_filter(default_config.get_all_distros(), exclude, include)
+        return mark_test(fn, distros=distros)
+    return _inner
+
+def get_test_distros(fn):
+    return get_test_marker(fn, 'distros', default_config.default_distros)
