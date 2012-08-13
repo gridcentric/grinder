@@ -120,6 +120,8 @@ def create_client(config):
     return client
 
 class SecureShell(object):
+    key_fd = None
+
     def __init__(self, host, key_path=None, user=None):
         '''Host can either be a string (ip address or hostname) or a Server. If
            host is a server, then key_path and user may be optionally specified
@@ -137,8 +139,16 @@ class SecureShell(object):
                 raise TypeError('key_path and user must be specified')
 
         self.host = host
-        self.key_path = key_path
         self.user = user
+        # ssh requires identity files to be 0600 and owned by the current user,
+        # so we copy key_file to a secure temporary file with the right
+        # permission and ownership.
+        self.key_fd, path = tempfile.mkstemp()
+        os.unlink(path)
+        self.key_path = '/proc/%d/fd/%d' % (os.getpid(), self.key_fd)
+        tmpfile = open(self.key_path, 'w')
+        tmpfile.write(open(key_path).read())
+        tmpfile.close()
         # By default ssh does not allocate a pseudo-tty (if asked to exec a
         # single command, from our harness). However, some programs may require
         # tty, e.g. sudo on CentOS 6.3. If we're running on CentOS, assume a tty
@@ -146,6 +156,11 @@ class SecureShell(object):
         # manage stdin
         self.alloc_tty = server != None and\
                          server.image_config.distro == 'centos'
+
+    def __del__(self):
+        if self.key_fd != None:
+            os.close(self.key_fd)
+            self.key_fd = None
 
     def ssh_opts(self, use_tty=False):
         if use_tty:
