@@ -5,7 +5,7 @@ import hashlib
 from getpass import getuser
 from socket import gethostname
 
-DEFAULT_TIMEOUT = 60
+DEFAULT_TIMEOUT = 600
 SOURCE_DIR = os.path.dirname(inspect.getfile(inspect.currentframe()))
 DEFAULT_KEY = os.path.join(SOURCE_DIR, 'openstack-test.key')
 
@@ -18,7 +18,7 @@ class Config(object):
         # least two.
         self.hosts = ['node10', 'node9']
         # Hosts without OpenStack installed. There should be at least one.
-        self.hosts_without_openstack = ['xdev']
+        self.hosts_without_openstack = ['kdev']
 
         # Instance flavor; determines RAM and what disks are attached.
         self.flavor_name = 'm1.tiny'
