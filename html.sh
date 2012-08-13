@@ -3,5 +3,7 @@
 mkdir -p html
 
 for x in logs/*.xml; do
-    xsltproc junit2html.xslt $x > html/$(basename $x .xml).html
+    y=html/$(basename $x .xml).html
+    xsltproc junit2html.xslt $x > $y
+    touch --date="$(stat --printf '%y' $x)" $y
 done
