@@ -274,6 +274,7 @@ class TestLaunch(object):
             assert expected == vmsctl.get_param("memory.target")
             self.delete(launched)
 
+        assert_target(None, "0")
         assert_target("-1", "0")
         assert_target("0", "0")
         assert_target("1", "1")
