@@ -65,7 +65,7 @@ class Config(object):
             Image('precise-32bit-agent-ready', distro='ubuntu', arch='32', user='root'),
             Image('precise-PAE-agent-ready', distro='ubuntu', arch='pae', user='root'),
             # CentOS images
-            Image('centos-6.3-amd64-agent-ready', distro='centos', arch='64', user='root'),
+            Image('centos-6.3-x64-agent-ready', distro='centos', arch='64', user='root'),
             Image('centos-6.3-32bit-agent-ready', distro='centos', arch='32', user='root'),
             Image('centos-6.3-PAE-agent-ready', distro='centos', arch='pae', user='root'),
         ]
