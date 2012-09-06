@@ -563,21 +563,35 @@ log.close()
         stats = ssh.get_vmsfs_stats(genid)
         assert stats['sh_cow'] > 0
 
-        # Get into one clone and cause significant CoW
+        # Pause everyone again to ensure no leaks happen via the sh_un stat
+        for (clone, vmsctl) in sharingclones:
+            vmsctl.pause()
+
+        # Select the clone we'll be forcing CoW on
         (clone, vmsctl) = sharingclones[0]
-        # Make room
-        self.drop_caches(clone)
-        zerofile = os.path.join('/dev/shm/file')
+
         # Calculate file size, 256 MiB or 90% of the max
         maxmem = vmsctl.get_max_memory()
         target = min(256 * 256, int(0.9 * float(maxmem)))
+
+        # Record the CoW statistics before we begin forcing CoW
+        stats = ssh.get_vmsfs_stats(genid)
+        unshare_before_force_cow = stats['sh_cow'] + stats['sh_un']
+
+        # Force CoW on our selected clone
+        vmsctl.unpause()
+        # Make room
+        self.drop_caches(clone)
+        zerofile = os.path.join('/dev/shm/file')
         # The tmpfs should be allowed to fit the file plus 4MiBs of headroom (inodes and blah)
         tmpfs_size = (target + (256 * 4)) * 4096
         self.root_command(clone, "mount -o remount,size=%d /dev/shm" % (tmpfs_size))
         # And do it
-        self.root_command(clone, "dd if=/dev/urandom of=%s bs=4k count=%d" % (zerofile, target))
+        self.root_command(clone, "dd if=/dev/urandom of=/dev/shm/file bs=4k count=%d" % (target))
+
+        # Figure out the impact of forcing CoW
         stats = ssh.get_vmsfs_stats(genid)
-        assert stats['sh_cow'] > target
+        assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) > target
 
         # Clean up
         for (clone, vmsctl) in clonelist:
