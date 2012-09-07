@@ -470,7 +470,7 @@ def auto_install_agent(server, agent_version):
     if jenkins_download is None:
         raise RuntimeError("Could not download latest agent from jenkins")
     shell = SecureRootShell(server)
-    command = ['/bin/bash', jenkins_download,
+    command = ['/bin/bash', '-x', jenkins_download,
                '-m', server.image_config.arch,
                '-r', server.image_config.distro,
                '-d', '192.168.1.3',
