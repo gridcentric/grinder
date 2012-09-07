@@ -560,6 +560,8 @@ log.close()
         # Release the brakes on the clones and assert some cow happened
         for (clone, vmsctl) in sharingclones:
             vmsctl.unpause()
+            self.root_command(clone, 'uptime')
+
         stats = ssh.get_vmsfs_stats(genid)
         assert stats['sh_cow'] > 0
 
