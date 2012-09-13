@@ -70,7 +70,7 @@ class TestLaunch(object):
         if agent_version == None:
             agent_version = self.config.agent_version
         # Drop agent package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config.agent_version)
+        harness.auto_install_agent(master, agent_version)
         master.breadcrumbs.add("Installed agent version %s" % agent_version)
         harness.check_agent_running(master)
         return master
@@ -419,10 +419,12 @@ log.close()
     # Test agent-0 with vms2.4 and agent-1 with vms2.3
     @harness.archtest()
     def test_cross_agent(self, image_finder):
-        if self.__agent_can_dropall():
-            agent_version = '0'
+        if self.config.parse_vms_version() == (2, 4):
+            agent_version = 0
+        elif self.config.parse_vms_version() == (2, 3):
+            agent_version = 1
         else:
-            agent_version = '1'
+            assert False
 
         master = self.boot_master(image_finder, agent_version=agent_version)
 
