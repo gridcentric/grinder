@@ -255,8 +255,14 @@ class TestLaunch(object):
     def test_list_blessed_launched_bad_id(self, image_finder):
         fake_id = '123412341234'
         assert fake_id not in [s.id for s in self.client.servers.list()]
-        assert [] == self.gcapi.list_blessed_instances(fake_id)
-        assert [] == self.gcapi.list_launched_instances(fake_id)
+
+        e = harness.assert_raises(self.gcapi.exception,
+                                  self.gcapi.list_blessed_instances, fake_id)
+        assert e.code / 100 == 4 or e.code / 100 == 5
+
+        e = harness.assert_raises(self.gcapi.exception,
+                                  self.gcapi.list_launched_instances, fake_id)
+        assert e.code / 100 == 4 or e.code / 100 == 5
 
     def test_launch_with_target(self, image_finder):
         if self.config.parse_vms_version() < (2, 4):
