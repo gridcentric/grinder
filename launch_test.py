@@ -425,12 +425,10 @@ log.close()
     # Test agent-0 with vms2.4 and agent-1 with vms2.3
     @harness.archtest()
     def test_cross_agent(self, image_finder):
-        if self.config.parse_vms_version() == (2, 4):
+        if self.config.parse_vms_version() >= (2, 4):
             agent_version = 0
-        elif self.config.parse_vms_version() == (2, 3):
-            agent_version = 1
         else:
-            assert False
+            agent_version = 0
 
         master = self.boot_master(image_finder, agent_version=agent_version)
 
