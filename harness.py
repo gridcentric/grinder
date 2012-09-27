@@ -409,7 +409,7 @@ class VmsctlInterface(object):
     def stop_hoard(self):
         self.set_param("hoard", "0")
 
-    def full_hoard(self, rate='25', wait_seconds=120, threshold=0.9):
+    def full_hoard(self, rate='25', wait_seconds=default_config.ops_timeout, threshold=0.9):
         self.launch_hoard(rate)
         tries = 0
         maxmem = self.get_max_memory()
