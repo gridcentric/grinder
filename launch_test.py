@@ -422,8 +422,10 @@ log.close()
         (major, minor) = self.config.parse_vms_version()
         return (agent >= 1) and ((major, minor) >= (2, 4))
 
-    # Test agent-0 with vms2.4 and agent-1 with vms2.3
-    @harness.archtest()
+    # Test agent-0 with vms2.4 and agent-1 with vms2.3. Ignore bitnesses
+    # Run in a real OS like Ubuntu as well
+    @harness.archtest(exclude=['32','pae'])
+    @harness.distrotest(exclude='centos')
     def test_cross_agent(self, image_finder):
         if self.config.parse_vms_version() >= (2, 4):
             agent_version = 0

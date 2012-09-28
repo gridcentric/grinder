@@ -698,7 +698,7 @@ class ImageFinder(object):
             raise NoImageFoundError()
 
     @staticmethod
-    def parametrize(metafunc, arg_name, distros, archs, skip_on_error=False):
+    def parametrize(metafunc, arg_name, distros, archs, skip_on_error=True):
         finders = []
         ids = []
         for distro in distros:

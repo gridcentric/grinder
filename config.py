@@ -62,12 +62,12 @@ class Config(object):
 
             # Ubuntu images
             Image('oneiric-agent-ready', distro='ubuntu', arch='64', user='ubuntu'),
-            Image('precise-32bit-agent-ready', distro='ubuntu', arch='32', user='root'),
-            Image('precise-PAE-agent-ready', distro='ubuntu', arch='pae', user='root'),
+            Image('precise-32-agent-ready', distro='ubuntu', arch='32', user='root'),
+            Image('precise-pae-agent-ready', distro='ubuntu', arch='pae', user='root'),
             # CentOS images
-            Image('centos-6.3-x64-agent-ready', distro='centos', arch='64', user='root'),
-            Image('centos-6.3-32bit-agent-ready', distro='centos', arch='32', user='root'),
-            Image('centos-6.3-PAE-agent-ready', distro='centos', arch='pae', user='root'),
+            Image('centos-6.3-64-agent-ready', distro='centos', arch='64', user='root'),
+            Image('centos-6.3-32-agent-ready', distro='centos', arch='32', user='root'),
+            Image('centos-6.3-pae-agent-ready', distro='centos', arch='pae', user='root'),
         ]
 
     def get_all_archs(self):
