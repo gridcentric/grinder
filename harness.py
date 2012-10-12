@@ -453,7 +453,7 @@ def get_jenkins_deploy_script():
     name = os.path.join(dirname, "deploy")
     rc = subprocess.call(("wget --auth-no-challenge --http-user=******** "\
                          "--http-password=******** "\
-                         "http://********/job/build/ws/deploy"\
+                         "http://********/job/repo-build/ws/deploy"\
                          " -O %s" % name).split())
     if rc != 0:
         return None
