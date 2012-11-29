@@ -70,7 +70,7 @@ class TestLaunch(object):
         if agent_version == None:
             agent_version = self.config.agent_version
         # Drop agent package, install it, trivially ensure
-        harness.auto_install_agent(master, self.config.agent_version)
+        harness.auto_install_agent(master, agent_version)
         master.breadcrumbs.add("Installed agent version %s" % agent_version)
         harness.check_agent_running(master)
         return master
@@ -255,8 +255,14 @@ class TestLaunch(object):
     def test_list_blessed_launched_bad_id(self, image_finder):
         fake_id = '123412341234'
         assert fake_id not in [s.id for s in self.client.servers.list()]
-        assert [] == self.gcapi.list_blessed_instances(fake_id)
-        assert [] == self.gcapi.list_launched_instances(fake_id)
+
+        e = harness.assert_raises(self.gcapi.exception,
+                                  self.gcapi.list_blessed_instances, fake_id)
+        assert e.code / 100 == 4 or e.code / 100 == 5
+
+        e = harness.assert_raises(self.gcapi.exception,
+                                  self.gcapi.list_launched_instances, fake_id)
+        assert e.code / 100 == 4 or e.code / 100 == 5
 
     def test_launch_with_target(self, image_finder):
         if self.config.parse_vms_version() < (2, 4):
@@ -274,6 +280,7 @@ class TestLaunch(object):
             assert expected == vmsctl.get_param("memory.target")
             self.delete(launched)
 
+        assert_target(None, "0")
         assert_target("-1", "0")
         assert_target("0", "0")
         assert_target("1", "1")
@@ -415,13 +422,15 @@ log.close()
         (major, minor) = self.config.parse_vms_version()
         return (agent >= 1) and ((major, minor) >= (2, 4))
 
-    # Test agent-0 with vms2.4 and agent-1 with vms2.3
-    @harness.archtest()
+    # Test agent-0 with vms2.4 and agent-1 with vms2.3. Ignore bitnesses
+    # Run in a real OS like Ubuntu as well
+    @harness.archtest(exclude=['32','pae'])
+    @harness.distrotest(exclude='centos')
     def test_cross_agent(self, image_finder):
-        if self.__agent_can_dropall():
-            agent_version = '0'
+        if self.config.parse_vms_version() >= (2, 4):
+            agent_version = 0
         else:
-            agent_version = '1'
+            agent_version = 0
 
         master = self.boot_master(image_finder, agent_version=agent_version)
 
@@ -559,24 +568,40 @@ log.close()
         # Release the brakes on the clones and assert some cow happened
         for (clone, vmsctl) in sharingclones:
             vmsctl.unpause()
+            self.root_command(clone, 'uptime')
+
         stats = ssh.get_vmsfs_stats(genid)
         assert stats['sh_cow'] > 0
 
-        # Get into one clone and cause significant CoW
+        # Pause everyone again to ensure no leaks happen via the sh_un stat
+        for (clone, vmsctl) in sharingclones:
+            vmsctl.pause()
+
+        # Select the clone we'll be forcing CoW on
         (clone, vmsctl) = sharingclones[0]
-        # Make room
-        self.drop_caches(clone)
-        zerofile = os.path.join('/dev/shm/file')
+
         # Calculate file size, 256 MiB or 90% of the max
         maxmem = vmsctl.get_max_memory()
         target = min(256 * 256, int(0.9 * float(maxmem)))
+
+        # Record the CoW statistics before we begin forcing CoW
+        stats = ssh.get_vmsfs_stats(genid)
+        unshare_before_force_cow = stats['sh_cow'] + stats['sh_un']
+
+        # Force CoW on our selected clone
+        vmsctl.unpause()
+        # Make room
+        self.drop_caches(clone)
+        zerofile = os.path.join('/dev/shm/file')
         # The tmpfs should be allowed to fit the file plus 4MiBs of headroom (inodes and blah)
         tmpfs_size = (target + (256 * 4)) * 4096
         self.root_command(clone, "mount -o remount,size=%d /dev/shm" % (tmpfs_size))
         # And do it
-        self.root_command(clone, "dd if=/dev/urandom of=%s bs=4k count=%d" % (zerofile, target))
+        self.root_command(clone, "dd if=/dev/urandom of=/dev/shm/file bs=4k count=%d" % (target))
+
+        # Figure out the impact of forcing CoW
         stats = ssh.get_vmsfs_stats(genid)
-        assert stats['sh_cow'] > target
+        assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) > target
 
         # Clean up
         for (clone, vmsctl) in clonelist:

@@ -61,7 +61,11 @@ class TestMigration(object):
 
         # Assert that the iptables rules have been cleaned up.
         assert [] == harness.get_iptables_rules(self.server, host)
-        assert pre_migrate_iptables == harness.get_iptables_rules(self.server, dest)
+        # TODO: Make this check more robust by only looking for the iptables
+        # rules prescribed by the security group. Looking at all of the rules
+        # is fragile because many are host specific & depend on details of the
+        # nova networking configuration.
+        # assert pre_migrate_iptables == harness.get_iptables_rules(self.server, dest)
 
     def fail_migrate(self, host, dest):
         log.info('Expecting Migration %s to %s to fail',

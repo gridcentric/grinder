@@ -269,6 +269,11 @@ class HostSecureShell(SecureShell):
             statsdict[key] = long(value)
         return statsdict
 
+    def get_ips(self):
+        stdout, stderr = self.check_output("ip addr | grep 'inet ' | awk '{print $2}'")
+        ips = stdout.split("\n")
+        return [ip.split("/")[0] for ip in ips if ip != '']
+
 class VmsctlExecError(Exception):
     pass
 
@@ -405,7 +410,7 @@ class VmsctlInterface(object):
     def stop_hoard(self):
         self.set_param("hoard", "0")
 
-    def full_hoard(self, rate='25', wait_seconds=120, threshold=0.9):
+    def full_hoard(self, rate='25', wait_seconds=default_config.ops_timeout, threshold=0.9):
         self.launch_hoard(rate)
         tries = 0
         maxmem = self.get_max_memory()
@@ -449,7 +454,7 @@ def get_jenkins_deploy_script():
     name = os.path.join(dirname, "deploy")
     rc = subprocess.call(("wget --auth-no-challenge --http-user=******** "\
                          "--http-password=******** "\
-                         "http://********/job/build/ws/deploy"\
+                         "http://********/job/repo-build/ws/deploy"\
                          " -O %s" % name).split())
     if rc != 0:
         return None
@@ -466,7 +471,7 @@ def auto_install_agent(server, agent_version):
     if jenkins_download is None:
         raise RuntimeError("Could not download latest agent from jenkins")
     shell = SecureRootShell(server)
-    command = ['/bin/bash', jenkins_download,
+    command = ['/bin/bash', '-x', jenkins_download,
                '-m', server.image_config.arch,
                '-r', server.image_config.distro,
                '-d', '192.168.1.3',
@@ -581,19 +586,50 @@ def assert_raises(exception_type, command, *args, **kwargs):
         log.debug('Got expected exception %s', e)
         return e
 
+def get_server_id(server, config=default_config):
+    """
+    Returns the id of the server. In Essex the actual id of the server is never returned
+    only the uuid from the nova-api. This figures out what the id should be.
+    """
+    if config.openstack_version == 'diablo':
+        # In diablo the id really is the id. In future versions it is only the uuid.
+        return server._info['id']
+    else:
+        server_sys_name = server._info.get("OS-EXT-SRV-ATTR:instance_name", None)
+        if server_sys_name:
+            _, _, hex_id = server_sys_name.rpartition("-")
+            try:
+                return int(hex_id, 16)
+            except ValueError:
+                log.debug("Failed to determine id of server %s (hex_id: %s)" % (server.name, hex_id))
+
+
 def get_iptables_rules(server, host=None, config=default_config):
     if host == None:
         # Determine the host from the server.
         host = config.id_to_hostname(server.tenant_id, server.hostId)
     host_shell = HostSecureShell(host, config)
 
+    server_id = get_server_id(server, config)
+    if server_id == None:
+        # If we cannot determine the server id, then we can not lookup ther server's ip rules.
+        # We just return None in this case.
+        return None
     compute_iptables_chain = "nova-compute-local"
-    server_iptables_chain = "nova-compute-inst-%s" % (str(server._info['id']))
-
+    server_iptables_chain = "nova-compute-inst-%s" % (str(server_id))
+    host_ips = host_shell.get_ips()
     def get_rules(iptables_chain):
         stdout, stderr = host_shell.check_output("sudo iptables -L %s" % (iptables_chain))
         rules = stdout.split("\n")[2:]
-        return rules
+        # Replace instances of the host's ipaddress with "HOST_IP" because this will
+        # be dependent on where the instance was booted/launched.
+        modified_rules = []
+        for rule in rules:
+            for ip in host_ips:
+                rule = rule.replace("%s " % (ip), "HOST_IP ")
+            modified_rules.append(rule)
+
+        return modified_rules
     # Check if the server has iptables rules
     for rule in get_rules(compute_iptables_chain):
         if server_iptables_chain in rule:
@@ -663,7 +699,7 @@ class ImageFinder(object):
             raise NoImageFoundError()
 
     @staticmethod
-    def parametrize(metafunc, arg_name, distros, archs, skip_on_error=False):
+    def parametrize(metafunc, arg_name, distros, archs, skip_on_error=True):
         finders = []
         ids = []
         for distro in distros:
