@@ -3,6 +3,9 @@
 mkdir -p html
 
 for x in logs/*.xml; do
+    if [ ! -r $x ]; then
+        continue
+    fi
     y=html/$(basename $x .xml).html
     if [ ! -e $y -o $x -nt $y ]; then
         echo "generating $y"

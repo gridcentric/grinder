@@ -8,24 +8,19 @@ To install py.test:
 
     easy_install -U pytest
 
-To install the openstack-test key in your Openstack project:
-    
-    nova keypair-add --pub_key openstack-test.pub openstack-test
-
-Change permissions on the private half of the key to appease ssh:
-    
-    chown me:me openstack-test.key
-    chmod 600 openstack-test.key
+Install your your ssh keys for booting VMs:
+   
+    nova keypair-add --pub_key ~/.ssh/id_rsa.pub `whoami`
 
 If running the test from outside the openstack cluster, the default
 group needs to be configured to allow icmp and ssh traffic to VMs:
-    
+
     nova secgroup-add-rule default tcp 22 22 0.0.0.0/0
     nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
 
 Run with py.test:
 
-    py.test --capture=no -vvv
+    py.test --guest_key_name=`whoami` --capture=no -vvv
 
 For the brave & well (cluster) endowed:
 
@@ -42,18 +37,14 @@ the test runs on, for instance, with
 To make using py.test less tedious, store your favourite command-line options in
 pytest.ini. Here's mine:
 
-> $ cat pytest.ini
-> [pytest]
-> addopts=--hosts=node1,node2 -vvv --capture=no
+    $ cat pytest.ini
+    [pytest]
+    addopts=--hosts=node1,node2 -vvv --capture=no
 
 -- A note on ssh keys
-The public/private key pair in this repo will be used for all instance
-interactions. The public key will be installed on the instances being booted.
 
-The same public key is expected to have been installed in a "tester" account
-(or modify that at will in config.py) on each host. The "tester" account is
-expected to have password-less sudo as well. That way, the testing harness can
-issue vmsctl calls on the host.
+To run some tests, you will need a key installed on the physical hosts as well.
+The user is controlled by the --host_user option, and the key is set by the
+--host_key_path option.
 
-Simple sudoers no password example:
-tester  ALL=NOPASSWD: ALL
+This user should either be root, or have passwordless sudo access.
