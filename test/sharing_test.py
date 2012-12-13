@@ -62,6 +62,7 @@ class TestSharing(harness.TestCase):
     
             # Make them hoard.
             for clone in sharingclones:
+                vmsctl = clone.vmsctl()
                 assert vmsctl.full_hoard()
     
             # There should be significant sharing going on now.
