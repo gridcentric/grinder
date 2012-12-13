@@ -73,11 +73,11 @@ class Config(object):
 
         # The arch to use for non-arch tests (i.e., tests that aren't sensitive
         # to the arch).
-        self.default_archs = None
+        self.default_archs = []
 
         # The distro to use for non-distro tests (i.e., tests that aren't
         # sensitive to the distro).
-        self.default_distros = None
+        self.default_distros = []
 
         # Name to prefix to all of the tests. Defaults to the environment
         # variable RUN_NAME if available, otherwise one is constructed from
@@ -129,9 +129,9 @@ class Config(object):
                 image.key_name = self.guest_key_name
             if image.key_path == None:
                 image.key_path = self.guest_key_path
-        if self.default_archs == None:
+        if len(self.default_archs) == 0:
             self.default_archs = archs
-        if self.default_distros == None:
+        if len(self.default_distros) == 0:
             self.default_distros = distros
 
     def get_images(self, distro, arch):
