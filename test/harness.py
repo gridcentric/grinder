@@ -168,10 +168,14 @@ class TestHarness(Notifier):
         return FakeServer(fake_id)
 
 class TestCase(object):
+
+    harness = None
+
     def setup_method(self, method):
         self.config = default_config
         self.harness = TestHarness(self.config, test_name)
         self.harness.setup()
 
     def teardown_method(self, method):
-        self.harness.teardown()
+        if self.harness:
+            self.harness.teardown()
