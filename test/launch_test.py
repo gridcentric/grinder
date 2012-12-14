@@ -42,7 +42,8 @@ class TestLaunch(harness.TestCase):
             master_addrs = master.get_addrs()
             assert set(launched_addrs).isdisjoint(master_addrs)
 
-            # Cleanup the blessed instance.
+            # Cleanup.
+            launched.delete()
             blessed.discard()
 
     def test_master_gone(self, image_finder):
