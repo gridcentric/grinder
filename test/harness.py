@@ -132,8 +132,13 @@ class TestHarness(Notifier):
         server = boot(self.client, self.config, image_config)
         instance = Instance(self, server, image_config)
         if agent:
-            instance.install_agent()
-            instance.assert_agent_running()
+            try:
+                instance.install_agent()
+                instance.assert_agent_running()
+            except:
+                if not(self.config.leave_on_failure):
+                    instance.delete()
+                raise
         return instance
 
     def booted(harness, image_finder, agent=True):
