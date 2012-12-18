@@ -12,7 +12,7 @@ class TestMemory(harness.TestCase):
     def test_launch_with_target(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
             # Figure out the nominal ram of this VM.
-            ram = blessed.ram()
+            ram = blessed.get_ram()
 
             def assert_target(target, expected):
                 launched = blessed.launch(blessed, target=target)

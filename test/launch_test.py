@@ -108,7 +108,7 @@ class TestLaunch(harness.TestCase):
     def test_launch_iptables_rules(self, image_finder):
         with self.harness.booted(image_finder) as master:
             master_iptables_rules = master.get_iptables_rules()
-            blessed = self.bless(master)
+            blessed = master.bless()
 
             # The iptables rules for the master should also be for launched instances.
             launched = self.launch(blessed)
