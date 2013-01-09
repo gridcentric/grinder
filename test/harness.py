@@ -31,6 +31,7 @@ def boot(client, config, image_config=None):
     setattr(server, 'image_config', image_config)
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
+    assert getattr(server, 'OS-EXT-STS:power_state') == 1
 
     return server
 
