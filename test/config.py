@@ -101,6 +101,23 @@ class Config(object):
         # Whether to leave the VMs around on failure.
         self.leave_on_failure = False
 
+        # These are knobs that control the sharing test, and you should be very
+        # sure about what you are doing before changing them.
+        # We will launch clones until share_count land on the same host. Combined
+        # with the number of hosts you have, this will significantly affect the
+        # runtime of the sharing test.
+        self.share_count = 2
+
+        # When share-hoarding across a bunch of stopped clones, we expect
+        # the resident to allocated ratio to be share_ratio * num of clones
+        # i.e. for two clones, 60% more resident than allocated.
+        self.share_ratio = 0.8
+
+        # We cannot avoid a small but unknown amount of CoW to happen before we
+        # start accounting. So provide a slack to absorb that unknown number of
+        # pages and prevent spurious failures.
+        self.cow_slack = 1500 
+
     def get_all_archs(self):
         return list(set([i.arch for i in self.images]))
 
