@@ -11,6 +11,11 @@ class TestSharing(harness.TestCase):
     # i.e. for two clones, 60% more resident than allocated.
     SHARE_RATIO = 0.8
 
+    # We cannot avoid a small but unknown amount of CoW to happen before we
+    # start accounting. So provide a slack to absorb that unknown and prevent
+    # spurious failures.
+    COW_SLACK = 1500 
+
     @harness.hosttest
     def test_sharing(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
@@ -118,7 +123,8 @@ class TestSharing(harness.TestCase):
     
             # Figure out the impact of forcing CoW.
             stats = host.get_vmsfs_stats(generation)
-            assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) > target
+            assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) >\
+                   (target - self.COW_SLACK)
     
             # Clean up.
             for clone in clonelist:
