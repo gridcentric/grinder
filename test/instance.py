@@ -7,6 +7,7 @@ from . shell import RootShell
 from . host import Host
 from . vmsctl import Vmsctl
 from . breadcrumbs import Breadcrumbs
+from . util import fix_url_for_yum
 from . util import wait_for
 from . util import wait_for_ping
 from . shell import wait_for_ssh
@@ -288,10 +289,14 @@ class Instance(Notifier):
         return map(lambda x: x['id'], self.harness.gcapi.list_launched_instances(self.server))
 
     def install_agent(self):
+        if self.image_config.distro in ["centos", "rpm"]:
+            agent_location = fix_url_for_yum(self.harness.config.agent_location)
+        else:
+            agent_location = self.harness.config.agent_location
         self.harness.gcapi.install_agent(self.server,
                                          user=self.image_config.user,
                                          key_path=self.image_config.key_path,
-                                         location=self.harness.config.agent_location,
+                                         location=agent_location,
                                          version=self.harness.config.agent_version)
         time.sleep(5.0) # Wait 5 seconds after installation.
         self.breadcrumbs.add("Installed agent version %s" % self.harness.config.agent_version)
