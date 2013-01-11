@@ -1,5 +1,6 @@
 from . import harness
 from . logger import log
+from . config import DEFAULT_DROPALL_FRACTION
 
 class TestMemory(harness.TestCase):
 
@@ -28,8 +29,15 @@ class TestMemory(harness.TestCase):
     @harness.hosttest
     def test_agent_hoard_dropall(self, image_finder):
         # Ensure no parameter bogosity
-        self.config.dropall_acceptable_fraction =\
-            float(self.config.dropall_acceptable_fraction)
+        self.config.test_memory_dropall_fraction =\
+            float(self.config.test_memory_dropall_fraction)
+        if self.config.test_memory_dropall_fraction < 0.25 or\
+           self.config.test_memory_dropall_fraction > 0.99:
+            log.debug("Provided dropall fraction %f will break the test, "
+                      "changing to %f." %\
+                        (self.config.test_memory_dropall_fraction,\
+                         DEFAULT_DROPALL_FRACTION))
+            self.config.test_memory_dropall_fraction = DEFAULT_DROPALL_FRACTION
 
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch()
@@ -86,7 +94,8 @@ class TestMemory(harness.TestCase):
 
             # First check the results of introspection
             maxmem = vmsctl.get_max_memory()
-            drop_target = float(maxmem) * self.config.dropall_acceptable_fraction
+            drop_target = float(maxmem) *\
+                          self.config.test_memory_dropall_fraction
             freed = vmsctl.get_param("stats.eviction.drop.freepgsize.max")
             assert drop_target < float(freed)
             log.info("Agent helped to drop %d." % int(freed))
