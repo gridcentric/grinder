@@ -1,21 +1,48 @@
+import pytest
 from . import harness
 from . logger import log
+from . config import DEFAULT_SHARING_CLONES
+from . config import DEFAULT_COW_SLACK
+from . config import DEFAULT_SHARE_RATIO
 
 class TestSharing(harness.TestCase):
-
-    # We will launch clones until SHARE_COUNT hit the same host.
-    SHARE_COUNT = 2
-
-    # When share-hoarding across a bunch of stopped clones, we expect
-    # the resident to allocated ratio to SHARE_RATIO * num of clones
-    # i.e. for two clones, 60% more resident than allocated.
-    SHARE_RATIO = 0.8
-
     @harness.hosttest
     def test_sharing(self, image_finder):
+        # Make sure we should run
+        if self.config.test_sharing_disable:
+            log.info("Skipping sharing test on user request.")
+            pytest.skip()
+
+        # The user could have specified really silly or bogus knobs. Casting
+        # bogosity will kill the test on purpose.
+        self.config.test_sharing_sharing_clones =\
+            int(self.config.test_sharing_sharing_clones)
+        if self.config.test_sharing_sharing_clones < 2 or\
+           self.config.test_sharing_sharing_clones > 10:
+            log.debug("Provided sharing clones %d will break the test, changing"
+                      " to %d." % (self.config.test_sharing_sharing_clones,\
+                                   DEFAULT_SHARING_CLONES))
+            self.config.test_sharing_sharing_clones = DEFAULT_SHARING_CLONES
+        self.config.test_sharing_cow_slack =\
+            int(self.config.test_sharing_cow_slack)
+        if self.config.test_sharing_cow_slack < 0 or\
+           self.config.test_sharing_cow_slack > (16 * 256):
+            log.debug("Provided cow slack %d will break the test, changing"
+                      " to %d." % (self.config.test_sharing_cow_slack,\
+                                   DEFAULT_COW_SLACK))
+            self.config.test_sharing_cow_slack = DEFAULT_COW_SLACK
+        self.config.test_sharing_share_ratio =\
+            float(self.config.test_sharing_share_ratio)
+        if self.config.test_sharing_share_ratio < 0.25 or\
+           self.config.test_sharing_share_ratio > 0.99:
+            log.debug("Provided sharing ratio %f will break the test, changing"
+                      " to %d." % (self.config.test_sharing_share_ratio,
+                                   DEFAULT_SHARE_RATIO))
+            self.config.test_sharing_share_ratio = DEFAULT_SHARE_RATIO
+
         with self.harness.blessed(image_finder) as blessed:
 
-            # Launch until we have SHARE_COUNT clones on one host.
+            # Launch until we have test_sharing_sharing_clones clones on one host.
             hostdict = {}
             clonelist = []
 
@@ -33,7 +60,7 @@ class TestSharing(harness.TestCase):
                 hostdict[host.id] = (hostcount, host_clone_list)
 
                 # If we've got enough, break.
-                if hostcount == self.SHARE_COUNT:
+                if hostcount == self.config.test_sharing_sharing_clones:
                     break
    
             # Figure out the generation ID.
@@ -45,7 +72,7 @@ class TestSharing(harness.TestCase):
    
             # The last host bumped the sharing count.
             (hostcount, sharingclones) = hostdict[host.id]
-            assert hostcount == self.SHARE_COUNT
+            assert hostcount == self.config.test_sharing_sharing_clones
     
             # Set all these guys up.
             for clone in sharingclones:
@@ -69,10 +96,11 @@ class TestSharing(harness.TestCase):
             stats = host.get_vmsfs_stats(generation)
             resident = stats['cur_resident']
             allocated = stats['cur_allocated']
-            expect_ratio = float(self.SHARE_COUNT) * self.SHARE_RATIO
+            expect_ratio = float(self.config.test_sharing_sharing_clones) *\
+                                 self.config.test_sharing_share_ratio
             real_ratio = float(resident) / float(allocated)
             log.debug("For %d clones on host %s: resident %d allocated %d ratio %f expect %f"
-                        % (self.SHARE_COUNT, str(host), resident,
+                        % (self.config.test_sharing_sharing_clones, str(host), resident,
                            allocated, real_ratio, expect_ratio))
             assert real_ratio > expect_ratio
     
@@ -118,7 +146,8 @@ class TestSharing(harness.TestCase):
     
             # Figure out the impact of forcing CoW.
             stats = host.get_vmsfs_stats(generation)
-            assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) > target
+            assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) >\
+                   (target - self.config.test_sharing_cow_slack)
     
             # Clean up.
             for clone in clonelist:

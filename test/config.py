@@ -6,6 +6,10 @@ from getpass import getuser
 from socket import gethostname
 
 DEFAULT_KEY_PATH = os.path.join(os.getenv('HOME'), '.ssh', 'id_rsa')
+DEFAULT_DROPALL_FRACTION    = 0.5
+DEFAULT_SHARING_CLONES      = 2
+DEFAULT_SHARE_RATIO         = 0.8
+DEFAULT_COW_SLACK           = 1500
 
 class Image(object):
     '''Add an image.
@@ -100,6 +104,35 @@ class Config(object):
 
         # Whether to leave the VMs around on failure.
         self.leave_on_failure = False
+
+        # Parameter for the memory-hoard-dropall test. Only change if you
+        # really know what you are doing. There is no good definition for
+        # the "success" of dropall. However, on a (relatively) freshly booted
+        # Linux, fully hoarded, with over 256MiB of RAM, there should be
+        # massive removal of free pages. Settle on a 50% threshold by default.
+        self.test_memory_dropall_fraction = DEFAULT_DROPALL_FRACTION
+
+        # Whether the sharing test should not run. If you have many hosts the
+        # sharing test will spend a lot of time allocating clones until it gets
+        # two or more clones to coexist on a host and share memory.
+        self.test_sharing_disable = False
+
+        # These are knobs that control the sharing test, and you should be very
+        # sure about what you are doing before changing them.
+        # We will launch clones until test_sharing_sharing_clones land on the
+        # same host. Combined with the number of hosts you have, this will
+        # significantly affect the runtime of the sharing test.
+        self.test_sharing_sharing_clones = DEFAULT_SHARING_CLONES
+
+        # When share-hoarding across a bunch of stopped clones, we expect
+        # the resident to allocated ratio to be test_sharing_share_ratio * num
+        # of clones i.e. for two clones, 60% more resident than allocated.
+        self.test_sharing_share_ratio = DEFAULT_SHARE_RATIO
+
+        # We cannot avoid a small but unknown amount of CoW to happen before we
+        # start accounting. So provide a slack to absorb that unknown number of
+        # pages and prevent spurious failures.
+        self.test_sharing_cow_slack = DEFAULT_COW_SLACK
 
     def get_all_archs(self):
         return list(set([i.arch for i in self.images]))

@@ -1,6 +1,8 @@
 import types
 import time
 import os
+import urlparse
+import urllib
 
 from . logger import log
 from . config import default_config
@@ -88,3 +90,11 @@ def wait_for_ping(addrs):
     ip = addrs[0]
     wait_for('ping %s to respond' % ip,
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0)
+
+def fix_url_for_yum(url):
+    s = urlparse.urlsplit(url)
+    parts = [s[0], s[1]]
+    for i in range(2, len(s)):
+        elem = urllib.quote(s[i])
+        parts.append(elem)
+    return urlparse.urlunsplit(parts)
