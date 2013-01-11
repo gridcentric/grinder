@@ -318,7 +318,7 @@ class Instance(Notifier):
         self.root_command("pidof vmsagent", expected_rc=1)
 
     def drop_caches(self):
-        self.root_command("echo 3 > tee /proc/sys/vm/drop_caches")
+        self.root_command("sh", input = "echo 3 > /proc/sys/vm/drop_caches")
 
     def vmsctl(self):
         return Vmsctl(self)
