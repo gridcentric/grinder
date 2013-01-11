@@ -1,3 +1,4 @@
+import pytest
 from . import harness
 from . logger import log
 
@@ -13,6 +14,11 @@ class TestSharing(harness.TestCase):
             self.config.share_count = 2
         self.config.cow_slack = int(self.config.cow_slack)
         self.config.share_ratio = float(self.config.share_ratio)
+
+        # Make sure we should run
+        if self.config.disable_sharing_test:
+            log.info("Skipping sharing test on user request.")
+            pytest.skip()
 
         with self.harness.blessed(image_finder) as blessed:
 
