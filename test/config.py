@@ -101,6 +101,13 @@ class Config(object):
         # Whether to leave the VMs around on failure.
         self.leave_on_failure = False
 
+        # Parameter for the memory-hoard-dropall test. Only change if you
+        # really know what you are doing. There is no good definition for
+        # the "success" of dropall. However, on a (relatively) freshly booted
+        # Linux, fully hoarded, with over 256MiB of RAM, there should be
+        # massive removal of free pages. Settle on a 50% threshold by default.
+        self.dropall_acceptable_fraction = 0.5
+
         # Whether the sharing test should not run. If you have many hosts the
         # sharing test will spend a lot of time allocating clones until it gets
         # two or more clones to coexist on a host and share memory.

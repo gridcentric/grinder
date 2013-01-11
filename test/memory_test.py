@@ -3,12 +3,6 @@ from . logger import log
 
 class TestMemory(harness.TestCase):
 
-    # There is no good definition for "dropall" has succeeded. However, on
-    # a (relatively) freshly booted Linux, fully hoarded, with over 256MiB
-    # of RAM, there should be massive removal of free pages. Settle on a
-    # 50% threshold for now.
-    DROPALL_ACCEPTABLE_FRACTION = 0.5
-
     def test_launch_with_target(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
             # Figure out the nominal ram of this VM.
@@ -33,14 +27,21 @@ class TestMemory(harness.TestCase):
     @harness.archtest()
     @harness.hosttest
     def test_agent_hoard_dropall(self, image_finder):
-        with self.harness.booted(image_finder) as master:
-            # Sometimes dkms and depmod will take over a ton of memory in the page
-            # cache. Throw that away so it can be freed later by dropall.
-            master.drop_caches()
+        # Ensure no parameter bogosity
+        self.config.dropall_acceptable_fraction =\
+            float(self.config.dropall_acceptable_fraction)
 
-            # We can bless now, and launch a clone.
-            blessed = master.bless()
+        with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch()
+
+            # This test effectively tests two features: introspection and
+            # memory footprint management. We do not need to hoard, or to tweak
+            # flags in order to test introspection: the count of free pages
+            # will be computed correctly regardless (we do need to drop caches
+            # in order to have many free pages). For the footprint management
+            # to work, we need to first enable zeros, in order to fetch zero
+            # pages during hoard. And then we need to re-enable zeros, in order
+            # to drop free pages during dropall.
 
             # Now let's have some vmsctl fun
             vmsctl = launched.vmsctl()
@@ -48,6 +49,9 @@ class TestMemory(harness.TestCase):
             # For a single clone all pages fetched become sharing nominees.
             # We want to drop them anyways since they're not really shared.
             vmsctl.set_flag("eviction.dropshared")
+
+            # We will use stats output to verify functionality
+            vmsctl.set_flag("stats.enabled")
 
             # We want to see the full effect of hoarding, let's not bypass zeros.
             vmsctl.clear_flag("zeros.enabled")
@@ -64,16 +68,35 @@ class TestMemory(harness.TestCase):
             assert int(info["eviction.paging"]) == 0
             assert int(info["eviction.sharing"]) == 0
             assert int(info["memory.target"]) == 0
+            assert int(info["stats.enabled"]) == 1
 
             # Hoard so dropall makes a splash.
             assert vmsctl.full_hoard()
 
+            # Sometimes dkms and depmod will take over a ton of memory in the page
+            # cache. Throw that away so it can be freed later by dropall.
+            launched.drop_caches()
+
+            # We hypocritically turn zeros back on. Otherwise they won't really
+            # be dropped. This is a test after all.
+            vmsctl.set_flag("zeros.enabled")
+
             # Now dropall! (agent should help significantly here).
-            before = vmsctl.get_current_memory()
             vmsctl.dropall()
-            after = vmsctl.get_current_memory()
-            assert (float(before)*self.DROPALL_ACCEPTABLE_FRACTION) > float(after)
-            log.info("Agent helped to drop %d -> %d pages." % (before, after))
+
+            # First check the results of introspection
+            maxmem = vmsctl.get_max_memory()
+            drop_target = float(maxmem) * self.config.dropall_acceptable_fraction
+            freed = vmsctl.get_param("stats.eviction.drop.freepgsize.max")
+            assert drop_target < float(freed)
+            log.info("Agent helped to drop %d." % int(freed))
+
+            # Now check the results in actual memory footprint
+            generation = vmsctl.generation()
+            host = vmsctl.instance.get_host() 
+            stats = host.get_vmsfs_stats(generation)
+            freed = int(maxmem) - int(stats["cur_allocated"])
+            assert drop_target < float(freed)
 
             # VM is not dead...
             launched.root_command("ps aux")
@@ -81,4 +104,3 @@ class TestMemory(harness.TestCase):
 
             # Clean up.
             launched.delete()
-            blessed.discard()
