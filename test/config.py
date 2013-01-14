@@ -104,6 +104,18 @@ class Config(object):
 
         # Whether to leave the VMs around on failure.
         self.leave_on_failure = False
+        
+        # Parameters for reading test configuration from tempest configuration file:
+        #   tempest_config is the path of the configuration file
+        #   tc_distro is the distro
+        #   tc_arch is the arch
+        #   tc_user is the user
+        # Function pytest_configure will use these parameters to construct one instance of Image
+        # (e.g. Image('precise-32-agent-ready', distro='ubuntu', arch='32', user='root'))
+        self.tempest_config = None
+        self.tc_distro = None
+        self.tc_arch = None
+        self.tc_user = None
 
         # Parameter for the memory-hoard-dropall test. Only change if you
         # really know what you are doing. There is no good definition for
