@@ -42,6 +42,9 @@ class TestLaunch(harness.TestCase):
             master_addrs = master.get_addrs()
             assert set(launched_addrs).isdisjoint(master_addrs)
 
+            # Verify that there's no user_data
+            launched.get_shell().check_output('curl http://169.254.169.254/latest/user-data 2>/dev/null', expected_output='')
+
             # Cleanup.
             launched.delete()
             blessed.discard()
@@ -177,4 +180,20 @@ class TestLaunch(harness.TestCase):
             assert_guest_params_success({"test_parameter":"verified", "test_parameter2":"verified"})
             assert_guest_params_failure({"sometext": "somelargetext" * 1000})
     
+            blessed.discard()
+
+    def test_launch_with_user_data(self, image_finder):
+        test_data = 'some user data'
+
+        with self.harness.booted(image_finder) as master:
+            # We need the master around to extract addresses.
+            blessed = master.bless()
+
+            launched = blessed.launch(user_data=test_data)
+
+            # Verify user_data
+            launched.get_shell().check_output('curl http://169.254.169.254/latest/user-data 2>/dev/null', expected_output=test_data)
+
+            # Cleanup.
+            launched.delete()
             blessed.discard()

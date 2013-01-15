@@ -157,7 +157,7 @@ class Instance(Notifier):
         compute_iptables_chain = "nova-compute-local"
         server_iptables_chain = "nova-compute-inst-%s" % (str(server_id))
         host_ips = host.get_ips()
-    
+
         def get_rules(iptables_chain):
             stdout, stderr = host.check_output("iptables -L %s" % (iptables_chain))
             rules = stdout.split("\n")[2:]
@@ -170,14 +170,14 @@ class Instance(Notifier):
                     rule = rule.replace("%s " % (ip), "HOST_IP ")
                 modified_rules.append(rule)
             return modified_rules
-    
+
         # Check if the server has iptables rules.
         for rule in get_rules(compute_iptables_chain):
             if server_iptables_chain in rule:
                 # This server has rules defined on this host.
                 # Grab the server rules for that chain.
                 return get_rules(server_iptables_chain)
-    
+
         # Otherwise there are no rules so return an empty list.
         return []
 
@@ -206,7 +206,7 @@ class Instance(Notifier):
         return instance
 
     @Notifier.notify
-    def launch(self, target=None, guest_params=None, status='ACTIVE'):
+    def launch(self, target=None, guest_params=None, status='ACTIVE', user_data=None):
         log.debug("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -214,6 +214,8 @@ class Instance(Notifier):
             params['target'] = target
         if guest_params != None:
             params['guest'] = guest_params
+        if user_data != None:
+            params['user_data'] = user_data
         launched_list = self.harness.gcapi.launch_instance(self.server, params=params)
 
         # Verify the metadata returned by nova-gc.
@@ -276,7 +278,7 @@ class Instance(Notifier):
                 instance = Instance(self.harness, self.harness.client.servers.get(id),
                                     self.image_config, breadcrumbs=False)
                 instance.delete(recursive=True)
-                time.sleep(1.0) # Sleep after the delete.
+                time.sleep(1.0)  # Sleep after the delete.
         log.debug('Discarding %s', self)
         self.harness.gcapi.discard_instance(self.server)
         self.wait_while_exists()
@@ -293,7 +295,7 @@ class Instance(Notifier):
                                          key_path=self.image_config.key_path,
                                          location=self.harness.config.agent_location,
                                          version=self.harness.config.agent_version)
-        time.sleep(5.0) # Wait 5 seconds after installation.
+        time.sleep(5.0)  # Wait 5 seconds after installation.
         self.breadcrumbs.add("Installed agent version %s" % self.harness.config.agent_version)
         self.assert_agent_running()
 
