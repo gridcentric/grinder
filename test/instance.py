@@ -278,7 +278,7 @@ class Instance(Notifier):
                 instance = Instance(self.harness, self.harness.client.servers.get(id),
                                     self.image_config, breadcrumbs=False)
                 instance.delete(recursive=True)
-                time.sleep(1.0)  # Sleep after the delete.
+                time.sleep(1.0) # Sleep after the delete.
         log.debug('Discarding %s', self)
         self.harness.gcapi.discard_instance(self.server)
         self.wait_while_exists()
@@ -295,7 +295,7 @@ class Instance(Notifier):
                                          key_path=self.image_config.key_path,
                                          location=self.harness.config.agent_location,
                                          version=self.harness.config.agent_version)
-        time.sleep(5.0)  # Wait 5 seconds after installation.
+        time.sleep(5.0) # Wait 5 seconds after installation.
         self.breadcrumbs.add("Installed agent version %s" % self.harness.config.agent_version)
         self.assert_agent_running()
 

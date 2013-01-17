@@ -185,10 +185,7 @@ class TestLaunch(harness.TestCase):
     def test_launch_with_user_data(self, image_finder):
         test_data = 'some user data'
 
-        with self.harness.booted(image_finder) as master:
-            # We need the master around to extract addresses.
-            blessed = master.bless()
-
+        with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch(user_data=test_data)
 
             # Verify user_data
@@ -196,4 +193,3 @@ class TestLaunch(harness.TestCase):
 
             # Cleanup.
             launched.delete()
-            blessed.discard()
