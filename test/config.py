@@ -48,7 +48,7 @@ class Config(object):
         self.hosts = []
 
         # Hosts without OpenStack installed. There should be at least one.
-        self.hosts_without_openstack = [gethostname()]
+        self.hosts_without_openstack = []
 
         # Instance flavor; determines RAM and what disks are attached.
         self.flavor_name = 'm1.tiny'
@@ -145,6 +145,8 @@ class Config(object):
         # start accounting. So provide a slack to absorb that unknown number of
         # pages and prevent spurious failures.
         self.test_sharing_cow_slack = DEFAULT_COW_SLACK
+        
+        self.skip_migration_tests = False
 
         # Test output spews endless 'DEBUG' API calls when logging level is set
         # to 'DEBUG', now we can control what logging levels we want to see.

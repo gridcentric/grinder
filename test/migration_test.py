@@ -9,6 +9,10 @@ from . host import Host
 class TestMigration(harness.TestCase):
 
     def test_migration_errors(self, image_finder):
+        if self.harness.config.skip_migration_tests:
+            py.test.skip('Skipping migration tests')
+        if len(self.harness.config.hosts_without_openstack) == 0:
+            py.test.skip('Need at least one host without gridcentric to test for migration errors.')
         with self.harness.booted(image_finder) as master:
             host = master.get_host()
     
@@ -33,6 +37,8 @@ class TestMigration(harness.TestCase):
             fail_migrate(host)
 
     def test_back_and_forth(self, image_finder):
+        if self.harness.config.skip_migration_tests:
+            py.test.skip('Skipping migration tests')
         if len(self.harness.config.hosts) < 2:
             py.test.skip('Need at least 2 hosts to do migration.')
         with self.harness.booted(image_finder) as master:

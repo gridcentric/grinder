@@ -1,6 +1,8 @@
 import uuid
 import pytest
 from uuid import uuid4
+import random
+import time
 
 from . logger import log
 from . config import default_config
@@ -25,9 +27,13 @@ def boot(client, config, image_config=None):
     image = client.images.find(name=image_config.name)
 
     log.info('Booting %s instance named %s', image.name, name)
+    random.seed(time.time())
+    host = random.choice(default_config.hosts)
+    log.debug('Selected host %s' % host)
     server = client.servers.create(name=name,
                                    image=image.id,
                                    key_name=image_config.key_name,
+                                   availability_zone='nova:%s' % host,
                                    flavor=flavor.id)
     setattr(server, 'image_config', image_config)
     wait_while_status(server, 'BUILD')

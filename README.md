@@ -67,6 +67,29 @@ If this option exists, the following options must exist too:
 Test suite will read image ID or name from section `[compute]`, key `image_ref` in the `tempest.conf` file
 and flavor ID from section `[compute]`, key `flavor_ref`.
 
-If `tempest_config` option is provided, we also deal with the host list differently: if hosts option is not
-provided, we obtain the list of all hosts with the service `gridcentric` using nova API.
+Here is an example of a command line runnig the test suite that uses tempest.conf:
 
+    py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64 --tc_user=root
+
+List of hosts
+-------------
+
+The list of hosts used for testing is generated as follows:
+* If option `hosts` is present in either `pytest.ini` or command line, its value is used
+  for the list.
+* Otherwise, the value of `hosts` is the list of all hosts that nova API is aware of.
+* From the list, only those hosts are retained that are running the service `gridcentric`.
+
+List `hosts_without_openstack` is used for migration test. It is generated as follows:
+* If it is provided as an option in `pytest.ini` or on the command line, the value of that
+  option is used as the list of hosts.
+* Otherwise, the list of all hosts obtained via nova API (and not running
+  `gridcentric`) is used.
+* If the list is empty and local host is not running `gridcentric`, then the local
+  host is used.
+
+**NOTE:** For the test suite to be able to get the list of all hosts from nova API, a reasonably
+recent version of python-novaclient has to be installed. Otherwise, the test suite only uses
+`hosts` and `hosts_without_openstack` as specified in the configuration.
+
+If option `skip_migration_tests` is specified, migration tests are skipped.
