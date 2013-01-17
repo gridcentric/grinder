@@ -29,13 +29,30 @@ class TestLaunch(harness.TestCase):
             blessed.discard()
 
     def test_launch_one(self, image_finder):
-        with self.harness.booted(image_finder) as master:
+        with self.harness.security_group() as sg,\
+                self.harness.security_group() as unassigned_sg,\
+                self.harness.booted(image_finder) as master:
+            master.remove_security_group('default')
+            master.add_security_group(sg.name)
+
             # We need the master around to extract addresses.
             blessed = master.bless()
 
             assert [] == blessed.list_launched()
             launched = blessed.launch()
             assert [launched.id] == blessed.list_launched()
+
+            # TODO (tkeith): We are removing security groups rather than
+            # querying for them because Essex doesn't support querying.
+            # Switch to querying once Essex is no longer supported.
+
+            # Check that security group got passed through from master to
+            # launched by removing it
+            launched.remove_security_group(sg.name)
+            assert_raises(ClientException, launched.remove_security_group, ('default',))
+
+            # Try removing a non-assigned security group
+            assert_raises(ClientException, launched.remove_security_group, (unassigned_sg.name,))
 
             # Ensure that the addresses are disjoint.
             launched_addrs = launched.get_addrs()
@@ -197,3 +214,22 @@ class TestLaunch(harness.TestCase):
 
             # Cleanup.
             launched.delete()
+
+    def test_launch_with_security_group(self, image_finder):
+        with self.harness.security_group() as master_sg,\
+                 self.harness.security_group() as launched_sg,\
+                 self.harness.booted(image_finder) as master:
+            master.server.add_security_group(master_sg.name)
+            blessed = master.bless()
+            launched = blessed.launch(security_groups=[launched_sg.name])
+
+            # TODO (tkeith): We are removing security groups rather than
+            # querying for them because Essex doesn't support querying.
+            # Switch to querying once Essex is no longer supported.
+
+            # Verify that master_sg didn't get passed from master to launched
+            assert_raises(ClientException, launched.remove_security_group, (master_sg.name,))
+            assert_raises(ClientException, launched.remove_security_group, ('default',))
+
+            # Verify that launched_sg was added to launched
+            launched.remove_security_group(launched_sg.name)
