@@ -11,7 +11,7 @@ import sys
 import json
 sys.path.append('/etc/gridcentric/common')
 import common
-data = common.parse_params()
+data = common.parse_params().get_dict()
 log = file("/tmp/clone.log", "w")
 log.write("%s" % json.dumps(data))
 log.flush()
@@ -164,7 +164,7 @@ class TestLaunch(harness.TestCase):
             blessed = master.bless()
     
             def assert_guest_params_success(params):
-                """ There parameters should successfully be added to the instance. """
+                """ These parameters should successfully be added to the instance. """
                 launched = blessed.launch(guest_params=params)
                 (output, error) = launched.root_command('cat /tmp/clone.log')
                 inguest_params = json.loads(output)
@@ -174,7 +174,7 @@ class TestLaunch(harness.TestCase):
                 launched.delete()
     
             def assert_guest_params_failure(params):
-                """ There parameters should cause the launching of the instance to fail. """
+                """ These parameters should cause the launching of the instance to fail. """
                 launched = blessed.launch(guest_params=params, status="ERROR")
                 launched.delete()
     
