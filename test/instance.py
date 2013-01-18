@@ -291,8 +291,9 @@ class Instance(Notifier):
         return map(lambda x: x['id'], self.harness.gcapi.list_launched_instances(self.server))
 
     def install_agent(self):
-        if self.image_config.distro in ["centos", "rpm"]:
-            agent_location = fix_url_for_yum(self.harness.config.agent_location)
+        if self.image_config.distro in ["centos", "rpm"] and\
+           self.harness.config.agent_location is not None:
+                agent_location = fix_url_for_yum(self.harness.config.agent_location)
         else:
             agent_location = self.harness.config.agent_location
         self.harness.gcapi.install_agent(self.server,
