@@ -1,5 +1,6 @@
 import uuid
 import pytest
+from uuid import uuid4
 
 from . logger import log
 from . config import default_config
@@ -163,6 +164,18 @@ class TestHarness(Notifier):
                     self.blessed.discard(recursive=True)
                     self.master.delete(recursive=True)
         return BlessedInstance()
+
+    def security_group(harness):
+        class SecurityGroup:
+            def __enter__(self, name=None):
+                if name == None:
+                    name = str(uuid4())
+                self.secgroup = harness.client.security_groups.create(name, 'Created by openstack-test')
+                return self.secgroup
+            def __exit__(self, type, value, tb):
+                if type == None or not(harness.config.leave_on_failure):
+                    harness.client.security_groups.delete(self.secgroup)
+        return SecurityGroup()
 
     def fake_id(self):
         # Generate a fake id (ensure it's fake).
