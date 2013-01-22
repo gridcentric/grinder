@@ -1,7 +1,9 @@
 import os
+import logging
 
 from test.config import default_config, Image
 from test.harness import ImageFinder, get_test_distros, get_test_archs
+from test.logger import log
 
 def parse_option(value, *default_args, **default_kwargs):
     '''Parses an option value qemu style: comma-separated, optional keys
@@ -58,6 +60,13 @@ def pytest_configure(config):
                     setattr(default_config, name, new_value.split(','))
                 else:
                     setattr(default_config, name, new_value)
+    level = {'DEBUG': logging.DEBUG,
+             'INFO': logging.INFO,
+             'WARNING': logging.WARNING,
+             'ERROR': logging.ERROR,
+             'CRITICAL': logging.CRITICAL}
+    loglevel = default_config.log_level.upper() 
+    log.setLevel(level.get(loglevel, logging.INFO))
     default_config.post_config()
 
 def pytest_generate_tests(metafunc):

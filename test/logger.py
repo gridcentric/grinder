@@ -7,5 +7,6 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 log = logging.getLogger()
 log.propagate = False
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 log.addHandler(handler)
+

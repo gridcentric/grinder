@@ -134,6 +134,10 @@ class Config(object):
         # pages and prevent spurious failures.
         self.test_sharing_cow_slack = DEFAULT_COW_SLACK
 
+        # Test output spews endless 'DEBUG' API calls when logging level is set
+        # to 'DEBUG', now we can control what logging levels we want to see.
+        self.log_level = 'INFO'
+
     def get_all_archs(self):
         return list(set([i.arch for i in self.images]))
 
