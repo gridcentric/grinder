@@ -304,7 +304,6 @@ class Instance(Notifier):
                                          key_path=self.image_config.key_path,
                                          location=agent_location,
                                          version=self.harness.config.agent_version)
-        time.sleep(5.0) # Wait 5 seconds after installation.
         self.breadcrumbs.add("Installed agent version %s" % self.harness.config.agent_version)
         self.assert_agent_running()
 
