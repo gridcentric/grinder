@@ -33,7 +33,7 @@ class TestMemory(harness.TestCase):
             float(self.config.test_memory_dropall_fraction)
         if self.config.test_memory_dropall_fraction < 0.25 or\
            self.config.test_memory_dropall_fraction > 0.99:
-            log.debug("Provided dropall fraction %f will break the test, "
+            log.info("Provided dropall fraction %f will break the test, "
                       "changing to %f." %\
                         (self.config.test_memory_dropall_fraction,\
                          DEFAULT_DROPALL_FRACTION))

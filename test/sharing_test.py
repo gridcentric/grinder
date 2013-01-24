@@ -19,7 +19,7 @@ class TestSharing(harness.TestCase):
             int(self.config.test_sharing_sharing_clones)
         if self.config.test_sharing_sharing_clones < 2 or\
            self.config.test_sharing_sharing_clones > 10:
-            log.debug("Provided sharing clones %d will break the test, changing"
+            log.info("Provided sharing clones %d will break the test, changing"
                       " to %d." % (self.config.test_sharing_sharing_clones,\
                                    DEFAULT_SHARING_CLONES))
             self.config.test_sharing_sharing_clones = DEFAULT_SHARING_CLONES
@@ -27,7 +27,7 @@ class TestSharing(harness.TestCase):
             int(self.config.test_sharing_cow_slack)
         if self.config.test_sharing_cow_slack < 0 or\
            self.config.test_sharing_cow_slack > (16 * 256):
-            log.debug("Provided cow slack %d will break the test, changing"
+            log.info("Provided cow slack %d will break the test, changing"
                       " to %d." % (self.config.test_sharing_cow_slack,\
                                    DEFAULT_COW_SLACK))
             self.config.test_sharing_cow_slack = DEFAULT_COW_SLACK
@@ -35,7 +35,7 @@ class TestSharing(harness.TestCase):
             float(self.config.test_sharing_share_ratio)
         if self.config.test_sharing_share_ratio < 0.25 or\
            self.config.test_sharing_share_ratio > 0.99:
-            log.debug("Provided sharing ratio %f will break the test, changing"
+            log.info("Provided sharing ratio %f will break the test, changing"
                       " to %d." % (self.config.test_sharing_share_ratio,
                                    DEFAULT_SHARE_RATIO))
             self.config.test_sharing_share_ratio = DEFAULT_SHARE_RATIO

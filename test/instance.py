@@ -138,7 +138,7 @@ class Instance(Notifier):
             try:
                 return int(hex_id, 16)
             except ValueError:
-                log.debug("Failed to determine id of server %s" % str(self))
+                log.error("Failed to determine id of server %s" % str(self))
         else:
             # In diablo the id really is the id.
             return self.server.id
@@ -184,7 +184,7 @@ class Instance(Notifier):
 
     @Notifier.notify
     def bless(self):
-        log.debug('Blessing %s', self)
+        log.info('Blessing %s', self)
         self.breadcrumbs.add('Pre bless')
         blessed_list = self.harness.gcapi.bless_instance(self.server)
         assert len(blessed_list) == 1
@@ -208,7 +208,7 @@ class Instance(Notifier):
 
     @Notifier.notify
     def launch(self, target=None, guest_params=None, status='ACTIVE', user_data=None, security_groups=None):
-        log.debug("Launching from %s with target=%s guest_params=%s status=%s"
+        log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
         if target != None:
@@ -254,7 +254,7 @@ class Instance(Notifier):
 
     @Notifier.notify
     def migrate(self, host, dest):
-        log.debug('Migrating %s from %s to %s', self, host, dest)
+        log.info('Migrating %s from %s to %s', self, host, dest)
         self.assert_alive(host)
         pre_migrate_iptables = self.get_iptables_rules(host)
         self.breadcrumbs.add('pre migration to %s' % dest.id)
@@ -271,7 +271,7 @@ class Instance(Notifier):
                 instance = Instance(self.harness, self.harness.client.servers.get(id),
                                     self.image_config, breadcrumbs=False)
                 instance.discard(recursive=True)
-        log.debug('Deleting %s', self)
+        log.info('Deleting %s', self)
         self.server.delete()
         self.wait_while_exists()
 
@@ -283,7 +283,7 @@ class Instance(Notifier):
                                     self.image_config, breadcrumbs=False)
                 instance.delete(recursive=True)
                 time.sleep(1.0) # Sleep after the delete.
-        log.debug('Discarding %s', self)
+        log.info('Discarding %s', self)
         self.harness.gcapi.discard_instance(self.server)
         self.wait_while_exists()
 
