@@ -10,9 +10,9 @@ class TestMemory(harness.TestCase):
             ram = blessed.get_ram()
 
             def assert_target(target, expected):
-                launched = blessed.launch(blessed, target=target)
+                launched = blessed.launch(target=target)
                 vmsctl = launched.vmsctl()
-                assert expected == vmsctl.get("memory.target")
+                assert expected == vmsctl.get_param("memory.target")
                 launched.delete()
 
             # Check that our input targets match.

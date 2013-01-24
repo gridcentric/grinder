@@ -207,7 +207,7 @@ class Instance(Notifier):
         return instance
 
     @Notifier.notify
-    def launch(self, target=None, guest_params=None, status='ACTIVE', user_data=None):
+    def launch(self, target=None, guest_params=None, status='ACTIVE', user_data=None, security_groups=None):
         log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -217,6 +217,9 @@ class Instance(Notifier):
             params['guest'] = guest_params
         if user_data != None:
             params['user_data'] = user_data
+        if security_groups != None:
+            params['security_groups'] = security_groups
+
         launched_list = self.harness.gcapi.launch_instance(self.server, params=params)
 
         # Verify the metadata returned by nova-gc.
@@ -330,3 +333,9 @@ class Instance(Notifier):
 
     def vmsctl(self):
         return Vmsctl(self)
+
+    def add_security_group(self, *args, **kwargs):
+        return self.server.add_security_group(*args, **kwargs)
+
+    def remove_security_group(self, *args, **kwargs):
+        return self.server.remove_security_group(*args, **kwargs)

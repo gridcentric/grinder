@@ -22,7 +22,8 @@ class GcApi(object):
         guest = params.get('guest', {})
         target = params.get('target', "0")
         user_data = params.get('user_data', None)
-        result = self.novaclient.gridcentric.launch(*args, target=target, user_data=user_data, guest_params=guest)
+        security_groups = params.get('security_groups', None)
+        result = self.novaclient.gridcentric.launch(*args, target=target, user_data=user_data, guest_params=guest, security_groups=security_groups)
         return map(lambda x: x._info, result)
 
     def bless_instance(self, *args, **kwargs):
