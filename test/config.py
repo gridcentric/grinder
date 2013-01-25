@@ -48,7 +48,7 @@ class Config(object):
         self.hosts = []
 
         # Hosts without OpenStack installed. There should be at least one.
-        self.hosts_without_openstack = [gethostname()]
+        self.hosts_without_openstack = []
 
         # Instance flavor; determines RAM and what disks are attached.
         self.flavor_name = 'm1.tiny'
@@ -104,6 +104,18 @@ class Config(object):
 
         # Whether to leave the VMs around on failure.
         self.leave_on_failure = False
+        
+        # Parameters for reading test configuration from tempest configuration file:
+        #   tempest_config is the path of the configuration file
+        #   tc_distro is the distro
+        #   tc_arch is the arch
+        #   tc_user is the user
+        # Function pytest_configure will use these parameters to construct one instance of Image
+        # (e.g. Image('precise-32-agent-ready', distro='ubuntu', arch='32', user='root'))
+        self.tempest_config = None
+        self.tc_distro = None
+        self.tc_arch = None
+        self.tc_user = None
 
         # Parameter for the memory-hoard-dropall test. Only change if you
         # really know what you are doing. There is no good definition for
@@ -133,6 +145,8 @@ class Config(object):
         # start accounting. So provide a slack to absorb that unknown number of
         # pages and prevent spurious failures.
         self.test_sharing_cow_slack = DEFAULT_COW_SLACK
+        
+        self.skip_migration_tests = False
 
         # Test output spews endless 'DEBUG' API calls when logging level is set
         # to 'DEBUG', now we can control what logging levels we want to see.
