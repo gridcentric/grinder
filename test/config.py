@@ -48,7 +48,7 @@ class Config(object):
         self.hosts = []
 
         # Hosts without OpenStack installed. There should be at least one.
-        self.hosts_without_openstack = []
+        self.hosts_without_gridcentric = []
 
         # Instance flavor; determines RAM and what disks are attached.
         self.flavor_name = 'm1.tiny'

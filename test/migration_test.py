@@ -11,7 +11,7 @@ class TestMigration(harness.TestCase):
     def test_migration_errors(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')
-        if len(self.harness.config.hosts_without_openstack) == 0:
+        if len(self.harness.config.hosts_without_gridcentric) == 0:
             py.test.skip('Need at least one host without gridcentric to test for migration errors.')
         with self.harness.booted(image_finder) as master:
             host = master.get_host()
@@ -30,7 +30,7 @@ class TestMigration(harness.TestCase):
             fail_migrate(Host('this-host-does-not-exist', self.harness.config))
     
             # Destination does not have openstack.
-            dest = Host(self.config.hosts_without_openstack[0], self.harness.config)
+            dest = Host(self.config.hosts_without_gridcentric[0], self.harness.config)
             fail_migrate(dest)
     
             # Cannot migrate to self.

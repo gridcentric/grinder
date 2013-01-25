@@ -142,15 +142,15 @@ def pytest_configure(config):
             log.debug('host %s service %s' % (host.host_name, host.service))
 
         service = 'gridcentric'
-        if len(default_config.hosts_without_openstack) == 0:
-            default_config.hosts_without_openstack = \
+        if len(default_config.hosts_without_gridcentric) == 0:
+            default_config.hosts_without_gridcentric = \
                 filter(lambda x: service not in host_dict.get(x, []),
                        hosts)
-            if len(default_config.hosts_without_openstack) == 0:
-                default_config.hosts_without_openstack = [gethostname()]
-        default_config.hosts_without_openstack = \
+            if len(default_config.hosts_without_gridcentric) == 0:
+                default_config.hosts_without_gridcentric = [gethostname()]
+        default_config.hosts_without_gridcentric = \
             filter(lambda x: service not in host_dict.get(x, []),
-                   default_config.hosts_without_openstack)
+                   default_config.hosts_without_gridcentric)
         default_config.hosts = filter(lambda x: service in host_dict.get(x, []),
                                       hosts)
     except exceptions.AttributeError:
@@ -159,7 +159,7 @@ def pytest_configure(config):
         pass
 
     log.debug('hosts: %s' % default_config.hosts)
-    log.debug('hosts_without_openstack: %s' % default_config.hosts_without_openstack)
+    log.debug('hosts_without_gridcentric: %s' % default_config.hosts_without_gridcentric)
 
     # Make sure that we have at least one host.
     if len(default_config.hosts) == 0:
