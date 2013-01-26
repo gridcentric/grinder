@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import json
 import uuid
 import random
 
@@ -24,18 +23,6 @@ from . logger import log
 from . util import assert_raises
 from . import requirements
 from . import host
-
-PARAMS_SCRIPT = """#!/usr/bin/env python
-import sys
-import json
-sys.path.append('/etc/gridcentric/common')
-import common
-data = common.parse_params().get_dict()
-log = file("/tmp/clone.log", "w")
-log.write("%s" % json.dumps(data))
-log.flush()
-log.close()
-"""
 
 class TestLaunch(harness.TestCase):
 
@@ -78,7 +65,7 @@ class TestLaunch(harness.TestCase):
             assert set(launched_addrs).isdisjoint(master_addrs)
 
             # Verify that there's no user_data
-            launched.get_shell().check_output('curl http://169.254.169.254/latest/user-data 2>/dev/null', expected_output='')
+            launched.assert_userdata('')
 
             # Cleanup.
             launched.delete()
@@ -199,18 +186,12 @@ class TestLaunch(harness.TestCase):
 
     def test_launch_with_params(self, image_finder):
         with self.harness.booted(image_finder) as master:
-            params_filename = "90_clone_params"
-            master.root_command('cat > %s' % params_filename, input=PARAMS_SCRIPT)
-            master.root_command('chmod +x %s' % params_filename)
-            master.root_command('mv %s /etc/gridcentric/clone.d/%s' % (params_filename, params_filename))
-
             blessed = master.bless()
 
             def assert_guest_params_success(params):
                 """ These parameters should successfully be added to the instance. """
                 launched = blessed.launch(guest_params=params)
-                (output, error) = launched.root_command('cat /tmp/clone.log')
-                inguest_params = json.loads(output)
+                inguest_params = launched.read_params()
                 for param in params:
                     assert param in inguest_params
                     assert inguest_params[param] == "verified"
@@ -238,14 +219,14 @@ class TestLaunch(harness.TestCase):
             launched.delete()
 
     @harness.requires(requirements.USER_DATA)
+    @harness.platformtest(exclude=["windows"])
     def test_launch_with_user_data(self, image_finder):
         test_data = 'some user data'
-
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch(user_data=test_data)
 
             # Verify user_data
-            launched.get_shell().check_output('curl http://169.254.169.254/latest/user-data 2>/dev/null', expected_output=test_data)
+            launched.assert_userdata(test_data)
 
             # Cleanup.
             launched.delete()

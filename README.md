@@ -17,10 +17,10 @@ For the brave & well (cluster) endowed:
 The above command will fork and run 6 test in parallel. Because of increased
 load, latency increases and some test operations may timeout. YMMV.
 
-Run `py.test --help grinder` to see the configuration options. Look at the
-headings below for more information on options. You can change which hosts the
-test runs on, for instance, with:
-    
+Run `py.test --help` to see the configuration options. Look at the headings
+below for more information on options. You can change which hosts the test runs
+on, for instance, with:
+
     ./py.test --hosts=node1,node2 grinder
 
 To make using py.test less tedious, store your favourite command-line options in
@@ -113,7 +113,52 @@ sudo rights, and allows password-less ssh login using the key set with the
 cloud images with nova key injection. For CentOS images, you would typically
 set the user to `root`.
 
-Look into the `Image` class in `grinder/config.py` for more options.
+Some images may have minimum resource requirements. The image configuration
+takes an optional `flavor` argument which explicitly specifies a flavor to use
+with the particular image. When `flavor` is not provided, the global default
+flavor, specified by the `flavor_name` argument is used instead. An image
+configuration specifying a flavor might look like this:
+
+    --image=precise-server.img,distro=ubuntu,arch=64,user=ubuntu,flavor=m1.large
+
+For images based on non-Linux operating systems, the `platform` key must be
+provided in the image configuration to specify the guest operation system. For
+more information regarding supported guest operating systems and additional
+setup required for non-Linux guests, see the "Guest Platforms" section below.
+
+See the `Image` class in `test/config.py` for more options.
+
+Guest Platforms
+---------------
+
+Currently Grinder supports Windows 7 instances in addition to Linux instances.
+Grinder can be made aware of instances running Windows by providing the
+`platform` key through the image configuration. For Windows instances the value
+should be `windows`.  When the key is not provided, the value defaults to
+`linux`. A Windows image configuration might look like this:
+
+    --image=win7.img,distro=win7,arch=64,user=test,flavor=m1.large,platform=windows
+
+For a Windows image, the `user` and `distro` keys are currently ignored but may
+be used in the future to support different versions of Windows.
+
+Windows images used with grinder must contain a special 'TestListener' service
+which acts as the in-guest controller with which grinder communicates. The
+TestListener package can be obtained from:
+
+    http://docs.gridcentric.com/downloads/windows.html
+
+Note that grinder attempts to connect to the TestListener on tcp port 9845 by
+default. This port must be allowed through both the instance's Windows firewall
+and added to the security group used by grinder:
+
+    nova secgroup-add-rule grinder tcp 9845 9845 0.0.0.0/0
+    ./py.test --security_group=grinder grinder
+
+If a different port must be used, both the TestListener and grinder must be
+configured with the new port. To modify the port on the TestListener, set the
+`ListenPort` parameter in the config file at
+`C:\Program Files (x86)\Gridcentric\TestListener\test_listener.ini`.
 
 Tempest-based configuration
 ---------------------------

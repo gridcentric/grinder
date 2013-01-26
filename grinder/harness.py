@@ -23,7 +23,7 @@ from . config import default_config
 from . util import Notifier
 from . util import list_filter
 from . client import create_client
-from . instance import Instance
+from . instance import InstanceFactory
 from . instance import wait_while_status
 from . host import Host
 
@@ -46,9 +46,9 @@ def boot(client, config, image_config=None, flavor=None):
     image_config.flavor = flavor
 
     flavor_id = client.flavors.find(name=flavor).id
- 
+
     image = client.images.find(name=image_config.name)
-    
+
     log.info('Booting %s instance named %s', image.name, name)
     host = random.choice(default_config.hosts)
     host_az = Host(host, config).host_az()
@@ -73,12 +73,12 @@ class ImageFinder(object):
         self.queries = []
         self.skip_on_error = skip_on_error
 
-    def add(self, distro, arch):
-        self.queries.append((distro, arch))
+    def add(self, distro, arch, platform):
+        self.queries.append((distro, arch, platform))
 
     def find(self, client, config):
-        for distro, arch in self.queries:
-            for image in config.get_images(distro, arch):
+        for distro, arch, platform in self.queries:
+            for image in config.get_images(distro, arch, platform):
                 try:
                     found = client.images.find(name=image.name)
                     return image
@@ -90,16 +90,17 @@ class ImageFinder(object):
             raise Exception("No image found.")
 
     @staticmethod
-    def parametrize(metafunc, arg_name, distros, archs, skip_on_error=True):
+    def parametrize(metafunc, arg_name, distros, archs, platforms, skip_on_error=True):
         finders = []
         ids = []
 
         for distro in distros:
             for arch in archs:
-                finder = ImageFinder(skip_on_error)
-                finder.add(distro, arch)
-                finders.append(finder)
-                ids.append('%s %s' % (distro, arch))
+                for platform in platforms:
+                    finder = ImageFinder(skip_on_error)
+                    finder.add(distro, arch, platform)
+                    finders.append(finder)
+                    ids.append('%s %s %s' % (distro, arch, platform))
 
         if len(finders) == 0:
             # Append a null ImageFinder if there are no images.
@@ -135,6 +136,15 @@ def distrotest(exclude=None, include=None):
 
 def get_test_distros(fn):
     return get_test_marker(fn, 'distros', default_config.default_distros)
+
+def platformtest(exclude=None, include=None):
+    def _inner(fn):
+        platforms = list_filter(default_config.get_all_platforms(), exclude, include)
+        return mark_test(fn, platforms=platforms)
+    return _inner
+
+def get_test_platforms(fn):
+    return get_test_marker(fn, 'platforms', default_config.default_platforms)
 
 def hosttest(fn):
     mark_test(fn, hosttest=True)
@@ -253,11 +263,10 @@ class TestHarness(Notifier):
     def boot(self, image_finder, agent=True, flavor=None):
         image_config = image_finder.find(self.client, self.config)
         server = boot(self.client, self.config, image_config, flavor)
-        instance = Instance(self, server, image_config)
+        instance = InstanceFactory.create(self, server, image_config)
         if agent:
             try:
                 instance.install_agent()
-                instance.assert_agent_running()
             except:
                 if not(self.config.leave_on_failure):
                     instance.delete()

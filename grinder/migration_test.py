@@ -14,7 +14,7 @@
 #    under the License.
 
 from novaclient.exceptions import ClientException
-import py.test 
+import py.test
 
 from . import harness
 from . logger import log
@@ -23,6 +23,7 @@ from . host import Host
 
 class TestMigration(harness.TestCase):
 
+    @harness.platformtest(exclude=["windows"])
     def test_migration_one(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')
@@ -34,6 +35,7 @@ class TestMigration(harness.TestCase):
             assert host.id != dest.id
             master.migrate(host, dest)
 
+    @harness.platformtest(exclude=["windows"])
     def test_migration_errors(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')
@@ -41,7 +43,7 @@ class TestMigration(harness.TestCase):
             py.test.skip('Need at least one host without gridcentric to test for migration errors.')
         with self.harness.booted(image_finder) as master:
             host = master.get_host()
-    
+
             def fail_migrate(dest):
                 log.info('Expecting Migration %s to %s to fail', str(master.id), dest)
                 master.breadcrumbs.add('pre expected fail migration to %s' % dest.id)
@@ -51,17 +53,18 @@ class TestMigration(harness.TestCase):
                 assert e.code / 100 == 4 or e.code / 100 == 5
                 master.assert_alive(host)
                 master.breadcrumbs.add('post expected fail migration to %s' % dest.id)
-    
+
             # Destination does not exist.
             fail_migrate(Host('this-host-does-not-exist', self.harness.config))
-    
+
             # Destination does not have gridcentric.
             dest = Host(self.config.hosts_without_gridcentric[0], self.harness.config)
             fail_migrate(dest)
-    
+
             # Cannot migrate to self.
             fail_migrate(host)
 
+    @harness.platformtest(exclude=["windows"])
     def test_back_and_forth(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')

@@ -30,6 +30,7 @@ DEFAULT_SHARING_CLONES      = 2
 DEFAULT_SHARE_RATIO         = 0.8
 DEFAULT_COW_SLACK           = 1500
 DEFAULT_SSH_PORT            = 22
+DEFAULT_WINDOWS_LINK_PORT   = 9845
 
 class Image(object):
     '''Add an image.
@@ -44,11 +45,12 @@ flavor -- the flavor to use to boot this image, overrides the global
           default config.flavor_name.
 e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
 '''
-    def __init__(self, name, distro, arch, user='root', key_path=None,
+    def __init__(self, name, distro, arch, platform='linux', user='root', key_path=None,
                  key_name=None, flavor=None):
         self.name = name
         self.distro = distro
         self.arch = arch
+        self.platform = platform
         self.user = user
         self.key_path = key_path
         self.key_name = key_name
@@ -57,12 +59,13 @@ e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
     def check(self):
         assert self.distro
         assert self.arch
+        assert self.platform
         assert self.user
         assert self.key_path
 
     def __repr__(self):
         return 'Image(name=%s, distro=%s, ' % (self.name, self.distro) + \
-            'arch=%s, user=%s, ' % (self.arch, self.user) + \
+            'arch=%s, platform=%s, user=%s, ' % (self.arch, self.platform, self.user) + \
             'key_path=%s, key_name=%s, flavor=%s)' % \
                 (self.key_path, self.key_name, self.flavor)
 
@@ -109,9 +112,17 @@ class Config(object):
         # The port to use to initiate ssh connections.
         self.ssh_port = DEFAULT_SSH_PORT
 
+        # The port for the Windows TestListener service.
+        self.windows_link_port = DEFAULT_WINDOWS_LINK_PORT
+
         # A custom agent location (passed to the gc-install-agent command).
         self.agent_location = None
         self.agent_version  = 'latest'
+
+        # A custom Windows agent location (passed to the Windows
+        # TestListener). The location must be a url directly to the msi file.
+        self.windows_agent_location = \
+            "http://downloads.gridcentriclabs.com/packages/public/windows/gc-agent-latest-amd64-release.msi"
 
         # The arch to use for non-arch tests (i.e., tests that aren't sensitive
         # to the arch).
@@ -120,6 +131,10 @@ class Config(object):
         # The distro to use for non-distro tests (i.e., tests that aren't
         # sensitive to the distro).
         self.default_distros = []
+
+        # The platform to use for non-platform tests (i.e., tests that aren't
+        # sensititve to the platform.
+        self.default_platforms = []
 
         # Name to prefix to all of the tests. Defaults to the environment
         # variable RUN_NAME if available, otherwise one is constructed from
@@ -131,14 +146,14 @@ class Config(object):
         # image names aren't important. See Image.
         #
         # We no longer store defaults here in this repo, but as an example:
-        #   Image('cirros-0.3.0-x86_64', distro='cirros', arch='64', user='cirros'),
+        #   Image('cirros-0.3.0-x86_64', distro='cirros', arch='64', platform='linux', user='cirros'),
         #   Image('oneiric-agent-ready', distro='ubuntu', arch='64', user='ubuntu'),
         #   Image('precise-32-agent-ready', distro='ubuntu', arch='32', user='root'),
         #   Image('precise-pae-agent-ready', distro='ubuntu', arch='pae', user='root'),
         #   Image('centos-6.3-64-agent-ready', distro='centos', arch='64', user='root'),
         #   Image('centos-6.3-32-agent-ready', distro='centos', arch='32', user='root'),
         #   Image('centos-6.3-pae-agent-ready', distro='centos', arch='pae', user='root'),
-        #   Image('windows7-64bit-virtio', distro='windows', arch='64', user='root', flavor='m1.medium')
+        #   Image('windows7-64bit-virtio', distro='win7', arch='64', platform='windows', user='root')
         self.images = []
 
         # Whether to leave the VMs around on failure.
@@ -204,6 +219,9 @@ class Config(object):
     def get_all_distros(self):
         return list(set([i.distro for i in self.images]))
 
+    def get_all_platforms(self):
+        return list(set([i.platform for i in self.images]))
+
     def post_config(self):
         if self.run_name == None:
             if os.getenv('RUN_NAME'):
@@ -215,21 +233,23 @@ class Config(object):
                 host = gethostname()
                 self.run_name = '%s@%s-%d-%d' % (user, host, ppid, pid)
 
-        archs = []
-        distros = []
+        archs = set()
+        distros = set()
+        platforms = set()
         for image in self.images:
-            if not(image.arch) in archs:
-                archs.append(image.arch)
-            if not(image.distro) in distros:
-                distros.append(image.distro)
+            archs.add(image.arch)
+            distros.add(image.distro)
+            platforms.add(image.platform)
             if image.key_name == None:
                 image.key_name = self.guest_key_name
             if image.key_path == None:
                 image.key_path = self.guest_key_path
         if len(self.default_archs) == 0:
-            self.default_archs = archs
+            self.default_archs = list(archs)
         if len(self.default_distros) == 0:
-            self.default_distros = distros
+            self.default_distros = list(distros)
+        if len(self.default_platforms) == 0:
+            self.default_platforms = list(platforms)
 
         # Cast number options, handle bogosity
         def handle_number_option(opt, type, name, default, min, max):
@@ -264,8 +284,10 @@ class Config(object):
                                  float, "dropall fraction",
                                  DEFAULT_DROPALL_FRACTION, 0.25, 0.99)
 
-    def get_images(self, distro, arch):
-        return filter(lambda i: i.distro == distro and i.arch == arch, self.images)
+    def get_images(self, distro, arch, platform):
+        return filter(lambda i: i.distro == distro and \
+                          i.arch == arch and \
+                          i.platform == platform, self.images)
 
     def hostname_to_ids(self, tenant_id, hostname):
         essex_hash  = hashlib.sha224(str(tenant_id) + str(hostname)).hexdigest()

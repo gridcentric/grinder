@@ -16,7 +16,7 @@
 import os
 import logging
 from . config import default_config, Image
-from . harness import ImageFinder, get_test_distros, get_test_archs
+from . harness import ImageFinder, get_test_distros, get_test_archs, get_test_platforms
 from . client import create_nova_client
 from . logger import log
 from . requirements import AVAILABILITY_ZONE
@@ -86,7 +86,7 @@ def pytest_configure(config):
              'WARNING': logging.WARNING,
              'ERROR': logging.ERROR,
              'CRITICAL': logging.CRITICAL}
-    loglevel = default_config.log_level.upper() 
+    loglevel = default_config.log_level.upper()
     log.setLevel(level.get(loglevel, logging.INFO))
 
     tempest_config = getattr(config.option, "tempest_config")
@@ -190,7 +190,7 @@ def pytest_configure(config):
                 default_config.hosts_without_gridcentric = [gethostname()]
 
         default_config.hosts_without_gridcentric = \
-            [x for x in default_config.hosts_without_gridcentric if 
+            [x for x in default_config.hosts_without_gridcentric if
                 service not in host_dict.get(x, [])]
         default_config.hosts = [x for x in hosts if service in host_dict.get(x,
             [])]
@@ -213,4 +213,5 @@ def pytest_generate_tests(metafunc):
     if "image_finder" in metafunc.funcargnames:
         ImageFinder.parametrize(metafunc, 'image_finder',
                                 get_test_distros(metafunc.function),
-                                get_test_archs(metafunc.function))
+                                get_test_archs(metafunc.function),
+                                get_test_platforms(metafunc.function))

@@ -18,27 +18,6 @@ from . logger import log
 
 class TestMemory(harness.TestCase):
 
-    def test_launch_with_target(self, image_finder):
-        with self.harness.blessed(image_finder) as blessed:
-            # Figure out the nominal ram of this VM.
-            ram = blessed.get_ram()
-
-            def assert_target(target, expected):
-                launched = blessed.launch(target=target)
-                vmsctl = launched.vmsctl()
-                assert expected == vmsctl.get_param("memory.target")
-                launched.delete()
-
-            # Check that our input targets match.
-            assert_target(None, "0")
-            assert_target("-1", "0")
-            assert_target("0", "0")
-            assert_target("1", "1")
-            assert_target("%dmb" % (ram / 2), "%d" % (256 * (ram / 2)))
-            assert_target("%dMB" % (ram), "%d" % (256 * ram))
-            assert_target("%dMB" % (ram + 1), "%d" % (256 * (ram + 1)))
-            assert_target("%dGB" % (ram), "%d" % (262144 * ram))
-
     @harness.archtest()
     @harness.hosttest
     def test_agent_hoard_dropall(self, image_finder):
@@ -90,14 +69,13 @@ class TestMemory(harness.TestCase):
 
             # Now check the results in actual memory footprint
             generation = vmsctl.generation()
-            host = vmsctl.instance.get_host() 
+            host = vmsctl.instance.get_host()
             stats = host.get_vmsfs_stats(generation)
             freed = int(maxmem) - int(stats["cur_allocated"])
             assert drop_target < float(freed)
 
             # VM is not dead...
-            launched.root_command("ps aux")
-            launched.root_command("find / > /dev/null")
+            launched.assert_guest_stable()
 
             # Clean up.
             launched.delete()
@@ -117,11 +95,8 @@ class TestMemory(harness.TestCase):
 
             # Take over 3.5GiB of ram with random bytes
             master.drop_caches()
-            tmpfs_size = (3 << 30) + (512 << 20)
-            master.root_command("mount -o remount,size=%d /dev/shm" % (tmpfs_size))
-            # Give a small 16MiB breather. Conver to 2M super pages
-            target = (tmpfs_size - (16 << 20)) >> 21
-            master.root_command("dd if=/dev/urandom of=/dev/shm/file bs=2M count=%d" % (target))
+            balloon_size_pages = ((3 << 30) + (512 << 20)) >> 12
+            fingerprint = master.allocate_balloon(balloon_size_pages)
 
             # Good to go, bless
             blessed = master.bless()
@@ -131,12 +106,10 @@ class TestMemory(harness.TestCase):
             vmsctl = launched.vmsctl()
             vmsctl.clear_flag("zeros.enabled")
             assert vmsctl.full_hoard()
-            assert vmsctl.get_current_memory >= tmpfs_size
+            assert vmsctl.get_current_memory >= balloon_size_pages
 
             # Compare memory, should match
-            (master_md5, _) = master.root_command("md5sum /dev/shm/file")
-            (clone_md5, _) = launched.root_command("md5sum /dev/shm/file")
-            assert master_md5 == clone_md5
+            launched.assert_balloon_integrity(fingerprint)
 
             # Clean up
             launched.delete()

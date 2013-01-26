@@ -13,7 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import select
+import socket
 import subprocess
+import time
 
 from . logger import log
 from . util import wait_for
@@ -72,6 +75,16 @@ class SecureShell(object):
 
         return (stdout, stderr)
 
+    def is_alive(self):
+        '''Runs a dummy command through the shell. Returns True if the
+        shell is responsive, false otherwise. Useful for ensuring the
+        shell is operational.'''
+        try:
+            self.check_output('true', exc=True)
+            return True
+        except:
+            return False
+
 class RootShell(SecureShell):
 
     '''The RootShell implements a subclass of the SecureShell,
@@ -87,11 +100,70 @@ class RootShell(SecureShell):
     def ssh_args(self):
         return super(RootShell,self).ssh_args() + self.sudo
 
-def wait_for_ssh(shell):
-    def _connect():
+def wait_for_shell(shell):
+    wait_for('shell %s to respond' % shell.host, shell.is_alive)
+
+class WinShell(object):
+
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        log.debug("Creating link to %s on port %d." % (self.host, self.port))
+
+    def _connect(self):
+        # When attempting to connect immediately after boot, the
+        # TestListener service may not yet be initialized. Until the
+        # service binds the port, we'll get connection refused errors.
+        retries = 100
+        while True:
+            try:
+                retries -= 1
+                sock = socket.create_connection((self.host, self.port), 5)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                return sock
+            except socket.error, exc:
+                log.debug("Failed to connect to %s: %s. Retrying." % \
+                              (self.host, exc))
+                time.sleep(1)
+                if retries <= 0:
+                    raise
+
+    def check_output(self, command, expected_output="ok", timeout=10):
+        sock = self._connect()
         try:
-            shell.check_output('true', exc=True)
+            log.debug("Link I: %s" % command)
+            sock.sendall(command)
+
+            # If timeout is None, we don't expect a response back.
+            if timeout is None:
+                return
+
+            # Do a nonblocking wait for 'timeout'.
+            sock.setblocking(0)
+            ready = select.select([sock], [], [], timeout)
+            if len(ready[0]) > 0 and ready[0][0] == sock:
+                response = sock.recv(8192)
+                log.debug("Link O: %s" % response.strip())
+                if expected_output is None or \
+                        response.strip() == expected_output:
+                    return response, ""
+                else:
+                    raise ValueError("Link command '%s' sent unexpected " % \
+                                         command +
+                                     "response: %s. Expecting: %s." % \
+                                         (response, expected_output))
+            else:
+                raise RuntimeError("Link command '%s' timed out." % command)
+
+        finally:
+            sock.close()
+
+    def is_alive(self):
+        '''Returns True if the link is operational.'''
+        try:
+            sock = self._connect()
+            sock.close()
             return True
         except:
             return False
-    wait_for('ssh %s to respond' % shell.host, _connect)
+
