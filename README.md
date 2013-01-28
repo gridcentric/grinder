@@ -80,7 +80,7 @@ The list of hosts used for testing is generated as follows:
 * Otherwise, the value of `hosts` is the list of all hosts that nova API is aware of.
 * From the list, only those hosts are retained that are running the service `gridcentric`.
 
-List `hosts_without_openstack` is used for migration test. It is generated as follows:
+List `hosts_without_gridcentric` is used for migration test. It is generated as follows:
 * If it is provided as an option in `pytest.ini` or on the command line, the value of that
   option is used as the list of hosts.
 * Otherwise, the list of all hosts obtained via nova API (and not running
@@ -90,6 +90,6 @@ List `hosts_without_openstack` is used for migration test. It is generated as fo
 
 **NOTE:** For the test suite to be able to get the list of all hosts from nova API, a reasonably
 recent version of python-novaclient has to be installed. Otherwise, the test suite only uses
-`hosts` and `hosts_without_openstack` as specified in the configuration.
+`hosts` and `hosts_without_gridcentric` as specified in the configuration.
 
 If option `skip_migration_tests` is specified, migration tests are skipped.
