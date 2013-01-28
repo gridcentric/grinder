@@ -118,6 +118,51 @@ def hosttest(fn):
         return fn(self, image_finder, *args, **kwargs)
     return _inner
 
+class BootedInstance:
+    def __init__(self, harness, image_finder, agent):
+        self.harness = harness
+        self.image_finder = image_finder
+        self.agent = agent
+
+    def __enter__(self):
+        self.master = self.harness.boot(self.image_finder, agent=self.agent)
+        return self.master
+
+    def __exit__(self, type, value, tb):
+        if type == None or not(self.harness.config.leave_on_failure):
+            self.master.delete(recursive=True)
+
+class BlessedInstance:
+    def __init__(self, harness, image_finder, agent):
+        self.harness = harness
+        self.image_finder = image_finder
+        self.agent = agent
+
+    def __enter__(self):
+        self.master = self.harness.boot(self.image_finder, agent=self.agent)
+        self.blessed = self.master.bless()
+        return self.blessed
+
+    def __exit__(self, type, value, tb):
+        if type == None or not(self.harness.config.leave_on_failure):
+            self.blessed.discard(recursive=True)
+            self.master.delete(recursive=True)
+
+class SecurityGroup:
+    def __init__(self, harness, name=None):
+        self.harness = harness
+        self.name = name
+
+    def __enter__(self):
+        if self.name == None:
+            name = str(uuid4())
+        self.secgroup = self.harness.client.security_groups.create(name, 'Created by openstack-test')
+        return self.secgroup
+
+    def __exit__(self, type, value, tb):
+        if type == None or not(self.harness.config.leave_on_failure):
+            self.harness.client.security_groups.delete(self.secgroup)
+
 class TestHarness(Notifier):
     '''There's one instance of TestHarness per test function that runs.'''
     def __init__(self, config, test_name):
@@ -149,39 +194,14 @@ class TestHarness(Notifier):
                 raise
         return instance
 
-    def booted(harness, image_finder, agent=True):
-        class BootedInstance:
-            def __enter__(self):
-                self.master = harness.boot(image_finder, agent=agent)
-                return self.master
-            def __exit__(self, type, value, tb):
-                if type == None or not(harness.config.leave_on_failure):
-                    self.master.delete(recursive=True)
-        return BootedInstance()
+    def booted(self, image_finder, agent=True):
+        return BootedInstance(self, image_finder, agent)
 
-    def blessed(harness, image_finder, agent=True):
-        class BlessedInstance:
-            def __enter__(self):
-                self.master = harness.boot(image_finder, agent=agent)
-                self.blessed = self.master.bless()
-                return self.blessed
-            def __exit__(self, type, value, tb):
-                if type == None or not(harness.config.leave_on_failure):
-                    self.blessed.discard(recursive=True)
-                    self.master.delete(recursive=True)
-        return BlessedInstance()
+    def blessed(self, image_finder, agent=True):
+        return BlessedInstance(self, image_finder, agent)
 
-    def security_group(harness):
-        class SecurityGroup:
-            def __enter__(self, name=None):
-                if name == None:
-                    name = str(uuid4())
-                self.secgroup = harness.client.security_groups.create(name, 'Created by openstack-test')
-                return self.secgroup
-            def __exit__(self, type, value, tb):
-                if type == None or not(harness.config.leave_on_failure):
-                    harness.client.security_groups.delete(self.secgroup)
-        return SecurityGroup()
+    def security_group(self):
+        return SecurityGroup(self)
 
     def fake_id(self):
         # Generate a fake id (ensure it's fake).
