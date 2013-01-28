@@ -29,7 +29,7 @@ class TestMigration(harness.TestCase):
             # Destination does not exist.
             fail_migrate(Host('this-host-does-not-exist', self.harness.config))
     
-            # Destination does not have openstack.
+            # Destination does not have gridcentric.
             dest = Host(self.config.hosts_without_gridcentric[0], self.harness.config)
             fail_migrate(dest)
     
