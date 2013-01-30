@@ -10,8 +10,8 @@ for x in logs/*.xml; do
     if [ ! -e $y -o $x -nt $y ]; then
         echo "generating $y"
         xsltproc junit2html.xslt $x > $y
-        # pyunit screws up some xml escaping. It ouputs &amp;gt; when it should
-        # output &gt;. We fix it up with sed here.
+        # pyunit does some xml escaping wrong. It ouputs &amp;gt; when it
+        # should output &gt;. We fix it up with sed here.
         sed -i 's/&amp;\(gt\|amp\|apos\|quot\);/\&\1;/g' $y
         touch --date="$(stat --printf '%y' $x)" $y
     fi

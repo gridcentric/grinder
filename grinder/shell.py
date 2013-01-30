@@ -72,9 +72,7 @@ class SecureShell(object):
 class RootShell(SecureShell):
 
     '''The RootShell implements a subclass of the SecureShell,
-    except we check if a sudo prefix is necessary when running commands.
-    Note that we will always run the given commands through a shell on
-    the remote end, so you can still do things like 'cat > foo'.'''
+    except we check if a sudo prefix is necessary when running commands.'''
 
     def __init__(self, *args, **kwargs):
         SecureShell.__init__(self, *args, **kwargs)

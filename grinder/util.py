@@ -107,6 +107,7 @@ def wait_for_ping(addrs):
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0)
 
 def fix_url_for_yum(url):
+    # Yum's URL parser cannot deal with commas and such.
     s = urlparse.urlsplit(url)
     parts = [s[0], s[1]]
     for i in range(2, len(s)):

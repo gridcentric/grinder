@@ -251,7 +251,7 @@ class TestLaunch(harness.TestCase):
 
     def test_repeat_launch_delete(self, image_finder):
         """ This test was added because repeated launching & discarding caused an issue
-            setting the IP with DHCP. This test usually fails between the 7th and 16th
+            setting the IP with DHCP. This test used to fail between the 7th and 16th
             iteration. """
         with self.harness.blessed(image_finder) as blessed:
             for i in range(20):

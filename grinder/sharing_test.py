@@ -64,10 +64,10 @@ class TestSharing(harness.TestCase):
             while True:
                 clone = blessed.launch()
     
-                # Surely a simpler way to do this.
+                # TODO: Surely a simpler way to do this.
                 clonelist.append(clone)
 
-                # Mark the host the holds this VM.
+                # Mark the host that holds this VM.
                 host = clone.get_host()
                 (hostcount, host_clone_list) = hostdict.get(host.id, (0, []))
                 hostcount += 1
@@ -95,14 +95,11 @@ class TestSharing(harness.TestCase):
                 vmsctl.pause()
                 vmsctl.set_flag("share.enabled")
                 vmsctl.set_flag("share.onfetch")
-
-                # We want it to fetch and share zero pages as well. We want the
-                # full hoard to complete up to the max footprint. Otherwise our
-                # arithmetic below will be borked.
                 vmsctl.clear_flag("zeros.enabled")
                 vmsctl.clear_target()
     
-            # Make them hoard.
+            # Make them hoard to a full footprint. This will allow us to better
+            # see the effect of sharing in the arithmetic below.
             for clone in sharingclones:
                 vmsctl = clone.vmsctl()
                 assert vmsctl.full_hoard()
@@ -119,7 +116,7 @@ class TestSharing(harness.TestCase):
                            allocated, real_ratio, expect_ratio))
             assert real_ratio > expect_ratio
     
-            # Release the brakes on the clones and assert some cow happened.
+            # Release the brakes on the clones and assert some unsharing happens.
             for clone in sharingclones:
                 vmsctl = clone.vmsctl()
                 vmsctl.unpause()
@@ -128,38 +125,30 @@ class TestSharing(harness.TestCase):
             stats = host.get_vmsfs_stats(generation)
             assert stats['sh_cow'] > 0
     
-            # Pause everyone again to ensure no leaks happen via the sh_un stat.
+            # Pause everyone again, and force aggressive unsharing on a single clone.
             for clone in sharingclones:
                 vmsctl = clone.vmsctl()
                 vmsctl.pause()
     
-            # Select the clone we'll be forcing CoW on.
             clone = sharingclones[0]
             vmsctl = clone.vmsctl()
-    
-            # Calculate file size, 256 MiB or 90% of the max.
             maxmem = vmsctl.get_max_memory()
             target = min(256 * 256, int(0.9 * float(maxmem)))
     
-            # Record the CoW statistics before we begin forcing CoW.
+            # Record the unshare statistics before we begin thrashing the guest
+            # with random bytes.
             stats = host.get_vmsfs_stats(generation)
             unshare_before_force_cow = stats['sh_cow'] + stats['sh_un']
     
-            # Force CoW on our selected clone.
             vmsctl.unpause()
-    
-            # Make room.
             clone.drop_caches()
-    
             # The tmpfs should be allowed to fit the file plus
             # 4MiBs of headroom (inodes and blah).
             tmpfs_size = (target + (256 * 4)) * 4096
             clone.root_command("mount -o remount,size=%d /dev/shm" % (tmpfs_size))
-    
-            # And do it.
             clone.root_command("dd if=/dev/urandom of=/dev/shm/file bs=4k count=%d" % (target))
     
-            # Figure out the impact of forcing CoW.
+            # Figure out the impact of forcing unsharing.
             stats = host.get_vmsfs_stats(generation)
             assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) >\
                    (target - self.config.test_sharing_cow_slack)

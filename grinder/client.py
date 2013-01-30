@@ -23,7 +23,7 @@ class GcApi(object):
     so that future API changes can be easily adapted to
     and versioned without changing all tests. This object
     was actually introduced for the Diablo -> Essex merge
-    but although we longer support a Diablo API, it may
+    but although we no longer support a Diablo API, it may
     still be useful in the future.'''
     
     def __init__(self, novaclient):

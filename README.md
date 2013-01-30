@@ -50,24 +50,28 @@ The user is controlled by the `--host_user` option, and the key is set by the
 
 This user should either be root, or have passwordless sudo access.
 
-tempest configuration
+Tempest-based configuration
 ---------------------
 
-The test suite can read some configuration parameters from tempest, the OpenStack integration test suite.
-The way to specify that, we provide option `tempest_config`, like so:
+Grinder can read some configuration parameters from Tempest, the
+OpenStack integration test suite.
+
+    https://github.com/openstack/tempest
+
+This is specified through the option `tempest_config`:
 
     --tempest_config=/path/to/tempest.conf
 
-If this option exists, the following options must exist too:
+Grinde will use two keys from the section `[compute]` in `tempest.conf`: the
+default image name or ID (`image_ref`), and the default instance flavor
+(`flavor_ref`). Further, Grinder wil require additionally setting the following
+three options related to the deafult image:
 
 * `tc_distro` - the distro name
 * `tc_arch` - the arch
-* `tc_user` - the username used for login to the instance
+* `tc_user` - the username used for loggin into the instance
 
-Test suite will read image ID or name from section `[compute]`, key `image_ref` in the `tempest.conf` file
-and flavor ID from section `[compute]`, key `flavor_ref`.
-
-Here is an example of a command line runnig the test suite that uses tempest.conf:
+Here is an example of a command line that uses tempest.conf:
 
     py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64 --tc_user=root
 
@@ -75,21 +79,38 @@ List of hosts
 -------------
 
 The list of hosts used for testing is generated as follows:
-* If option `hosts` is present in either `pytest.ini` or command line, its value is used
-  for the list.
-* Otherwise, the value of `hosts` is the list of all hosts that nova API is aware of.
-* From the list, only those hosts are retained that are running the service `gridcentric`.
+* If the option `hosts` is present in either `pytest.ini` or command line, its
+  value is used for the list.
+* Otherwise, the value of `hosts` is the list of all hosts that nova API is
+  aware of.
+* From the list, only those hosts that are running the service `gridcentric`
+  are retained.
 
-List `hosts_without_gridcentric` is used for migration test. It is generated as follows:
-* If it is provided as an option in `pytest.ini` or on the command line, the value of that
-  option is used as the list of hosts.
+The list `hosts_without_gridcentric` is used for migration tests. It is
+generated as follows:
+* If it is provided as an option in `pytest.ini` or on the command line, the
+  value of that option is used as the list of hosts.
 * Otherwise, the list of all hosts obtained via nova API (and not running
   `gridcentric`) is used.
 * If the list is empty and local host is not running `gridcentric`, then the local
   host is used.
 
-**NOTE:** For the test suite to be able to get the list of all hosts from nova API, a reasonably
-recent version of python-novaclient has to be installed. Otherwise, the test suite only uses
-`hosts` and `hosts_without_gridcentric` as specified in the configuration.
+**NOTE:** For Grinder to be able to get the list of all hosts from nova
+API, a reasonably recent version of python-novaclient has to be installed.
+Otherwise, Grinder only uses `hosts` and `hosts_without_gridcentric` as
+specified in the configuration.
 
-If option `skip_migration_tests` is specified, migration tests are skipped.
+Further options
+--------------
+
+Please have a look into `grinder/config.py`. All configuration options are
+documented as attributes of the Config class. Any such attribute can be set
+through the command line or `pytest.ini`. For example, `--skip_migration_tests`.
+
+Licensing
+--------
+
+Grinder is released under the terms of the Apache license. This suite
+redistributes `py.test`, taken from the pytest project, and distributed under
+the terms of the MIT license.
+

@@ -59,10 +59,12 @@ class Config(object):
 
     def __init__(self):
         # Hosts in the OpenStack cluster. These are automatically
-        # inferred if you access the cluster with an administrator.
+        # inferred in most cases, see Readme.md.
         self.hosts = []
 
-        # Hosts without OpenStack installed. There should be at least one.
+        # Hosts without the Gridcentric service installed. There should be at
+        # least one for the benefit of the test_migration_errors test.
+        # Otherwise, the test is skipped.
         self.hosts_without_gridcentric = []
 
         # Instance flavor; determines RAM and what disks are attached.
@@ -73,12 +75,13 @@ class Config(object):
         # key preprovisioned. Both are acceptable.
         self.guest_key_name = None
 
-        # The default key path for guests where it is not explicitly provided.
+        # The default path for the counter-part private key that is injected
+        # into guests. We require logging into guests as part of the tests.
         self.guest_key_path = DEFAULT_KEY_PATH
 
         # Some tests will ssh to the hosts and ensure that the state is as
-        # expected. This will happen using the host_user and the host_key_path
-        # below.
+        # expected. This will happen using the host_user and the private key
+        # behind host_key_path below.
         self.host_user = None
         self.host_key_path = DEFAULT_KEY_PATH
 
@@ -120,12 +123,13 @@ class Config(object):
         # Whether to leave the VMs around on failure.
         self.leave_on_failure = False
         
-        # Parameters for reading test configuration from tempest configuration file:
+        # Parameters for reading test configuration from a Tempest configuration file:
         #   tempest_config is the path of the configuration file
-        #   tc_distro is the distro
-        #   tc_arch is the arch
-        #   tc_user is the user
-        # Function pytest_configure will use these parameters to construct one instance of Image
+        #   tc_distro is the distro for the default guest image
+        #   tc_arch is the arch for the default guest image
+        #   tc_user is the user for the default guest image
+        # The function pytest_configure will use these parameters to construct
+        # one instance of Image 
         # (e.g. Image('precise-32-agent-ready', distro='ubuntu', arch='32', user='root'))
         self.tempest_config = None
         self.tc_distro = None
@@ -134,9 +138,10 @@ class Config(object):
 
         # Parameter for the memory-hoard-dropall test. Only change if you
         # really know what you are doing. There is no good definition for
-        # the "success" of dropall. However, on a (relatively) freshly booted
-        # Linux, fully hoarded, with over 256MiB of RAM, there should be
-        # massive removal of free pages. Settle on a 50% threshold by default.
+        # the "success" of a memory eviction operation. However, on a
+        # (relatively) freshly booted Linux, fully hoarded, with over 256MiB of
+        # RAM, there should be massive removal of free pages. Settle on a 50%
+        # threshold by default.
         self.test_memory_dropall_fraction = DEFAULT_DROPALL_FRACTION
 
         # Whether the sharing test should not run. If you have many hosts the
@@ -161,10 +166,11 @@ class Config(object):
         # pages and prevent spurious failures.
         self.test_sharing_cow_slack = DEFAULT_COW_SLACK
         
+        # Self explanatory
         self.skip_migration_tests = False
 
         # Test output spews endless 'DEBUG' API calls when logging level is set
-        # to 'DEBUG', now we can control what logging levels we want to see.
+        # to 'DEBUG'. Control what logging levels we want to see.
         self.log_level = 'INFO'
 
     def get_all_archs(self):

@@ -92,7 +92,7 @@ class ImageFinder(object):
                 ids.append('%s %s' % (distro, arch))
 
         if len(finders) == 0:
-            # Append a null ImageFinder there are no images.
+            # Append a null ImageFinder if there are no images.
             log.warning('No images found.')
             finders.append(ImageFinder(skip_on_error))
             ids.append('none')

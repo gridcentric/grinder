@@ -1,6 +1,7 @@
 *.pyc
 .*~
 .*.swp
+*.orig
 pytest.ini
 logs/*.xml
 html/*.html

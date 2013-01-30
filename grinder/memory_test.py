@@ -58,32 +58,21 @@ class TestMemory(harness.TestCase):
             launched = blessed.launch()
 
             # This test effectively tests two features: introspection and
-            # memory footprint management. We do not need to hoard, or to tweak
-            # flags in order to test introspection: the count of free pages
-            # will be computed correctly regardless (we do need to drop caches
-            # in order to have many free pages). For the footprint management
-            # to work, we need to first enable zeros, in order to fetch zero
-            # pages during hoard. And then we need to re-enable zeros, in order
-            # to drop free pages during dropall.
-
-            # Now let's have some vmsctl fun
+            # memory footprint management. Introspection succeeds when we
+            # detect as many free pages as desired. Footprint management
+            # succeeds when we remove those pages from the actual memory. The
+            # latter requires full hoarding of the entire footprint as a
+            # precondition, in order to know that we have effectively removed
+            # those pages.
             vmsctl = launched.vmsctl()
 
-            # For a single clone all pages fetched become sharing nominees.
-            # We want to drop them anyways since they're not really shared.
             vmsctl.set_flag("eviction.dropshared")
-
-            # We will use stats output to verify functionality
             vmsctl.set_flag("stats.enabled")
-
-            # We want to see the full effect of hoarding, let's not bypass zeros.
             vmsctl.clear_flag("zeros.enabled")
-
-            # Avoid any chance of eviction other than zero dropping.
             vmsctl.clear_flag("eviction.paging")
             vmsctl.clear_flag("eviction.sharing")
 
-            # No target so hoard finishes without triggering dropall.
+            # No target so hoard finishes without surprises.
             vmsctl.clear_target()
             info = vmsctl.info()
             assert int(info["eviction.dropshared"]) == 1
@@ -93,18 +82,14 @@ class TestMemory(harness.TestCase):
             assert int(info["memory.target"]) == 0
             assert int(info["stats.enabled"]) == 1
 
-            # Hoard so dropall makes a splash.
+            # Hoard...
             assert vmsctl.full_hoard()
 
-            # Sometimes dkms and depmod will take over a ton of memory in the page
-            # cache. Throw that away so it can be freed later by dropall.
+            # Make the guest throw away as much memory as possible
             launched.drop_caches()
 
-            # We hypocritically turn zeros back on. Otherwise they won't really
-            # be dropped. This is a test after all.
+            # And ... evict everything we can
             vmsctl.set_flag("zeros.enabled")
-
-            # Now dropall! (agent should help significantly here).
             vmsctl.dropall()
 
             # First check the results of introspection

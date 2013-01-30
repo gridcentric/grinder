@@ -142,8 +142,9 @@ class Instance(Notifier):
 
     def get_raw_id(self):
         """
-        Returns the id of the server. In Essex the actual id of the server is never returned
-        only the uuid from the nova-api. This figures out what the id should be.
+        Returns the id of the server. In Essex the actual id of the server is
+        never returned, only the uuid from the nova-api. This figures out what
+        the id should be.
         """
         self.server.get()
         instance_name = getattr(self.server, 'OS-EXT-SRV-ATTR:instance_name', None)
@@ -324,8 +325,6 @@ class Instance(Notifier):
 
     def remove_agent(self):
         # Remove package, ensure its paths are gone.
-        # NOTE: This is a bit of a hack, but is not an operation
-        # that will normally have to support in a robust way.
         # Principally, we want to see that removing works, and that
         # reinstallation and upgrades work.
         REMOVE_COMMAND = " \

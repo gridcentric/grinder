@@ -17,14 +17,11 @@ from . import harness
 
 class TestAgent(harness.TestCase):
 
-    ''' Agent tests. We test for installation and dkms variants.
+    ''' Agent tests. We test for installation variants.
     
-    We do these on both main distros (Ubuntu and CentOS).  We also perform a
-    more thorough test that exercises the introspection functionality of an
-    installed agent. We launch clone/hoard/dropall cycles to get the maximum
-    bang for buck from free page detection. We exercise this cycle on both
-    distros and *all* bitnesses (32 bit, PAE, 64 bit).  Hence the
-    parameterization at the bottom. '''
+    We actively support two distros: Ubuntu and CentOS. For more thorough tests
+    that exercise the introspection functionality of an installed agent, see
+    memory.py. '''
 
     @harness.distrotest()
     def test_agent_double_install(self, image_finder):
