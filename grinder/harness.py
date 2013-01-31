@@ -172,6 +172,11 @@ class SecurityGroup:
         if self.name == None:
             name = str(uuid4())
         self.secgroup = self.harness.client.security_groups.create(name, 'Created by grinder')
+        # Must allow ssh and icmp for further use
+        self.harness.client.security_group_rules.create(self.secgroup.id,\
+            ip_protocol="tcp", from_port=22, to_port=22, cidr="0.0.0.0/0")
+        self.harness.client.security_group_rules.create(self.secgroup.id,\
+            ip_protocol="icmp", from_port=-1, to_port=-1, cidr="0.0.0.0/0")
         return self.secgroup
 
     def __exit__(self, type, value, tb):
