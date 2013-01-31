@@ -183,11 +183,6 @@ def pytest_configure(config):
     log.debug('hosts: %s' % default_config.hosts)
     log.debug('hosts_without_gridcentric: %s' % default_config.hosts_without_gridcentric)
 
-    # Make sure that we have at least one host.
-    if len(default_config.hosts) == 0:
-        log.error('List of hosts is empty!')
-        assert False
-
     default_config.post_config()
 
 def pytest_generate_tests(metafunc):

@@ -205,7 +205,10 @@ class TestHarness(Notifier):
 
     @Notifier.notify
     def setup(self):
-        pass
+        # Make sure that we have at least one host.
+        if len(self.config.hosts) == 0:
+            log.error('List of hosts is empty!')
+            assert False
 
     @Notifier.notify
     def teardown(self):
