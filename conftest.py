@@ -163,11 +163,18 @@ def pytest_configure(config):
                        hosts)
             if len(default_config.hosts_without_gridcentric) == 0:
                 default_config.hosts_without_gridcentric = [gethostname()]
+
         default_config.hosts_without_gridcentric = \
             filter(lambda x: service not in host_dict.get(x, []),
                    default_config.hosts_without_gridcentric)
         default_config.hosts = filter(lambda x: service in host_dict.get(x, []),
                                       hosts)
+
+        # Remove duplicates
+        default_config.hosts_without_gridcentric =\
+            list(set(default_config.hosts_without_gridcentric))
+        default_config.hosts = list(set(default_config.hosts))
+
     except exceptions.AttributeError:
         log.debug('Your version of novaclient does not support HostManager.list_all ')
         log.debug('Please consider updating novaclient')
