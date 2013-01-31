@@ -15,10 +15,10 @@
 
 import os
 import logging
-from grinder.config import default_config, Image
-from grinder.harness import ImageFinder, get_test_distros, get_test_archs
-from grinder.client import create_nova_client
-from grinder.logger import log
+from . config import default_config, Image
+from . harness import ImageFinder, get_test_distros, get_test_archs
+from . client import create_nova_client
+from . logger import log
 import novaclient
 import ConfigParser
 from socket import gethostname
@@ -44,8 +44,8 @@ def parse_option(value, *default_args, **default_kwargs):
 
 def pytest_runtest_setup(item):
     # Can't import harness earlier because pytest screws up importing logger.
-    import grinder.harness
-    grinder.harness.test_name = item.reportinfo()[2]
+    from . import harness
+    harness.test_name = item.reportinfo()[2]
 
 def pytest_addoption(parser):
     # Add options for each of the default_config fields.

@@ -63,7 +63,7 @@ def create_nova_client(config):
     if 'gridcentric' not in [e.name for e in extensions] and \
        'gridcentric_python_novaclient_ext' not in [e.name for e in extensions]:
         raise Exception("You don\'t have the gridcentric extension installed." \
-                        "Try 'pip install gridcentric-novaclient-python-ext'.")
+                        "Try 'pip install gridcentric-python-novaclient-ext'.")
     return Client(extensions=extensions,
                   username=os.environ['OS_USERNAME'],
                   api_key=os.environ['OS_PASSWORD'],
