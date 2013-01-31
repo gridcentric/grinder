@@ -2,53 +2,92 @@ To run, use the standalone `py.test` binary, `pytest.py`:
 
     ./pytest.py
 
-Alternatively, you can install `py.test` and use it:
+For verbose non-captured output:
 
-To install py.test:
-
-    easy_install -U pytest
-
-Install your your ssh keys for booting VMs:
-
-    nova keypair-add --pub_key ~/.ssh/id_rsa.pub `whoami`
-
-If running the test from outside the openstack cluster, the default
-group needs to be configured to allow icmp and ssh traffic to VMs:
-
-    nova secgroup-add-rule default tcp 22 22 0.0.0.0/0
-    nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
-
-Run with py.test:
-
-    py.test --guest_key_name=`whoami` --capture=no -vvv
+    py.test --capture=no -vvv
 
 For the brave & well (cluster) endowed:
 
     easy_install -U pytest-xdist && py.test -n 6
 
 The above command will fork and run 6 test in parallel. Because of increased
-load, latency increases and some test operations will timeout. YMMV.
+load, latency increases and some test operations may timeout. YMMV.
 
-Run `py.test --help` to see the configuration options. You can change which hosts
-the test runs on, for instance, with
+Run `py.test --help` to see the configuration options. Look at the headings
+below for more information on options. You can change which hosts the test runs
+on, for instance, with:
     
     py.test --hosts=node1,node2
 
 To make using py.test less tedious, store your favourite command-line options in
-pytest.ini. Here's mine:
+pytest.ini. Here's an example:
 
     $ cat pytest.ini
     [pytest]
     addopts=--hosts=node1,node2 -vvv --capture=no
 
-A note on ssh keys
-------------------
+Requirements
+------------
+
+Alternatively to using the included `py.test`, you can install `pytest` on your
+own and use it:
+
+    easy_install -U pytest
+
+From wherever you choose to run Grinder, you should have the ptyhon-novaclient
+package installed. Additionally, you need to have Gridcentric's nova client
+extension.  An easy way to install it is:
+
+    pip install --user gridcentric_python_novaclient_ext
+
+For further information look into: http://docs.gridcentric.com/openstack/installation.html
+
+Naturally, you should have the appropriate environment variables set to be able
+to access the Openstack cluster being tested:
+
+    OS_TENANT_NAME=joe_tenant
+    OS_USERNAME=joe_user
+    OS_PASSWORD=sup3r_s3cr3t
+    OS_AUTH_URL=http://keystone_host:5000/v2.0
+
+On guests, we require password-less ssh log in to the root account, or to an
+account with password-less sudo. You still need to add your ssh keys to the nova
+key-pair list, and let Grinder know which key-pair name to use:
+
+    nova keypair-add --pub_key ~/.ssh/id_rsa.pub `whoami`
+    ./py.test --guest_key_name=`whoami`
+
+If running the test from outside the openstack cluster, you will also need to
+configure the rules for the default security group to allow icmp and ssh
+traffic to VMs:
+
+    nova secgroup-add-rule default tcp 22 22 0.0.0.0/0
+    nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
 
 To run some tests, you will need a key installed on the physical hosts as well.
-The user is controlled by the `--host_user` option, and the key is set by the
-`--host_key_path` option.
+Grinder requires password-less login to the root account, or to an account
+capable of password-less sudo.  The user is controlled by the `--host_user`
+option, and the path to the private key is set with the `--host_key_path`
+option.
 
-This user should either be root, or have passwordless sudo access.
+Configuring Images
+-----------------
+
+Grinder will run all tests on each image in a list of images you provide. This
+is to ensure all functionality works on the typical guest images you use in
+your cloud. A typical image configuration stanza looks like this:
+
+    --image=precise-server.img,distro=ubuntu,arch=64,user=ubuntu
+
+You can add this to your `pytest.ini` or your command line. You can add as many
+of this as images you want to test. Specifically, the stanza above means that
+the glance image `precise-server.img` will be used, and that the image is an
+Ubuntu distribution with a 64 bit kernel. The user `ubuntu` has password-less
+sudo rights, and allows password-less ssh login using the key set with the
+`--guest_key_name` option. Note that this is default behavior for Ubuntu
+cloud images. For CentOS images, you would typically set the user to `root`.
+
+Look into the `Image` class in `test/config.py` for more options.
 
 Tempest-based configuration
 ---------------------
@@ -62,10 +101,10 @@ This is specified through the option `tempest_config`:
 
     --tempest_config=/path/to/tempest.conf
 
-Grinde will use two keys from the section `[compute]` in `tempest.conf`: the
-default image name or ID (`image_ref`), and the default instance flavor
-(`flavor_ref`). Further, Grinder wil require additionally setting the following
-three options related to the deafult image:
+Grinder will use two keys from the section `[compute]` in `tempest.conf` to
+configure the image for testing: the default image name or ID (`image_ref`),
+and the default instance flavor (`flavor_ref`). Further, Grinder wil require
+additionally setting the following three options related to the deafult image:
 
 * `tc_distro` - the distro name
 * `tc_arch` - the arch
@@ -73,7 +112,7 @@ three options related to the deafult image:
 
 Here is an example of a command line that uses tempest.conf:
 
-    py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64 --tc_user=root
+    py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64 --tc_user=ubuntu
 
 List of hosts
 -------------
@@ -104,8 +143,9 @@ Further options
 --------------
 
 Please have a look into `grinder/config.py`. All configuration options are
-documented as attributes of the Config class. Any such attribute can be set
-through the command line or `pytest.ini`. For example, `--skip_migration_tests`.
+documented as attributes of the Config and Image classes. Any such attribute
+can be set through the command line or `pytest.ini`. For example,
+`--skip_migration_tests`.
 
 Licensing
 --------
