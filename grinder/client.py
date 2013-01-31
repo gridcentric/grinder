@@ -70,6 +70,7 @@ def create_nova_client(config):
                   project_id=os.environ['OS_TENANT_NAME'],
                   auth_url=os.environ['OS_AUTH_URL'],
                   region_name=os.environ.get('OS_REGION_NAME', None),
+                  no_cache=os.environ.get('OS_NO_CACHE', 0) and True,
                   service_type=os.environ.get('NOVA_SERVICE_TYPE', 'compute'),
                   service_name=os.environ.get('NOVA_SERVICE_NAME', 'nova'))
 
