@@ -37,15 +37,19 @@ arch -- the architecture,
 user -- the user to login as,
 key_path -- the path to the SSH key for the user,
 key_name -- the name of the key for booting.
+flavor -- the flavor to use to boot this image, overrides the global 
+          default config.flavor_name.
 e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
 '''
-    def __init__(self, name, distro, arch, user='root', key_path=None, key_name=None):
+    def __init__(self, name, distro, arch, user='root', key_path=None,
+                 key_name=None, flavor=None):
         self.name = name
         self.distro = distro
         self.arch = arch
         self.user = user
         self.key_path = key_path
         self.key_name = key_name
+        self.flavor = flavor
 
     def check(self):
         assert self.distro
@@ -54,8 +58,10 @@ e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
         assert self.key_path
 
     def __repr__(self):
-        return 'Image(name=%s, distro=%s, arch=%s, user=%s, key_path=%s, key_name=%s)' % \
-                (self.name, self.distro, self.arch, self.user, self.key_path, self.key_name)
+        return 'Image(name=%s, distro=%s, ' % (self.name, self.distro) + \
+            'arch=%s, user=%s, ' % (self.arch, self.user) + \
+            'key_path=%s, key_name=%s, flavor=%s)' % \
+                (self.key_path, self.key_name, self.flavor)
 
 class Config(object):
 
@@ -120,6 +126,7 @@ class Config(object):
         #   Image('centos-6.3-64-agent-ready', distro='centos', arch='64', user='root'),
         #   Image('centos-6.3-32-agent-ready', distro='centos', arch='32', user='root'),
         #   Image('centos-6.3-pae-agent-ready', distro='centos', arch='pae', user='root'),
+        #   Image('windows7-64bit-virtio', distro='windows', arch='64', user='root', flavor='m1.medium')
         self.images = []
 
         # Whether to leave the VMs around on failure.

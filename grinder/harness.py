@@ -31,16 +31,23 @@ from . instance import wait_while_status
 # This is done prior to each test.
 test_name = ''
 
-def boot(client, config, image_config=None):
+def boot(client, config, image_config=None, flavor=None):
     name = '%s-%s' % (config.run_name, test_name)
-    flavor = client.flavors.find(name=config.flavor_name)
 
     if image_config == None:
         finder = ImageFinder()
         image_config = finder.find(client, config)
 
-    image = client.images.find(name=image_config.name)
+    if flavor is None:
+        if image_config.flavor is None:
+            flavor = config.flavor_name
+        else:
+            flavor = image_config.flavor
 
+    flavor_id = client.flavors.find(name=flavor).id
+ 
+    image = client.images.find(name=image_config.name)
+    
     log.info('Booting %s instance named %s', image.name, name)
     random.seed(time.time())
     host = random.choice(default_config.hosts)
@@ -49,7 +56,7 @@ def boot(client, config, image_config=None):
                                    image=image.id,
                                    key_name=image_config.key_name,
                                    availability_zone='nova:%s' % host,
-                                   flavor=flavor.id)
+                                   flavor=flavor_id)
     setattr(server, 'image_config', image_config)
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
@@ -200,9 +207,9 @@ class TestHarness(Notifier):
         pass
 
     @Notifier.notify
-    def boot(self, image_finder, agent=True):
+    def boot(self, image_finder, agent=True, flavor=None):
         image_config = image_finder.find(self.client, self.config)
-        server = boot(self.client, self.config, image_config)
+        server = boot(self.client, self.config, image_config, flavor)
         instance = Instance(self, server, image_config)
         if agent:
             try:
