@@ -57,7 +57,7 @@ class Vmsctl(object):
         return int(self.get_param("memory.current"))
 
     def get_max_memory(self):
-        return int(self.get_param("pages"))
+        return int(self.get_param("pages")) - int(self.get_param("memory.hole"))
 
     def generation(self):
         return self.get_param("generation")
@@ -75,9 +75,7 @@ class Vmsctl(object):
         self.set_flag("hoard")
         self.set_param("hoard.rate", str(rate))
         tries = 0
-
         maxmem = self.get_max_memory()
-        maxmem -= int(self.get_param("memory.hole"))
 
         while float(self.get_current_memory()) <= (threshold * float(maxmem)):
             time.sleep(1.0)
