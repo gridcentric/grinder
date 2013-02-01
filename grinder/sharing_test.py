@@ -16,9 +16,6 @@
 import pytest
 from . import harness
 from . logger import log
-from . config import DEFAULT_SHARING_CLONES
-from . config import DEFAULT_COW_SLACK
-from . config import DEFAULT_SHARE_RATIO
 
 class TestSharing(harness.TestCase):
     @harness.hosttest
@@ -27,33 +24,6 @@ class TestSharing(harness.TestCase):
         if self.config.test_sharing_disable:
             log.info("Skipping sharing test on user request.")
             pytest.skip()
-
-        # The user could have specified really silly or bogus knobs. Casting
-        # bogosity will kill the test on purpose.
-        self.config.test_sharing_sharing_clones =\
-            int(self.config.test_sharing_sharing_clones)
-        if self.config.test_sharing_sharing_clones < 2 or\
-           self.config.test_sharing_sharing_clones > 10:
-            log.info("Provided sharing clones %d will break the test, changing"
-                      " to %d." % (self.config.test_sharing_sharing_clones,\
-                                   DEFAULT_SHARING_CLONES))
-            self.config.test_sharing_sharing_clones = DEFAULT_SHARING_CLONES
-        self.config.test_sharing_cow_slack =\
-            int(self.config.test_sharing_cow_slack)
-        if self.config.test_sharing_cow_slack < 0 or\
-           self.config.test_sharing_cow_slack > (16 * 256):
-            log.info("Provided cow slack %d will break the test, changing"
-                      " to %d." % (self.config.test_sharing_cow_slack,\
-                                   DEFAULT_COW_SLACK))
-            self.config.test_sharing_cow_slack = DEFAULT_COW_SLACK
-        self.config.test_sharing_share_ratio =\
-            float(self.config.test_sharing_share_ratio)
-        if self.config.test_sharing_share_ratio < 0.25 or\
-           self.config.test_sharing_share_ratio > 0.99:
-            log.info("Provided sharing ratio %f will break the test, changing"
-                      " to %d." % (self.config.test_sharing_share_ratio,
-                                   DEFAULT_SHARE_RATIO))
-            self.config.test_sharing_share_ratio = DEFAULT_SHARE_RATIO
 
         with self.harness.blessed(image_finder) as blessed:
 

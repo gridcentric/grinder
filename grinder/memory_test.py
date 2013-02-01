@@ -15,7 +15,6 @@
 
 from . import harness
 from . logger import log
-from . config import DEFAULT_DROPALL_FRACTION
 
 class TestMemory(harness.TestCase):
 
@@ -43,17 +42,6 @@ class TestMemory(harness.TestCase):
     @harness.archtest()
     @harness.hosttest
     def test_agent_hoard_dropall(self, image_finder):
-        # Ensure no parameter bogosity
-        self.config.test_memory_dropall_fraction =\
-            float(self.config.test_memory_dropall_fraction)
-        if self.config.test_memory_dropall_fraction < 0.25 or\
-           self.config.test_memory_dropall_fraction > 0.99:
-            log.info("Provided dropall fraction %f will break the test, "
-                      "changing to %f." %\
-                        (self.config.test_memory_dropall_fraction,\
-                         DEFAULT_DROPALL_FRACTION))
-            self.config.test_memory_dropall_fraction = DEFAULT_DROPALL_FRACTION
-
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch()
 
