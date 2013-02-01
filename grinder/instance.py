@@ -217,9 +217,10 @@ class Instance(Notifier):
         server = self.harness.client.servers.get(blessed['id'])
         instance = Instance(self.harness, server, self.image_config,
                             breadcrumbs=False, snapshot=snapshot)
-        self.breadcrumbs.add('Post bless, child is %s' % instance.id)
 
         instance.wait_for_bless()
+        self.breadcrumbs.add('Post bless, child is %s' % instance.id)
+
         return instance
 
     @Notifier.notify
