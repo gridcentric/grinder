@@ -78,6 +78,9 @@ class Config(object):
         # Instance flavor; determines RAM and what disks are attached.
         self.flavor_name = 'm1.tiny'
 
+        # Some tests require instances with >= 4GiB of RAM
+        self.big_ram_flavor_name = "m1.small"
+
         # Name of the key to inject into the instances. You may use either
         # this mechanism to inject a guest key, or save some images with a
         # key preprovisioned. Both are acceptable.

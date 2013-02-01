@@ -101,3 +101,44 @@ class TestMemory(harness.TestCase):
 
             # Clean up.
             launched.delete()
+
+    @harness.archtest(exclude = [32])
+    @harness.hosttest
+    def test_pci_mmio_hole(self, image_finder):
+        # Guests capable of addressing RAM over 3GiB will run into
+        # the so called PCI MMIO hole from 3GiB to 4GiB. Ensure we
+        # handle that correctly. For that to be the case we must
+        # tweak the default image flavor to go to >= 4GiB, using
+        # the "big ram flavor"
+        with self.harness.booted(image_finder, flavor=self.config.big_ram_flavor_name) as master:
+            current_flavor =\
+                self.harness.client.flavors.find(name = master.image_config.flavor)
+            assert current_flavor.ram >= 4096
+
+            # Take over 3.5GiB of ram with random bytes
+            master.drop_caches()
+            tmpfs_size = (3 << 30) + (512 << 20)
+            master.root_command("mount -o remount,size=%d /dev/shm" % (tmpfs_size))
+            # Give a small 16MiB breather. Conver to 2M super pages
+            target = (tmpfs_size - (16 << 20)) >> 21
+            master.root_command("dd if=/dev/urandom of=/dev/shm/file bs=2M count=%d" % (target))
+
+            # Good to go, bless
+            blessed = master.bless()
+            launched = blessed.launch()
+
+            # Hoard the clone
+            vmsctl = launched.vmsctl()
+            vmsctl.clear_flag("zeros.enabled")
+            assert vmsctl.full_hoard()
+            assert vmsctl.get_current_memory >= tmpfs_size
+
+            # Compare memory, should match
+            (master_md5, _) = master.root_command("md5sum /dev/shm/file")
+            (clone_md5, _) = launched.root_command("md5sum /dev/shm/file")
+            assert master_md5 == clone_md5
+
+            # Clean up
+            blessed.discard()
+            master.delete()
+

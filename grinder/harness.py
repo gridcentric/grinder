@@ -43,6 +43,7 @@ def boot(client, config, image_config=None, flavor=None):
             flavor = config.flavor_name
         else:
             flavor = image_config.flavor
+    image_config.flavor = flavor
 
     flavor_id = client.flavors.find(name=flavor).id
  
@@ -141,13 +142,15 @@ def hosttest(fn):
     return _inner
 
 class BootedInstance:
-    def __init__(self, harness, image_finder, agent):
+    def __init__(self, harness, image_finder, agent, **kwargs):
         self.harness = harness
         self.image_finder = image_finder
         self.agent = agent
+        self.kwargs = kwargs
 
     def __enter__(self):
-        self.master = self.harness.boot(self.image_finder, agent=self.agent)
+        self.master = self.harness.boot(self.image_finder,
+                                        agent=self.agent, **self.kwargs)
         return self.master
 
     def __exit__(self, type, value, tb):
@@ -155,13 +158,15 @@ class BootedInstance:
             self.master.delete(recursive=True)
 
 class BlessedInstance:
-    def __init__(self, harness, image_finder, agent):
+    def __init__(self, harness, image_finder, agent, **kwargs):
         self.harness = harness
         self.image_finder = image_finder
         self.agent = agent
+        self.kwargs = kwargs
 
     def __enter__(self):
-        self.master = self.harness.boot(self.image_finder, agent=self.agent)
+        self.master = self.harness.boot(self.image_finder,
+                                        agent=self.agent, **self.kwargs)
         self.blessed = self.master.bless()
         return self.blessed
 
@@ -221,11 +226,11 @@ class TestHarness(Notifier):
                 raise
         return instance
 
-    def booted(self, image_finder, agent=True):
-        return BootedInstance(self, image_finder, agent)
+    def booted(self, image_finder, agent=True, **kwargs):
+        return BootedInstance(self, image_finder, agent, **kwargs)
 
-    def blessed(self, image_finder, agent=True):
-        return BlessedInstance(self, image_finder, agent)
+    def blessed(self, image_finder, agent=True, **kwargs):
+        return BlessedInstance(self, image_finder, agent, **kwargs)
 
     def security_group(self):
         return SecurityGroup(self)
