@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from . logger import log
+
 import inspect
 import os
 import hashlib
@@ -205,6 +207,37 @@ class Config(object):
             self.default_archs = archs
         if len(self.default_distros) == 0:
             self.default_distros = distros
+
+        # Cast number options, handle bogosity
+        def handle_number_option(opt, type, name, default, min, max):
+            try:
+                opt = type(opt)
+            except ValueError:
+                log.warn("Bad value for %s, back to default %s" %
+                            (name, str(default)))
+                opt = default
+            if opt < min or opt > max:
+                log.warn("Provided %s %s will break the test, back to "
+                         "default %s." % (name, str(opt), str(default)))
+                opt = default
+            return opt
+
+        self.test_sharing_sharing_clones =\
+            handle_number_option(self.test_sharing_sharing_clones,
+                                 int, "sharing clones",
+                                 DEFAULT_SHARING_CLONES, 2, 10)
+        self.test_sharing_share_ratio =\
+            handle_number_option(self.test_sharing_share_ratio,
+                                 float, "sharing ratio",
+                                 DEFAULT_SHARE_RATIO, 0.25, 0.99)
+        self.test_sharing_cow_slack =\
+            handle_number_option(self.test_sharing_cow_slack,
+                                 int, "sharing cow slack",
+                                 DEFAULT_COW_SLACK, 0, 16 * 256)
+        self.test_memory_dropall_fraction =\
+            handle_number_option(self.test_memory_dropall_fraction,
+                                 float, "dropall fraction",
+                                 DEFAULT_DROPALL_FRACTION, 0.25, 0.99)
 
     def get_images(self, distro, arch):
         return filter(lambda i: i.distro == distro and i.arch == arch, self.images)
