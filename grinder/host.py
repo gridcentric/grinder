@@ -58,14 +58,22 @@ class Host(object):
 
     def get_ips(self):
         # Return the list of all assigned IP addresses.
-        for line in lines:
-            m = re.match('([a-z_]+): ([0-9]+) -', line)
-            (key, value) = m.groups()
-            statsdict[key] = long(value)
-        return statsdict
-
-    def get_ips(self):
-        # Return the list of all assigned IP addresses.
         stdout, stderr = self.check_output('ip addr | grep "inet "')
         ips = map(lambda x: x.split()[1], stdout.split("\n"))
         return [ip.split("/")[0] for ip in ips]
+
+    def get_iptables_rules(self, chain):
+        # Return the list of iptables rules for the specified chain
+        stdout, stderr = self.check_output('iptables -L %s || true' % chain)
+        try:
+            rules = stdout.split('\n')[2:]
+        except:
+            return []
+
+        ips = self.get_ips()
+        modified_rules = []
+        for rule in rules:
+            for ip in ips:
+                rule = rule.replace('%s ' % ip, 'HOST_IP ')
+                modified_rules.append(rule)
+        return modified_rules

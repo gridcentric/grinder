@@ -151,11 +151,16 @@ class TestLaunch(harness.TestCase):
 
             # Remember the host otherwise we won't know where to look after delete.
             host = launched.get_host()
+            
+            # Remember the instance's ID before we delete the instance.
+            server_id = launched.get_raw_id()
+            server_iptables_chain = 'nova-compute-inst-%s' % str(server_id)
 
-            # Ensure that iptables rules are cleaned up.
+            # Ensure that iptables rules exist before deleting the instance.
+            assert [] != master_iptables_rules
             launched.delete()
-            # TODO, this will query the deleted server ... and fail
-            #assert [] == launched.get_iptables_rules(host)
+            # Ensure that the rules are cleaned up after deleting the instance.
+            assert [] == host.get_iptables_rules(server_iptables_chain)
 
             # Cleanup the blessed instance.
             blessed.discard()
