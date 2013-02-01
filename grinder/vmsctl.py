@@ -75,7 +75,10 @@ class Vmsctl(object):
         self.set_flag("hoard")
         self.set_param("hoard.rate", str(rate))
         tries = 0
+
         maxmem = self.get_max_memory()
+        maxmem -= int(self.get_param("memory.hole"))
+
         while float(self.get_current_memory()) <= (threshold * float(maxmem)):
             time.sleep(1.0)
             tries += 1
