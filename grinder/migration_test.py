@@ -23,6 +23,17 @@ from . host import Host
 
 class TestMigration(harness.TestCase):
 
+    def test_migration_one(self, image_finder):
+        if self.harness.config.skip_migration_tests:
+            py.test.skip('Skipping migration tests')
+        if len(self.harness.config.hosts) < 2:
+            py.test.skip('Need at least 2 hosts to do migration.')
+        with self.harness.booted(image_finder) as master:
+            host = master.get_host()
+            dest = Host([h for h in self.config.hosts if h != host.id][0], self.harness.config)
+            assert host.id != dest.id
+            master.migrate(host, dest)
+
     def test_migration_errors(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')
