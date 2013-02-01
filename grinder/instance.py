@@ -175,25 +175,12 @@ class Instance(Notifier):
         server_iptables_chain = "nova-compute-inst-%s" % (str(server_id))
         host_ips = host.get_ips()
 
-        def get_rules(iptables_chain):
-            stdout, stderr = host.check_output("iptables -L %s" % (iptables_chain))
-            rules = stdout.split("\n")[2:]
-            # Replace instances of the host's ipaddress with "HOST_IP"
-            # because this will be dependent on where the instance was
-            # booted/launched.
-            modified_rules = []
-            for rule in rules:
-                for ip in host_ips:
-                    rule = rule.replace("%s " % (ip), "HOST_IP ")
-                modified_rules.append(rule)
-            return modified_rules
-
         # Check if the server has iptables rules.
-        for rule in get_rules(compute_iptables_chain):
+        for rule in host.get_iptables_rules(compute_iptables_chain):
             if server_iptables_chain in rule:
                 # This server has rules defined on this host.
                 # Grab the server rules for that chain.
-                return get_rules(server_iptables_chain)
+                return host.get_iptables_rules(server_iptables_chain)
 
         # Otherwise there are no rules so return an empty list.
         return []
