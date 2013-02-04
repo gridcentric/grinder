@@ -1,14 +1,18 @@
-To run, use the standalone `py.test` binary, `pytest.py`:
+To run, use the standalone `py.test` binary:
 
-    ./pytest.py
+    ./py.test grinder
 
 For verbose non-captured output:
 
-    py.test --capture=no -vvv
+    ./py.test --capture=no -vvv grinder
+
+You can use typical pytest options:
+
+    ./py.test -k only_this_test --collectonly grinder
 
 For the brave & well (cluster) endowed:
 
-    easy_install -U pytest-xdist && py.test -n 6
+    easy_install -U pytest-xdist && py.test -n 6 grinder
 
 The above command will fork and run 6 test in parallel. Because of increased
 load, latency increases and some test operations may timeout. YMMV.
@@ -17,14 +21,14 @@ Run `py.test --help` to see the configuration options. Look at the headings
 below for more information on options. You can change which hosts the test runs
 on, for instance, with:
     
-    py.test --hosts=node1,node2
+    ./py.test --hosts=node1,node2 grinder
 
 To make using py.test less tedious, store your favourite command-line options in
 pytest.ini. Here's an example:
 
     $ cat pytest.ini
     [pytest]
-    addopts=--hosts=node1,node2 -vvv --capture=no
+    addopts=-vvv --capture=no --leave_on_failure
 
 Requirements
 ------------
@@ -43,21 +47,21 @@ extension.  An easy way to install it is:
 For further information look into: http://docs.gridcentric.com/openstack/installation.html
 
 Naturally, you should have the appropriate environment variables set to be able
-to access the Openstack cluster being tested:
+to access the OpenStack cluster being tested:
 
     OS_TENANT_NAME=joe_tenant
     OS_USERNAME=joe_user
     OS_PASSWORD=sup3r_s3cr3t
     OS_AUTH_URL=http://keystone_host:5000/v2.0
 
-On guests, we require password-less ssh log in to the root account, or to an
-account with password-less sudo. You still need to add your ssh keys to the nova
-key-pair list, and let Grinder know which key-pair name to use:
+On guests, we require password-less ssh login to the root account, or to an
+account with password-less sudo. For that you need to add your ssh keys to the
+nova key-pair list, and let Grinder know which key-pair name to use:
 
     nova keypair-add --pub_key ~/.ssh/id_rsa.pub `whoami`
-    ./py.test --guest_key_name=`whoami`
+    ./py.test --guest_key_name=`whoami` grinder
 
-If running the test from outside the openstack cluster, you will also need to
+If running the test from outside the OpenStack cluster, you will also need to
 configure the rules for the default security group to allow icmp and ssh
 traffic to VMs:
 
@@ -104,7 +108,7 @@ This is specified through the option `tempest_config`:
 Grinder will use two keys from the section `[compute]` in `tempest.conf` to
 configure the image for testing: the default image name or ID (`image_ref`),
 and the default instance flavor (`flavor_ref`). Further, Grinder wil require
-additionally setting the following three options related to the deafult image:
+additionally setting the following three options related to the default image:
 
 * `tc_distro` - the distro name
 * `tc_arch` - the arch
