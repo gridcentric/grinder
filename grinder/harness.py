@@ -135,11 +135,14 @@ def get_test_distros(fn):
     return get_test_marker(fn, 'distros', default_config.default_distros)
 
 def hosttest(fn):
-    def _inner(self, image_finder, *args, **kwargs):
-        if not(default_config.host_user):
-            pytest.skip('Need host user to run %s.' % fn.__name__)
-        return fn(self, image_finder, *args, **kwargs)
-    return _inner
+    mark_test(fn, hosttest=True)
+    return fn
+
+def requires(*requirements):
+    def decorator(fn):
+        mark_test(fn, requirements=requirements)
+        return fn
+    return decorator
 
 class BootedInstance:
     def __init__(self, harness, image_finder, agent, **kwargs):
@@ -247,6 +250,9 @@ class TestHarness(Notifier):
                 self.id = id
         return FakeServer(fake_id)
 
+    def satisfies(self, requirements):
+        return all(req.check(self) for req in requirements)
+
 class TestCase(object):
 
     harness = None
@@ -255,6 +261,12 @@ class TestCase(object):
         self.config = default_config
         self.harness = TestHarness(self.config, test_name)
         self.harness.setup()
+        requirements = get_test_marker(method, 'requirements', ())
+        if not self.harness.satisfies(requirements):
+            pytest.skip('Requirements not met for {}'.format(method.__name__))
+        if get_test_marker(method, 'hosttest', False):
+            if not(default_config.host_user):
+                pytest.skip('Need host user to run %s.' % method.__name__)
 
     def teardown_method(self, method):
         if self.harness:

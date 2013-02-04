@@ -20,6 +20,7 @@ from novaclient.exceptions import ClientException
 from . import harness
 from . logger import log
 from . util import assert_raises
+from . import requirements
 
 PARAMS_SCRIPT = """#!/usr/bin/env python
 import sys
@@ -57,17 +58,18 @@ class TestLaunch(harness.TestCase):
             launched = blessed.launch()
             assert [launched.id] == blessed.list_launched()
 
-            # TODO (tkeith): We are removing security groups rather than
-            # querying for them because Essex doesn't support querying.
-            # Switch to querying once Essex is no longer supported.
+            if self.harness.satisfies((requirements.SECURITY_GROUPS,)):
+                # TODO (tkeith): We are removing security groups rather than
+                # querying for them because Essex doesn't support querying.
+                # Switch to querying once Essex is no longer supported.
 
-            # Check that security group got passed through from master to
-            # launched by removing it
-            launched.remove_security_group(sg.name)
-            assert_raises(ClientException, launched.remove_security_group, ('default',))
+                # Check that security group got passed through from master to
+                # launched by removing it
+                launched.remove_security_group(sg.name)
+                assert_raises(ClientException, launched.remove_security_group, ('default',))
 
-            # Try removing a non-assigned security group
-            assert_raises(ClientException, launched.remove_security_group, (unassigned_sg.name,))
+                # Try removing a non-assigned security group
+                assert_raises(ClientException, launched.remove_security_group, (unassigned_sg.name,))
 
             # Ensure that the addresses are disjoint.
             launched_addrs = launched.get_addrs()
@@ -226,6 +228,7 @@ class TestLaunch(harness.TestCase):
     
             blessed.discard()
 
+    @harness.requires(requirements.USER_DATA)
     def test_launch_with_user_data(self, image_finder):
         test_data = 'some user data'
 
@@ -238,6 +241,7 @@ class TestLaunch(harness.TestCase):
             # Cleanup.
             launched.delete()
 
+    @harness.requires(requirements.SECURITY_GROUPS)
     def test_launch_with_security_group(self, image_finder):
         with self.harness.security_group() as master_sg,\
                  self.harness.security_group() as launched_sg,\
