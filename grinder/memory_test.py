@@ -102,7 +102,7 @@ class TestMemory(harness.TestCase):
             # Clean up.
             launched.delete()
 
-    @harness.archtest(exclude = [32])
+    @harness.archtest(exclude = ["32"])
     @harness.hosttest
     def test_pci_mmio_hole(self, image_finder):
         # Guests capable of addressing RAM over 3GiB will run into
@@ -139,6 +139,6 @@ class TestMemory(harness.TestCase):
             assert master_md5 == clone_md5
 
             # Clean up
+            launched.delete()
             blessed.discard()
-            master.delete()
 
