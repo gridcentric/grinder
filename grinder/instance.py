@@ -201,7 +201,8 @@ class Instance(Notifier):
         return instance
 
     @Notifier.notify
-    def launch(self, target=None, guest_params=None, status='ACTIVE', user_data=None, security_groups=None):
+    def launch(self, target=None, guest_params=None, status='ACTIVE', name=None,
+               user_data=None, security_groups=None):
         log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -209,6 +210,8 @@ class Instance(Notifier):
             params['target'] = target
         if guest_params != None:
             params['guest'] = guest_params
+        if name != None:
+            params['name'] = name
         if user_data != None:
             params['user_data'] = user_data
         if security_groups != None:
@@ -220,9 +223,13 @@ class Instance(Notifier):
         assert len(launched_list) == 1
         launched = launched_list[0]
         assert launched['id'] != self.id
-        assert launched['name'] != self.server.name
-        assert self.server.name in launched['name']
         assert launched['status'] in [status, 'BUILD']
+
+        if name == None:
+            assert launched['name'] != self.server.name
+            assert self.server.name in launched['name']
+        else:
+            assert launched['name'] == name
 
         # Retrieve the server from nova-compute. It should have our metadata added.
         server = self.harness.client.servers.get(launched['id'])

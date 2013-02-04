@@ -14,6 +14,7 @@
 #    under the License.
 
 import json
+import uuid
 
 from novaclient.exceptions import ClientException
 
@@ -225,6 +226,14 @@ class TestLaunch(harness.TestCase):
             assert_guest_params_failure({"sometext": "somelargetext" * 1000})
     
             blessed.discard()
+
+    @harness.requires(requirements.LAUNCH_NAME)
+    def test_launch_with_name(self, image_finder):
+        test_name = 'launch-name-{}'.format(str(uuid.uuid4()))
+        with self.harness.blessed(image_finder) as blessed:
+            launched = blessed.launch(name=test_name)
+            # blessed.launch will take care of assertions
+            launched.delete()
 
     @harness.requires(requirements.USER_DATA)
     def test_launch_with_user_data(self, image_finder):
