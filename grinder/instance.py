@@ -171,19 +171,9 @@ class Instance(Notifier):
             host = self.get_host()
 
         server_id = self.get_raw_id()
-        compute_iptables_chain = "nova-compute-local"
-        server_iptables_chain = "nova-compute-inst-%s" % (str(server_id))
-        host_ips = host.get_ips()
 
         # Check if the server has iptables rules.
-        for rule in host.get_iptables_rules(compute_iptables_chain):
-            if server_iptables_chain in rule:
-                # This server has rules defined on this host.
-                # Grab the server rules for that chain.
-                return host.get_iptables_rules(server_iptables_chain)
-
-        # Otherwise there are no rules so return an empty list.
-        return []
+        return host.get_nova_compute_instance_filter_rules(server_id)
 
     @Notifier.notify
     def bless(self):
@@ -265,7 +255,8 @@ class Instance(Notifier):
         self.harness.gcapi.migrate_instance(self.server, dest.id)
         self.wait_for_migrate(host, dest)
         # Assert that the iptables rules have been cleaned up.
-        assert [] == self.get_iptables_rules(host)
+        time.sleep(1.0)
+        assert (False, []) == self.get_iptables_rules(host)
         assert pre_migrate_iptables == self.get_iptables_rules(dest)
 
     @Notifier.notify

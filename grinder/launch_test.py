@@ -143,6 +143,8 @@ class TestLaunch(harness.TestCase):
     def test_launch_iptables_rules(self, image_finder):
         with self.harness.booted(image_finder) as master:
             master_iptables_rules = master.get_iptables_rules()
+            assert master_iptables_rules[0]
+            assert [] != master_iptables_rules[1]
             blessed = master.bless()
 
             # The iptables rules for the master should also be for launched instances.
@@ -154,13 +156,14 @@ class TestLaunch(harness.TestCase):
             
             # Remember the instance's ID before we delete the instance.
             server_id = launched.get_raw_id()
-            server_iptables_chain = 'nova-compute-inst-%s' % str(server_id)
 
             # Ensure that iptables rules exist before deleting the instance.
-            assert [] != master_iptables_rules
+            assert launched.get_iptables_rules()[0]
+            assert [] != launched.get_iptables_rules()[1]
             launched.delete()
+
             # Ensure that the rules are cleaned up after deleting the instance.
-            assert [] == host.get_iptables_rules(server_iptables_chain)
+            assert (False, []) == host.get_nova_compute_instance_filter_rules(server_id)
 
             # Cleanup the blessed instance.
             blessed.discard()
