@@ -15,6 +15,7 @@
 
 import re
 
+from . logger import log
 from . shell import RootShell
 
 class Host(object):
@@ -62,18 +63,49 @@ class Host(object):
         ips = map(lambda x: x.split()[1], stdout.split("\n"))
         return [ip.split("/")[0] for ip in ips]
 
-    def get_iptables_rules(self, chain):
+    # Decomposes a chain in the default "filter" table in the host
+    # into a list of string repr of rules.
+    def __get_iptables_rules(self, chain):
         # Return the list of iptables rules for the specified chain
         stdout, stderr = self.check_output('iptables -L %s || true' % chain)
         try:
             rules = stdout.split('\n')[2:]
+            if rules[-1] == '':
+                rules = rules[:-1]
         except:
             return []
 
         ips = self.get_ips()
         modified_rules = []
         for rule in rules:
-            for ip in ips:
-                rule = rule.replace('%s ' % ip, 'HOST_IP ')
-                modified_rules.append(rule)
+            rule_tokens = rule.split()
+            new_rule = []
+            for tok in rule_tokens:
+                if tok in ips:
+                    tok = 'HOST_IP'
+                new_rule.append(tok)
+            # Re join tokens, clean up spacing
+            modified_rules.append(' '.join(new_rule))
+        # Sort to rule out comparison false negatives
+        modified_rules.sort()
+        log.debug("Iptable rules for chain %s on host %s: %s." %
+                    (chain, self.id, str(modified_rules)))
         return modified_rules
+
+    # Return a (bool, [list]), where bool indicates that a chain
+    # for this instance exists in the main filtering chain, and
+    # the list contains the rules for the instance chain as per
+    # __get_iptables_rules. That way we can catch cases when
+    # empty chains are left dangling
+    def get_nova_compute_instance_filter_rules(self, id):
+        server_iptables_chain = "nova-compute-inst-%s" % (str(id))
+        for rule in self.__get_iptables_rules('nova-compute-local'):
+            if server_iptables_chain in rule:
+                # This server has rules defined on this host.
+                # Grab the server rules for that chain.
+                return (True,\
+                        self.__get_iptables_rules(server_iptables_chain))
+
+        # No chains and no rules
+        return (False, [])
+
