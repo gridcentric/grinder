@@ -26,6 +26,10 @@ class Host(object):
     def __init__(self, hostname, config):
         self.id = hostname
         self.config = config
+        out, err = self.check_output('nova-manage host list')
+        lines = out.split('\n')[1:]
+        self.availability_zone = dict((line.split()[0], line.split()[1])
+                                      for line in lines).get(hostname)
 
     def get_shell(self):
         return RootShell(self.id,

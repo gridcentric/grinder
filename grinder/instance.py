@@ -202,7 +202,7 @@ class Instance(Notifier):
 
     @Notifier.notify
     def launch(self, target=None, guest_params=None, status='ACTIVE', name=None,
-               user_data=None, security_groups=None):
+               user_data=None, security_groups=None, availability_zone=None):
         log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -216,6 +216,8 @@ class Instance(Notifier):
             params['user_data'] = user_data
         if security_groups != None:
             params['security_groups'] = security_groups
+        if availability_zone != None:
+            params['availability_zone'] = availability_zone
 
         launched_list = self.harness.gcapi.launch_instance(self.server, params=params)
 
