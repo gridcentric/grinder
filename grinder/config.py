@@ -134,19 +134,24 @@ class Config(object):
 
         # Whether to leave the VMs around on failure.
         self.leave_on_failure = False
-        
+
         # Parameters for reading test configuration from a Tempest configuration file:
         #   tempest_config is the path of the configuration file
         #   tc_distro is the distro for the default guest image
         #   tc_arch is the arch for the default guest image
-        #   tc_user is the user for the default guest image
         # The function pytest_configure will use these parameters to construct
         # one instance of Image 
         # (e.g. Image('precise-32-agent-ready', distro='ubuntu', arch='32', user='root'))
         self.tempest_config = None
         self.tc_distro = None
         self.tc_arch = None
-        self.tc_user = None
+
+        # Authentication parameters
+        self.os_username = os.environ['OS_USERNAME']
+        self.os_password = os.environ['OS_PASSWORD']
+        self.os_tenant_name = os.environ['OS_TENANT_NAME']
+        self.os_auth_url = os.environ['OS_AUTH_URL']
+        self.os_region_name = os.environ.get('OS_REGION_NAME', 'RegionOne')
 
         # Parameter for the memory-hoard-dropall test. Only change if you
         # really know what you are doing. There is no good definition for
@@ -175,13 +180,16 @@ class Config(object):
         # start accounting. So provide a slack to absorb that unknown number of
         # pages and prevent spurious failures.
         self.test_sharing_cow_slack = DEFAULT_COW_SLACK
-        
+
         # Self explanatory
         self.skip_migration_tests = False
 
         # Test output spews endless 'DEBUG' API calls when logging level is set
         # to 'DEBUG'. Control what logging levels we want to see.
         self.log_level = 'INFO'
+
+        # Set this flag on the command line to see HTTP request/response to nova API.
+        self.http_log_debug = False
 
     def get_all_archs(self):
         return list(set([i.arch for i in self.images]))

@@ -68,12 +68,13 @@ def create_nova_client(config):
         raise Exception("You don\'t have the gridcentric extension installed." \
                         "Try 'pip install gridcentric-python-novaclient-ext'.")
     return Client(extensions=extensions,
-                  username=os.environ['OS_USERNAME'],
-                  api_key=os.environ['OS_PASSWORD'],
-                  project_id=os.environ['OS_TENANT_NAME'],
-                  auth_url=os.environ['OS_AUTH_URL'],
-                  region_name=os.environ.get('OS_REGION_NAME', None),
+                  username=config.os_username,
+                  api_key=config.os_password,
+                  project_id=config.os_tenant_name,
+                  auth_url=config.os_auth_url,
+                  region_name=config.os_region_name,
                   no_cache=os.environ.get('OS_NO_CACHE', 0) and True,
+                  http_log_debug=config.http_log_debug,
                   service_type=os.environ.get('NOVA_SERVICE_TYPE', 'compute'),
                   service_name=os.environ.get('NOVA_SERVICE_NAME', 'nova'))
 

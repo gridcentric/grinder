@@ -92,58 +92,71 @@ def pytest_configure(config):
     client = create_nova_client(default_config)
     if tempest_config != None:
         # Read parameters from tempest.conf
-        config = ConfigParser.ConfigParser({'image_ref': None,
-                                            'username': None,
-                                            'flavor_ref': None})
-        config.read(tempest_config)
-        tc_image_ref = None
-        tc_flavor_ref = None
-        # If we are reading from tempest configuration, tc_distro, tc_arch, and
-        # tc_user must be specified.
-        if default_config.tc_distro == None:
-            log.error('tc_distro must be defined')
-            assert False
-        if default_config.tc_arch == None:
-            log.error('tc_arch must be defined')
-            assert False
-        if default_config.tc_user == None:
-            log.error('tc_user must be defined')
-            assert False
-        try:
-            tc_image_ref = config.get('compute', 'image_ref')
-            tc_flavor_ref = config.get('compute', 'flavor_ref')
-        except ConfigParser.NoSectionError, e:
-            log.error('Error parsing %s: %s' % (tempest_config, str(e)))
-            assert False
-        except ConfigParser.NoOptionError, e:
-            log.error('Error parsing %s: %s' % (tempest_config, str(e)))
-            assert False
-        log.debug('tc_image_ref: %s' % tc_image_ref)
-        if tc_image_ref == None or tc_flavor_ref == None:
-            log.error('Both image_ref and flavor_ref must be defined in tempest configuration')
-            assert False
+        cfg = ConfigParser.ConfigParser({'image_ref': None,
+                                         'username': None,
+                                         'flavor_ref': None,
+                                         'ssh_user': None,
+                                         'username': None,
+                                         'password': None,
+                                         'tenant_name': None,
+                                         'uri': None,
+                                         'region': None})
+        cfg.read(tempest_config)
+        default_config.os_username = cfg.get('compute-admin', 'username')
+        default_config.os_password = cfg.get('compute-admin', 'password')
+        default_config.os_tenant_name = cfg.get('compute-admin', 'tenant_name')
+        default_config.os_auth_url = cfg.get('identity', 'uri')
+        default_config.os_region_name = cfg.get('identity', 'region')
+        if default_config.os_region_name == '':
+            default_config.os_region_name = None
 
-        # Create an instance of Image for the parameters obtained from tempest.conf
+        default_config.tc_user = None
+        default_config.tc_user = cfg.get('compute', 'ssh_user')
+
+        client = create_nova_client(default_config)
+
+        default_config.tc_image_ref = cfg.get('compute', 'image_ref')
+        default_config.tc_flavor_ref = cfg.get('compute', 'flavor_ref')
+
+        # Create an instance of Image for the parameters obtained from
+        # tempest.conf
 
         # Try to find an image by ID or name.
         try:
-            image_details = client.images.find(id=tc_image_ref)
+            image_details = client.images.find(id=default_config.tc_image_ref)
         except novaclient.exceptions.NotFound:
-            image_details = client.images.find(name=tc_image_ref)
-        log.debug('Image name: %s' % image_details.name)
-        image = Image(image_details.name, default_config.tc_distro, default_config.tc_arch,
-            default_config.tc_user)
-        log.debug('Appending image %s' % str(image))
-        default_config.images.append(image)
-        tc_flavor_name = client.flavors.find(id=tc_flavor_ref)
-        default_config.flavor_name = tc_flavor_name.name
-        log.debug('Flavor used (read from %s): %s' % (tempest_config, tc_flavor_name.name))
+            try:
+                image_details = client.images.find(
+                    name=default_config.tc_image_ref)
+            except novaclient.exceptions.NotFound, e:
+                log.error(str(e))
+                image_details = None
+        if image_details != None:
+            log.debug('Image name: %s' % image_details.name)
+            image = Image(image_details.name, default_config.tc_distro,
+                          default_config.tc_arch, default_config.tc_user)
+            log.debug('Appending image %s' % str(image))
+            default_config.images.append(image)
+        try:
+            tc_flavor = client.flavors.find(id=default_config.tc_flavor_ref)
+            default_config.flavor_name = tc_flavor.name
+        except novaclient.exceptions.NotFound:
+            try:
+                tc_flavor = client.flavors.find(
+                    name=default_config.tc_flavor_ref)
+                default_config.flavor_name = tc_flavor.name
+            except novaclient.exceptions.NotFound, e:
+                log.error(str(e))
+                default_config.flavor_name = None
+        log.debug('Flavor used (read from %s): %s' % (tempest_config,
+            default_config.flavor_name))
 
-    # Gather list of hosts: either as defined in pytest.ini or all hosts available.
+    # Gather list of hosts: either as defined in pytest.ini or all hosts
+    # available.
     try:
         all_hosts = client.hosts.list_all()
         if len(default_config.hosts) == 0:
-            hosts = map(lambda x: x.host_name, all_hosts)
+            hosts = [x.host_name for x in all_hosts]
         else:
             hosts = default_config.hosts
 
@@ -159,16 +172,15 @@ def pytest_configure(config):
         service = 'gridcentric'
         if len(default_config.hosts_without_gridcentric) == 0:
             default_config.hosts_without_gridcentric = \
-                filter(lambda x: service not in host_dict.get(x, []),
-                       hosts)
+                [x for x in hosts if service not in host_dict.get(x, [])]
             if len(default_config.hosts_without_gridcentric) == 0:
                 default_config.hosts_without_gridcentric = [gethostname()]
 
         default_config.hosts_without_gridcentric = \
-            filter(lambda x: service not in host_dict.get(x, []),
-                   default_config.hosts_without_gridcentric)
-        default_config.hosts = filter(lambda x: service in host_dict.get(x, []),
-                                      hosts)
+            [x for x in default_config.hosts_without_gridcentric if 
+                service not in host_dict.get(x, [])]
+        default_config.hosts = [x for x in hosts if service in host_dict.get(x,
+            [])]
 
         # Remove duplicates
         default_config.hosts_without_gridcentric =\
@@ -178,7 +190,6 @@ def pytest_configure(config):
     except exceptions.AttributeError:
         log.debug('Your version of novaclient does not support HostManager.list_all ')
         log.debug('Please consider updating novaclient')
-        pass
 
     log.debug('hosts: %s' % default_config.hosts)
     log.debug('hosts_without_gridcentric: %s' % default_config.hosts_without_gridcentric)

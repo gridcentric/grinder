@@ -212,6 +212,36 @@ class TestHarness(Notifier):
         if len(self.config.hosts) == 0:
             log.error('List of hosts is empty!')
             assert False
+        # If we are reading from tempest configuration, tc_distro, tc_arch, and
+        # tc_user must be specified.
+        if self.config.tempest_config != None:
+            if self.config.tc_distro == None:
+                log.error('tc_distro must be defined')
+                assert False
+            if self.config.tc_arch == None:
+                log.error('tc_arch must be defined')
+                assert False
+            if self.config.tc_user == None:
+                log.error('tc_user must be defined')
+                assert False
+            if self.config.tc_image_ref == None:
+                log.error('image_ref must be defined')
+                assert False
+            if self.config.flavor_name == None:
+                log.error('flavor_ref must be defined')
+                assert False
+        if self.config.os_username == None:
+            log.error('os_username must be defined')
+            assert False
+        if self.config.os_password == None:
+            log.error('os_password must be defined')
+            assert False
+        if self.config.os_tenant_name == None:
+            log.error('os_tenant_name must be defined')
+            assert False
+        if self.config.os_auth_url == None:
+            log.error('os_auth_url must be defined')
+            assert False
 
     @Notifier.notify
     def teardown(self):

@@ -94,7 +94,7 @@ cloud images. For CentOS images, you would typically set the user to `root`.
 Look into the `Image` class in `test/config.py` for more options.
 
 Tempest-based configuration
----------------------
+---------------------------
 
 Grinder can read some configuration parameters from Tempest, the
 OpenStack integration test suite.
@@ -105,18 +105,27 @@ This is specified through the option `tempest_config`:
 
     --tempest_config=/path/to/tempest.conf
 
-Grinder will use two keys from the section `[compute]` in `tempest.conf` to
+Grinder will use three keys from the section `[compute]` in `tempest.conf` to
 configure the image for testing: the default image name or ID (`image_ref`),
-and the default instance flavor (`flavor_ref`). Further, Grinder wil require
-additionally setting the following three options related to the default image:
+the default instance flavor (`flavor_ref`), and the username for logging in to
+an instance (`ssh_user`). Further, Grinder wil require
+additionally setting the following two options related to the default image:
 
 * `tc_distro` - the distro name
 * `tc_arch` - the arch
-* `tc_user` - the username used for loggin into the instance
+
+In addition, for authentication Grinder will use keys from `tempest.conf`
+instead of corresponding environment variables:
+
+* key `username` (section `compute-admin`) instead of `OS_USERNAME`
+* key `password` (section `compute-admin`) instead of `OS_PASSWORD`
+* key `tenant_name` (section `compute-admin`) instead of `OS_TENANT_NAME`
+* key `uri` (section `identity`) instead of `OS_AUTH_URL`
+* key `region_name` (section `identity`) instead of `OS_REGION_NAME`
 
 Here is an example of a command line that uses tempest.conf:
 
-    py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64 --tc_user=ubuntu
+    py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64
 
 List of hosts
 -------------
