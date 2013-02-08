@@ -14,11 +14,16 @@
 #    under the License.
 
 import pytest
+import random
+import time
 from . import harness
+from . import requirements
+from . import host
 from . logger import log
 
 class TestSharing(harness.TestCase):
     @harness.hosttest
+    @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_sharing(self, image_finder):
         # Make sure we should run
         if self.config.test_sharing_disable:
@@ -26,41 +31,29 @@ class TestSharing(harness.TestCase):
             pytest.skip()
 
         with self.harness.blessed(image_finder) as blessed:
-
-            # Launch until we have test_sharing_sharing_clones clones on one host.
-            hostdict = {}
             clonelist = []
+            random.seed(time.time())
+            target_host_name = random.choice(self.config.hosts)
+            target_host = host.Host(target_host_name, self.config)
+            availability_zone = "%s:%s" %\
+                                (target_host.availability_zone, target_host_name)
+            log.debug("Using availability zone capability to target clone "
+                      "launching to host %s -> %s." %\
+                        (target_host_name, availability_zone))
 
-            while True:
-                clone = blessed.launch()
-    
-                # TODO: Surely a simpler way to do this.
+            generation = None
+            for i in range(self.config.test_sharing_sharing_clones):
+                clone = blessed.launch(availability_zone = availability_zone)
+                assert clone.get_host().id == target_host_name
                 clonelist.append(clone)
-
-                # Mark the host that holds this VM.
-                host = clone.get_host()
-                (hostcount, host_clone_list) = hostdict.get(host.id, (0, []))
-                hostcount += 1
-                host_clone_list.append(clone)
-                hostdict[host.id] = (hostcount, host_clone_list)
-
-                # If we've got enough, break.
-                if hostcount == self.config.test_sharing_sharing_clones:
-                    break
-   
-            # Figure out the generation ID.
-            vmsctl = clone.vmsctl()
-            generation = vmsctl.generation()
-            for clone in clonelist:
                 vmsctl = clone.vmsctl()
-                assert generation == vmsctl.generation()
-   
-            # The last host bumped the sharing count.
-            (hostcount, sharingclones) = hostdict[host.id]
-            assert hostcount == self.config.test_sharing_sharing_clones
-    
+                if generation is None:
+                    generation = vmsctl.generation()
+                else:
+                    assert generation == vmsctl.generation()
+
             # Set all these guys up.
-            for clone in sharingclones:
+            for clone in clonelist:
                 vmsctl = clone.vmsctl()
                 vmsctl.pause()
                 vmsctl.set_flag("share.enabled")
@@ -70,44 +63,44 @@ class TestSharing(harness.TestCase):
     
             # Make them hoard to a full footprint. This will allow us to better
             # see the effect of sharing in the arithmetic below.
-            for clone in sharingclones:
+            for clone in clonelist:
                 vmsctl = clone.vmsctl()
                 assert vmsctl.full_hoard()
     
             # There should be significant sharing going on now.
-            stats = host.get_vmsfs_stats(generation)
+            stats = target_host.get_vmsfs_stats(generation)
             resident = stats['cur_resident']
             allocated = stats['cur_allocated']
             expect_ratio = float(self.config.test_sharing_sharing_clones) *\
                                  self.config.test_sharing_share_ratio
             real_ratio = float(resident) / float(allocated)
             log.debug("For %d clones on host %s: resident %d allocated %d ratio %f expect %f"
-                        % (self.config.test_sharing_sharing_clones, str(host), resident,
+                        % (self.config.test_sharing_sharing_clones, target_host.id, resident,
                            allocated, real_ratio, expect_ratio))
             assert real_ratio > expect_ratio
     
             # Release the brakes on the clones and assert some unsharing happens.
-            for clone in sharingclones:
+            for clone in clonelist:
                 vmsctl = clone.vmsctl()
                 vmsctl.unpause()
                 clone.root_command('uptime')
 
-            stats = host.get_vmsfs_stats(generation)
+            stats = target_host.get_vmsfs_stats(generation)
             assert stats['sh_cow'] > 0
     
             # Pause everyone again, and force aggressive unsharing on a single clone.
-            for clone in sharingclones:
+            for clone in clonelist:
                 vmsctl = clone.vmsctl()
                 vmsctl.pause()
     
-            clone = sharingclones[0]
+            clone = clonelist[0]
             vmsctl = clone.vmsctl()
             maxmem = vmsctl.get_max_memory()
             target = min(256 * 256, int(0.9 * float(maxmem)))
     
             # Record the unshare statistics before we begin thrashing the guest
             # with random bytes.
-            stats = host.get_vmsfs_stats(generation)
+            stats = target_host.get_vmsfs_stats(generation)
             unshare_before_force_cow = stats['sh_cow'] + stats['sh_un']
     
             vmsctl.unpause()
@@ -119,7 +112,7 @@ class TestSharing(harness.TestCase):
             clone.root_command("dd if=/dev/urandom of=/dev/shm/file bs=4k count=%d" % (target))
     
             # Figure out the impact of forcing unsharing.
-            stats = host.get_vmsfs_stats(generation)
+            stats = target_host.get_vmsfs_stats(generation)
             assert (stats['sh_cow'] + stats['sh_un'] - unshare_before_force_cow) >\
                    (target - self.config.test_sharing_cow_slack)
     

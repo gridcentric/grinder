@@ -16,6 +16,7 @@
 import json
 import uuid
 import random
+import time
 
 from novaclient.exceptions import ClientException, BadRequest
 
@@ -298,6 +299,7 @@ class TestLaunch(harness.TestCase):
             if len(hosts) > 1:
                 assert_launched_host(blessed, hosts[1])
             if len(hosts) > 2:
+                random.seed(time.time())
                 assert_launched_host(blessed, random.choice(hosts[2:]))
 
     @harness.requires(requirements.AVAILABILITY_ZONE)

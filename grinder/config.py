@@ -163,9 +163,7 @@ class Config(object):
 
         # These are knobs that control the sharing test, and you should be very
         # sure about what you are doing before changing them.
-        # We will launch clones until test_sharing_sharing_clones land on the
-        # same host. Combined with the number of hosts you have, this will
-        # significantly affect the runtime of the sharing test.
+        # Number of clones that will share memory.
         self.test_sharing_sharing_clones = DEFAULT_SHARING_CLONES
 
         # When share-hoarding across a bunch of stopped clones, we expect
