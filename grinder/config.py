@@ -153,6 +153,9 @@ class Config(object):
         self.os_auth_url = os.environ['OS_AUTH_URL']
         self.os_region_name = os.environ.get('OS_REGION_NAME', 'RegionOne')
 
+        # A default availability zone that contains testing hosts
+        self.default_az = 'nova'
+
         # Parameter for the memory-hoard-dropall test. Only change if you
         # really know what you are doing. There is no good definition for
         # the "success" of a memory eviction operation. However, on a

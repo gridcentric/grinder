@@ -14,6 +14,7 @@
 #    under the License.
 
 import time
+import random
 
 from . logger import log
 from . util import Notifier
@@ -216,8 +217,14 @@ class Instance(Notifier):
             params['user_data'] = user_data
         if security_groups != None:
             params['security_groups'] = security_groups
-        if availability_zone != None:
-            params['availability_zone'] = availability_zone
+
+        # Pick the host, has to fall within the provided list
+        if availability_zone is None:
+            target_host = random.choice(self.harness.config.hosts)
+            availability_zone = Host(target_host, self.harness.config).host_az()
+            log.debug("Launching to host %s -> %s." %\
+                        (target_host, availability_zone))
+        params['availability_zone'] = availability_zone
 
         launched_list = self.harness.gcapi.launch_instance(self.server, params=params)
 
@@ -242,6 +249,12 @@ class Instance(Notifier):
         instance = Instance(self.harness, server, self.image_config,
                             breadcrumbs=breadcrumbs, snapshot=None)
         instance.wait_for_boot(status)
+
+        # If the availability zone targeted a specific host, verify
+        if availability_zone is not None and ':' in availability_zone:
+            target_host = availability_zone.split(':')[1]
+            assert instance.get_host().id == target_host
+
         return instance
 
     def assert_alive(self, host=None):

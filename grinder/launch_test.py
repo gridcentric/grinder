@@ -16,7 +16,6 @@
 import json
 import uuid
 import random
-import time
 
 from novaclient.exceptions import ClientException, BadRequest
 
@@ -279,36 +278,21 @@ class TestLaunch(harness.TestCase):
                 launched = blessed.launch()
                 launched.delete()
 
-    @harness.requires(requirements.AVAILABILITY_ZONE)
-    def test_launch_host_targeted(self, image_finder):
-        hosts = self.harness.config.hosts
-
-        def assert_launched_host(blessed, host_name):
-            az = host.Host(host_name, self.harness.config).availability_zone
-            launched = blessed.launch(availability_zone='%s:%s' %
-                                                                (az, host_name))
-            assert launched.get_host().id == host_name
-            launched.delete()
+    def test_launch_bad_host_targeted(self, image_finder):
+        with self.harness.blessed(image_finder) as blessed:
+            host_name = random.choice(self.harness.config.hosts)
             assert_raises(BadRequest, blessed.launch,
                           availability_zone='nonexistent:%s' % host_name)
             assert_raises(BadRequest, blessed.launch,
-                          availability_zone='%s:nonexistent' % az)
+                          availability_zone='%s:nonexistent' %\
+                           self.config.default_az)
 
-        with self.harness.blessed(image_finder) as blessed:
-            assert_launched_host(blessed, hosts[0])
-            if len(hosts) > 1:
-                assert_launched_host(blessed, hosts[1])
-            if len(hosts) > 2:
-                random.seed(time.time())
-                assert_launched_host(blessed, random.choice(hosts[2:]))
-
-    @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_launch_with_invalid_az(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
             assert_raises(BadRequest, blessed.launch, availability_zone='nonexistent-az')
 
-    @harness.requires(requirements.AVAILABILITY_ZONE)
+    # Launch to any host in an availability zone.
     def test_launch_with_az(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
-            launched = blessed.launch(availability_zone='nova')
+            launched = blessed.launch(availability_zone=self.config.default_az)
             launched.delete()

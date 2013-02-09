@@ -19,6 +19,7 @@ from . config import default_config, Image
 from . harness import ImageFinder, get_test_distros, get_test_archs
 from . client import create_nova_client
 from . logger import log
+from . requirements import AVAILABILITY_ZONE
 import novaclient
 import ConfigParser
 from socket import gethostname
@@ -150,6 +151,12 @@ def pytest_configure(config):
                 default_config.flavor_name = None
         log.debug('Flavor used (read from %s): %s' % (tempest_config,
             default_config.flavor_name))
+
+    # We absolutely need the availability zone capability in our extension.
+    if not AVAILABILITY_ZONE.check():
+        log.error("Please update to version 1.1.1244 of gridcentric_python_novaclient_ext")
+        default_config.hosts = []
+        return
 
     # Gather list of hosts: either as defined in pytest.ini or all hosts
     # available.

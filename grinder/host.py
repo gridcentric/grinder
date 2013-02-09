@@ -26,10 +26,15 @@ class Host(object):
     def __init__(self, hostname, config):
         self.id = hostname
         self.config = config
-        out, err = self.check_output('nova-manage host list')
-        lines = out.split('\n')[1:]
-        self.availability_zone = dict((line.split()[0], line.split()[1])
-                                      for line in lines).get(hostname)
+        self.az = None
+
+    def host_az(self):
+        # To get 100% certainty on the az of a host, we need to use
+        # nova-manage. We do not do want to do that and instead impose
+        # restrictions based on the az supplied. Eventually nova-manage will go
+        # away and we will be able to query az's through novaclient. All will
+        # be better then.
+        return '%s:%s' % (self.config.default_az, self.id)
 
     def get_shell(self):
         return RootShell(self.id,

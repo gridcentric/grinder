@@ -23,7 +23,6 @@ from . logger import log
 
 class TestSharing(harness.TestCase):
     @harness.hosttest
-    @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_sharing(self, image_finder):
         # Make sure we should run
         if self.config.test_sharing_disable:
@@ -35,8 +34,7 @@ class TestSharing(harness.TestCase):
             random.seed(time.time())
             target_host_name = random.choice(self.config.hosts)
             target_host = host.Host(target_host_name, self.config)
-            availability_zone = "%s:%s" %\
-                                (target_host.availability_zone, target_host_name)
+            availability_zone = target_host.host_az()
             log.debug("Using availability zone capability to target clone "
                       "launching to host %s -> %s." %\
                         (target_host_name, availability_zone))
@@ -44,7 +42,6 @@ class TestSharing(harness.TestCase):
             generation = None
             for i in range(self.config.test_sharing_sharing_clones):
                 clone = blessed.launch(availability_zone = availability_zone)
-                assert clone.get_host().id == target_host_name
                 clonelist.append(clone)
                 vmsctl = clone.vmsctl()
                 if generation is None:

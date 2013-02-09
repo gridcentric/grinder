@@ -26,6 +26,7 @@ from . util import list_filter
 from . client import create_client
 from . instance import Instance
 from . instance import wait_while_status
+from . host import Host
 
 # This is set by pytest_runtest_setup in conftest.py.
 # This is done prior to each test.
@@ -52,11 +53,12 @@ def boot(client, config, image_config=None, flavor=None):
     log.info('Booting %s instance named %s', image.name, name)
     random.seed(time.time())
     host = random.choice(default_config.hosts)
-    log.debug('Selected host %s' % host)
+    host_az = Host(host, config).host_az()
+    log.debug('Selected host %s -> %s' % (host, host_az))
     server = client.servers.create(name=name,
                                    image=image.id,
                                    key_name=image_config.key_name,
-                                   availability_zone='nova:%s' % host,
+                                   availability_zone=host_az,
                                    flavor=flavor_id)
     setattr(server, 'image_config', image_config)
     wait_while_status(server, 'BUILD')
@@ -281,7 +283,7 @@ class TestHarness(Notifier):
         return FakeServer(fake_id)
 
     def satisfies(self, requirements):
-        return all(req.check(self) for req in requirements)
+        return all(req.check() for req in requirements)
 
 class TestCase(object):
 
