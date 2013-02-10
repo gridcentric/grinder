@@ -40,19 +40,26 @@ own and use it:
 
 From wherever you choose to run Grinder, you should have the ptyhon-novaclient
 package installed. Additionally, you need to have Gridcentric's nova client
-extension.  An easy way to install it is:
+extension, version 1.1.1244 or greater. An easy way to install it is:
 
     pip install --user gridcentric_python_novaclient_ext
 
 For further information look into: http://docs.gridcentric.com/openstack/installation.html
 
-Naturally, you should have the appropriate environment variables set to be able
-to access the OpenStack cluster being tested:
+You should have the appropriate environment variables set to be able to access
+the OpenStack cluster being tested, with *admin* privileges:
 
-    OS_TENANT_NAME=joe_tenant
-    OS_USERNAME=joe_user
+    OS_TENANT_NAME=admin_tenant
+    OS_USERNAME=joe_admin
     OS_PASSWORD=sup3r_s3cr3t
     OS_AUTH_URL=http://keystone_host:5000/v2.0
+
+Or, you can pass them along as options:
+
+    ./py.test grinder --os_tenant_name=admin_tenant \
+    --os_username=joe_admin \
+    --os_password=sup3r_s3cr3t \
+    --os_auth_url=http://keystone_host:5000/v2.0
 
 On guests, we require password-less ssh login to the root account, or to an
 account with password-less sudo. For that you need to add your ssh keys to the
@@ -68,11 +75,19 @@ traffic to VMs:
     nova secgroup-add-rule default tcp 22 22 0.0.0.0/0
     nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
 
+Or, you can create your own security group for the test instances, with ssh and
+icmp open, and pass it along:
+
+    nova secgroup-create grinder 'Sec group for testing'
+    nova secgroup-add-rule grinder tcp 22 22 0.0.0.0/0
+    nova secgroup-add-rule grinder icmp -1 -1 0.0.0.0/0
+    ./py.test --security_group=grinder grinder
+
 To run some tests, you will need a key installed on the physical hosts as well.
 Grinder requires password-less login to the root account, or to an account
 capable of password-less sudo.  The user is controlled by the `--host_user`
-option, and the path to the private key is set with the `--host_key_path`
-option.
+option, and the path to the private key (if not the default key to be used by
+ssh) is set with the `--host_key_path` option.
 
 Configuring Images
 -----------------
@@ -89,14 +104,15 @@ the glance image `precise-server.img` will be used, and that the image is an
 Ubuntu distribution with a 64 bit kernel. The user `ubuntu` has password-less
 sudo rights, and allows password-less ssh login using the key set with the
 `--guest_key_name` option. Note that this is default behavior for Ubuntu
-cloud images. For CentOS images, you would typically set the user to `root`.
+cloud images with nova key injection. For CentOS images, you would typically
+set the user to `root`.
 
 Look into the `Image` class in `test/config.py` for more options.
 
 Tempest-based configuration
 ---------------------------
 
-Grinder can read some configuration parameters from Tempest, the
+Grinder can read most of its configuration parameters from Tempest, the
 OpenStack integration test suite.
 
     https://github.com/openstack/tempest
@@ -105,38 +121,46 @@ This is specified through the option `tempest_config`:
 
     --tempest_config=/path/to/tempest.conf
 
-Grinder will use three keys from the section `[compute]` in `tempest.conf` to
-configure the image for testing: the default image name or ID (`image_ref`),
-the default instance flavor (`flavor_ref`), and the username for logging in to
-an instance (`ssh_user`). Further, Grinder wil require
-additionally setting the following two options related to the default image:
+Grinder will use the following keys in tempest.conf:
+
+* `username`, from the section `[compute-admin]`
+* `password`, `[compute-admin]`
+* `tenant_name`, `[compute-admin]`
+* `admin_username`, section `[identity]`, as fallback if the `[compute_admin]` section is incomplete or lacking
+* `admin_password`, `[identity]`, fallback
+* `admin_tenant_name`, `[identity]`, fallback
+* `uri`, `[identity]`
+* `region_name`, `[identity]`, if present
+* `image_ref`, `[compute]`
+* `flavor_ref`, `[compute]`
+* `ssh_user`, `[compute]`
+
+The `uri`, `region_name`, `username`, `password`, and `tenant_name` keys (or
+their fallbacks) are used for authenticating to the OpenStack cluster.
+
+The `image_ref`, `flavor_ref` and `ssh_user` keys are used to configure the
+image for running tests. Grinder will further require setting the following two
+options related to this image:
 
 * `tc_distro` - the distro name
 * `tc_arch` - the arch
 
-In addition, for authentication Grinder will use keys from `tempest.conf`
-instead of corresponding environment variables:
-
-* key `username` (section `compute-admin`) instead of `OS_USERNAME`
-* key `password` (section `compute-admin`) instead of `OS_PASSWORD`
-* key `tenant_name` (section `compute-admin`) instead of `OS_TENANT_NAME`
-* key `uri` (section `identity`) instead of `OS_AUTH_URL`
-* key `region_name` (section `identity`) instead of `OS_REGION_NAME`
-
 Here is an example of a command line that uses tempest.conf:
 
-    py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64
+    py.test --tempest_config=/path/to/tempest.conf --tc_distro=ubuntu --tc_arch=64 grinder
 
 List of hosts
 -------------
 
 The list of hosts used for testing is generated as follows:
-* If the option `hosts` is present in either `pytest.ini` or command line, its
-  value is used for the list.
+* If the option `hosts` is present in either `pytest.ini` or the command line,
+  its value is used for the list.
 * Otherwise, the value of `hosts` is the list of all hosts that nova API is
   aware of.
-* From the list, only those hosts that are running the service `gridcentric`
-  are retained.
+* In either case, only those hosts in the list that are running the service
+  `gridcentric` are retained.
+* All resulting hosts should belong to the availability zone set through the
+  `default_az` configuration option (defaults to 'nova').
 
 The list `hosts_without_gridcentric` is used for migration tests. It is
 generated as follows:
@@ -148,9 +172,10 @@ generated as follows:
   host is used.
 
 **NOTE:** For Grinder to be able to get the list of all hosts from nova
-API, a reasonably recent version of python-novaclient has to be installed.
-Otherwise, Grinder only uses `hosts` and `hosts_without_gridcentric` as
-specified in the configuration.
+API, a reasonably recent version of python-novaclient has to be installed, and
+Grinder must be using admin privileges in order to query all hosts in the
+cluster. Otherwise, Grinder only uses `hosts` and `hosts_without_gridcentric`
+as specified in the configuration.
 
 Further options
 --------------
@@ -166,4 +191,3 @@ Licensing
 Grinder is released under the terms of the Apache license. This suite
 redistributes `py.test`, taken from the pytest project, and distributed under
 the terms of the MIT license.
-
