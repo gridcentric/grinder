@@ -147,10 +147,10 @@ class Config(object):
         self.tc_arch = None
 
         # Authentication parameters
-        self.os_username = os.environ['OS_USERNAME']
-        self.os_password = os.environ['OS_PASSWORD']
-        self.os_tenant_name = os.environ['OS_TENANT_NAME']
-        self.os_auth_url = os.environ['OS_AUTH_URL']
+        self.os_username = os.environ.get('OS_USERNAME')
+        self.os_password = os.environ.get('OS_PASSWORD')
+        self.os_tenant_name = os.environ.get('OS_TENANT_NAME')
+        self.os_auth_url = os.environ.get('OS_AUTH_URL')
         self.os_region_name = os.environ.get('OS_REGION_NAME', 'RegionOne')
 
         # A default availability zone that contains testing hosts

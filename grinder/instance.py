@@ -251,7 +251,7 @@ class Instance(Notifier):
         instance.wait_for_boot(status)
 
         # If the availability zone targeted a specific host, verify
-        if availability_zone is not None and ':' in availability_zone:
+        if ':' in availability_zone:
             target_host = availability_zone.split(':')[1]
             assert instance.get_host().id == target_host
 

@@ -90,39 +90,50 @@ def pytest_configure(config):
     log.setLevel(level.get(loglevel, logging.INFO))
 
     tempest_config = getattr(config.option, "tempest_config")
-    client = create_nova_client(default_config)
     if tempest_config != None:
         # Read parameters from tempest.conf
         cfg = ConfigParser.ConfigParser({'image_ref': None,
                                          'username': None,
+                                         'admin_username': None,
                                          'flavor_ref': None,
                                          'ssh_user': None,
-                                         'username': None,
                                          'password': None,
                                          'tenant_name': None,
+                                         'admin_password': None,
+                                         'admin_tenant_name': None,
                                          'uri': None,
                                          'region': None})
         cfg.read(tempest_config)
         default_config.os_username = cfg.get('compute-admin', 'username')
         default_config.os_password = cfg.get('compute-admin', 'password')
         default_config.os_tenant_name = cfg.get('compute-admin', 'tenant_name')
+        fallback_os_username = cfg.get('identity', 'admin_username')
+        fallback_os_password = cfg.get('identity', 'admin_password')
+        fallback_os_tenant_name = cfg.get('identity', 'admin_tenant_name')
+
+        # Fallback if any param is invalid, can't trust an incomplete section
+        if default_config.os_username is None or\
+           default_config.os_username == '' or\
+           default_config.os_password is None or\
+           default_config.os_password == '' or\
+           default_config.os_tenant_name is None or\
+           default_config.os_tenant_name == '':
+            default_config.os_username = fallback_os_username
+            default_config.os_password = fallback_os_password
+            default_config.os_tenant_name = fallback_os_tenant_name
+
         default_config.os_auth_url = cfg.get('identity', 'uri')
         default_config.os_region_name = cfg.get('identity', 'region')
         if default_config.os_region_name == '':
             default_config.os_region_name = None
 
-        default_config.tc_user = None
         default_config.tc_user = cfg.get('compute', 'ssh_user')
-
-        client = create_nova_client(default_config)
-
         default_config.tc_image_ref = cfg.get('compute', 'image_ref')
         default_config.tc_flavor_ref = cfg.get('compute', 'flavor_ref')
 
+        client = create_nova_client(default_config)
         # Create an instance of Image for the parameters obtained from
-        # tempest.conf
-
-        # Try to find an image by ID or name.
+        # tempest.conf. Try to find an image by ID or name.
         try:
             image_details = client.images.find(id=default_config.tc_image_ref)
         except novaclient.exceptions.NotFound:
@@ -154,12 +165,14 @@ def pytest_configure(config):
 
     # We absolutely need the availability zone capability in our extension.
     if not AVAILABILITY_ZONE.check():
-        log.error("Please update to version 1.1.1244 of gridcentric_python_novaclient_ext")
+        log.error("Please update to version 1.1.1244 or greater of "
+                  "gridcentric_python_novaclient_ext")
         default_config.hosts = []
         return
 
     # Gather list of hosts: either as defined in pytest.ini or all hosts
     # available.
+    client = create_nova_client(default_config)
     try:
         all_hosts = client.hosts.list_all()
         if len(default_config.hosts) == 0:

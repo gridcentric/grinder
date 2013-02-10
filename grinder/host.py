@@ -26,7 +26,6 @@ class Host(object):
     def __init__(self, hostname, config):
         self.id = hostname
         self.config = config
-        self.az = None
 
     def host_az(self):
         # To get 100% certainty on the az of a host, we need to use
