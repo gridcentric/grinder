@@ -57,6 +57,7 @@ def boot(client, config, image_config=None, flavor=None):
                                    image=image.id,
                                    key_name=image_config.key_name,
                                    availability_zone=host_az,
+                                   security_groups=[config.security_group],
                                    flavor=flavor_id)
     setattr(server, 'image_config', image_config)
     wait_while_status(server, 'BUILD')

@@ -257,7 +257,8 @@ class TestLaunch(harness.TestCase):
                  self.harness.booted(image_finder) as master:
             master.server.add_security_group(master_sg.name)
             blessed = master.bless()
-            launched = blessed.launch(security_groups=['default', launched_sg.name])
+            launched = blessed.launch(\
+                security_groups=[self.config.security_group, launched_sg.name])
 
             # TODO (tkeith): We are removing security groups rather than
             # querying for them because Essex doesn't support querying.

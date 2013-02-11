@@ -77,6 +77,9 @@ class Config(object):
         # Otherwise, the test is skipped.
         self.hosts_without_gridcentric = []
 
+        # Security group for all testing instanced
+        self.security_group = 'default'
+
         # Instance flavor; determines RAM and what disks are attached.
         self.flavor_name = 'm1.tiny'
 
