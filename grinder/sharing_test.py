@@ -15,7 +15,6 @@
 
 import pytest
 import random
-import time
 from . import harness
 from . import requirements
 from . import host
@@ -31,7 +30,6 @@ class TestSharing(harness.TestCase):
 
         with self.harness.blessed(image_finder) as blessed:
             clonelist = []
-            random.seed(time.time())
             target_host_name = random.choice(self.config.hosts)
             target_host = host.Host(target_host_name, self.config)
             availability_zone = target_host.host_az()

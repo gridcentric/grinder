@@ -18,6 +18,8 @@ from . logger import log
 import inspect
 import os
 import hashlib
+import time
+import random
 
 from getpass import getuser
 from socket import gethostname
@@ -240,6 +242,8 @@ class Config(object):
                          "default %s." % (name, str(opt), str(default)))
                 opt = default
             return opt
+
+        random.seed(time.time())
 
         self.test_sharing_sharing_clones =\
             handle_number_option(self.test_sharing_sharing_clones,

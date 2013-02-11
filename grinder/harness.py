@@ -17,7 +17,6 @@ import uuid
 import pytest
 from uuid import uuid4
 import random
-import time
 
 from . logger import log
 from . config import default_config
@@ -51,7 +50,6 @@ def boot(client, config, image_config=None, flavor=None):
     image = client.images.find(name=image_config.name)
     
     log.info('Booting %s instance named %s', image.name, name)
-    random.seed(time.time())
     host = random.choice(default_config.hosts)
     host_az = Host(host, config).host_az()
     log.debug('Selected host %s -> %s' % (host, host_az))
