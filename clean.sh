@@ -13,3 +13,7 @@ for uuid in $(nova list | grep -E '(BLESSED)' | awk '{print $2;}'); do
     stall=$(($stall+3))
 done
 sleep $stall
+
+for uuid in $(nova secgroup-list | grep -i 'created by grinder' | awk '{print $2}'); do 
+    nova secgroup-delete $uuid;
+done
