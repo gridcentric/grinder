@@ -23,11 +23,6 @@ from . logger import log
 class TestSharing(harness.TestCase):
     @harness.hosttest
     def test_sharing(self, image_finder):
-        # Make sure we should run
-        if self.config.test_sharing_disable:
-            log.info("Skipping sharing test on user request.")
-            pytest.skip()
-
         with self.harness.blessed(image_finder) as blessed:
             clonelist = []
             target_host_name = random.choice(self.config.hosts)

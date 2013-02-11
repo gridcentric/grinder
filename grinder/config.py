@@ -166,11 +166,6 @@ class Config(object):
         # threshold by default.
         self.test_memory_dropall_fraction = DEFAULT_DROPALL_FRACTION
 
-        # Whether the sharing test should not run. If you have many hosts the
-        # sharing test will spend a lot of time allocating clones until it gets
-        # two or more clones to coexist on a host and share memory.
-        self.test_sharing_disable = False
-
         # These are knobs that control the sharing test, and you should be very
         # sure about what you are doing before changing them.
         # Number of clones that will share memory.
