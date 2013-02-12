@@ -17,9 +17,9 @@ For the brave & well (cluster) endowed:
 The above command will fork and run 6 test in parallel. Because of increased
 load, latency increases and some test operations may timeout. YMMV.
 
-Run `py.test --help` to see the configuration options. Look at the headings
-below for more information on options. You can change which hosts the test runs
-on, for instance, with:
+Run `py.test --help grinder` to see the configuration options. Look at the
+headings below for more information on options. You can change which hosts the
+test runs on, for instance, with:
     
     ./py.test --hosts=node1,node2 grinder
 
@@ -86,8 +86,11 @@ icmp open, and pass it along:
 To run some tests, you will need a key installed on the physical hosts as well.
 Grinder requires password-less login to the root account, or to an account
 capable of password-less sudo.  The user is controlled by the `--host_user`
-option, and the path to the private key (if not the default key to be used by
-ssh) is set with the `--host_key_path` option.
+option, and the path to the private key (if not `~/.ssh/id_rsa`) is set with
+the `--host_key_path` option.
+
+It's a good idea to set the environment variable `OS_NO_CACHE=1` to prevent
+novaclient form interrupting tests by asking about keyrings.
 
 Configuring Images
 -----------------
@@ -107,7 +110,7 @@ sudo rights, and allows password-less ssh login using the key set with the
 cloud images with nova key injection. For CentOS images, you would typically
 set the user to `root`.
 
-Look into the `Image` class in `test/config.py` for more options.
+Look into the `Image` class in `grinder/config.py` for more options.
 
 Tempest-based configuration
 ---------------------------
