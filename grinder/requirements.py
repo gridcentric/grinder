@@ -20,7 +20,7 @@ class NovaClientCapability(object):
     def __init__(self, capability):
         self.capability = capability
 
-    def check(self):
+    def check(self, client, gcapi):
         return hasattr(gridcentric_python_novaclient_ext, 'CAPABILITIES') and \
             self.capability in gridcentric_python_novaclient_ext.CAPABILITIES
 

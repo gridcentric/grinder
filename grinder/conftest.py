@@ -17,7 +17,7 @@ import os
 import logging
 from . config import default_config, Image
 from . harness import ImageFinder, get_test_distros, get_test_archs
-from . client import create_nova_client
+from . client import create_client
 from . logger import log
 from . requirements import AVAILABILITY_ZONE
 import novaclient
@@ -131,7 +131,7 @@ def pytest_configure(config):
         default_config.tc_image_ref = cfg.get('compute', 'image_ref')
         default_config.tc_flavor_ref = cfg.get('compute', 'flavor_ref')
 
-        client = create_nova_client(default_config)
+        (client, gcapi) = create_client(default_config)
         # Create an instance of Image for the parameters obtained from
         # tempest.conf. Try to find an image by ID or name.
         try:
@@ -164,7 +164,8 @@ def pytest_configure(config):
             default_config.flavor_name))
 
     # We absolutely need the availability zone capability in our extension.
-    if not AVAILABILITY_ZONE.check():
+    (client, gcapi) = create_client(default_config)
+    if not AVAILABILITY_ZONE.check(client, gcapi):
         log.error("Please update to version 1.1.1244 or greater of "
                   "gridcentric_python_novaclient_ext")
         default_config.hosts = []
@@ -172,7 +173,6 @@ def pytest_configure(config):
 
     # Gather list of hosts: either as defined in pytest.ini or all hosts
     # available.
-    client = create_nova_client(default_config)
     try:
         all_hosts = client.hosts.list_all()
         if len(default_config.hosts) == 0:
