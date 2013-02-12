@@ -222,7 +222,7 @@ class Instance(Notifier):
             params['security_groups'] = security_groups
 
         # Folsom and later: pick the host, has to fall within the provided list
-        if AVAILABILITY_ZONE.check(self.harness.client, self.harness.gcapi):
+        if AVAILABILITY_ZONE.check(self.harness.client):
             if availability_zone is None:
                 target_host = random.choice(self.harness.config.hosts)
                 availability_zone = Host(target_host, self.harness.config).host_az()
@@ -255,7 +255,7 @@ class Instance(Notifier):
         instance.wait_for_boot(status)
 
         # Folsom and later: if the availability zone targeted a specific host, verify
-        if AVAILABILITY_ZONE.check(self.harness.client, self.harness.gcapi):
+        if AVAILABILITY_ZONE.check(self.harness.client):
             if ':' in availability_zone:
                 target_host = availability_zone.split(':')[1]
                 assert instance.get_host().id == target_host

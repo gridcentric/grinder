@@ -283,7 +283,7 @@ class TestHarness(Notifier):
         return FakeServer(fake_id)
 
     def satisfies(self, requirements):
-        return all(req.check(self.client, self.gcapi) for req in requirements)
+        return all(req.check(self.client) for req in requirements)
 
 class TestCase(object):
 

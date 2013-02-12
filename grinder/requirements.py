@@ -20,9 +20,8 @@ class NovaClientCapability(object):
     def __init__(self, capability):
         self.capability = capability
 
-    def check(self, client, gcapi):
-        return hasattr(gridcentric_python_novaclient_ext, 'CAPABILITIES') and \
-            self.capability in gridcentric_python_novaclient_ext.CAPABILITIES
+    def check(self, client):
+        return client.gridcentric.satisfies([self.capability])
 
 LAUNCH_NAME = NovaClientCapability('launch-name')
 

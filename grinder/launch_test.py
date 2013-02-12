@@ -156,7 +156,7 @@ class TestLaunch(harness.TestCase):
 
             # Remember the host otherwise we won't know where to look after delete.
             host = launched.get_host()
-            
+
             # Remember the instance's ID before we delete the instance.
             server_id = launched.get_raw_id()
 
@@ -203,9 +203,9 @@ class TestLaunch(harness.TestCase):
             master.root_command('cat > %s' % params_filename, input=PARAMS_SCRIPT)
             master.root_command('chmod +x %s' % params_filename)
             master.root_command('mv %s /etc/gridcentric/clone.d/%s' % (params_filename, params_filename))
-    
+
             blessed = master.bless()
-    
+
             def assert_guest_params_success(params):
                 """ These parameters should successfully be added to the instance. """
                 launched = blessed.launch(guest_params=params)
@@ -215,18 +215,18 @@ class TestLaunch(harness.TestCase):
                     assert param in inguest_params
                     assert inguest_params[param] == "verified"
                 launched.delete()
-    
+
             def assert_guest_params_failure(params):
                 """ These parameters should cause the launching of the instance to fail. """
                 launched = blessed.launch(guest_params=params, status="ERROR")
                 launched.delete()
-    
+
             # Ensure that the guest parameters behave as expected.
             assert_guest_params_success({})
             assert_guest_params_success({"test_parameter":"verified"})
             assert_guest_params_success({"test_parameter":"verified", "test_parameter2":"verified"})
             assert_guest_params_failure({"sometext": "somelargetext" * 1000})
-    
+
             blessed.discard()
 
     @harness.requires(requirements.LAUNCH_NAME)
