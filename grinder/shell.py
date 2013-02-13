@@ -20,17 +20,20 @@ from . util import wait_for
 
 class SecureShell(object):
 
-    def __init__(self, host, key_path, user):
+    def __init__(self, host, key_path, user, port):
         self.host = host
         self.key_path = key_path
         self.user = user
+        self.port = port
         assert self.host
         assert self.key_path
         assert self.user
+        assert self.port
 
     def ssh_args(self):
         return [
                 'ssh',
+                '-p', str(self.port),
                 '-o', 'UserKnownHostsFile=/dev/null',
                 '-o', 'StrictHostKeyChecking=no',
                 "-o", "PasswordAuthentication=no",

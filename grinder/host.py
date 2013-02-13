@@ -39,7 +39,8 @@ class Host(object):
     def get_shell(self):
         return RootShell(self.id,
                          self.config.host_key_path,
-                         self.config.host_user)
+                         self.config.host_user,
+                         self.config.ssh_port)
 
     def __str__(self):
         return 'Host(id=%s)' % (self.id)

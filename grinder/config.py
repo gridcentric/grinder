@@ -29,6 +29,7 @@ DEFAULT_DROPALL_FRACTION    = 0.5
 DEFAULT_SHARING_CLONES      = 2
 DEFAULT_SHARE_RATIO         = 0.8
 DEFAULT_COW_SLACK           = 1500
+DEFAULT_SSH_PORT            = 22
 
 class Image(object):
     '''Add an image.
@@ -39,7 +40,7 @@ arch -- the architecture,
 user -- the user to login as,
 key_path -- the path to the SSH key for the user,
 key_name -- the name of the key for booting.
-flavor -- the flavor to use to boot this image, overrides the global 
+flavor -- the flavor to use to boot this image, overrides the global
           default config.flavor_name.
 e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
 '''
@@ -105,6 +106,9 @@ class Config(object):
         # etc. In seconds.
         self.ops_timeout = 600
 
+        # The port to use to initiate ssh connections.
+        self.ssh_port = DEFAULT_SSH_PORT
+
         # A custom agent location (passed to the gc-install-agent command).
         self.agent_location = None
         self.agent_version  = 'latest'
@@ -125,7 +129,7 @@ class Config(object):
         # The images available in Glance for the tests to use. The tests need
         # images of certain distributions for certain architectures; hence the
         # image names aren't important. See Image.
-        # 
+        #
         # We no longer store defaults here in this repo, but as an example:
         #   Image('cirros-0.3.0-x86_64', distro='cirros', arch='64', user='cirros'),
         #   Image('oneiric-agent-ready', distro='ubuntu', arch='64', user='ubuntu'),
@@ -145,7 +149,7 @@ class Config(object):
         #   tc_distro is the distro for the default guest image
         #   tc_arch is the arch for the default guest image
         # The function pytest_configure will use these parameters to construct
-        # one instance of Image 
+        # one instance of Image
         # (e.g. Image('precise-32-agent-ready', distro='ubuntu', arch='32', user='root'))
         self.tempest_config = None
         self.tc_distro = None

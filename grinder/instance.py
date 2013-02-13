@@ -113,7 +113,8 @@ class Instance(Notifier):
     def root_command(self, command, **kwargs):
         ssh = RootShell(self.get_addrs()[0],
                         self.image_config.key_path,
-                        self.image_config.user)
+                        self.image_config.user,
+                        self.harness.config.ssh_port)
         return ssh.check_output(command, **kwargs)
 
     def get_host(self):
@@ -129,7 +130,8 @@ class Instance(Notifier):
     def get_shell(self):
         return SecureShell(self.get_addrs()[0],
                            self.image_config.key_path,
-                           self.image_config.user)
+                           self.image_config.user,
+                           self.harness.config.ssh_port)
 
     def get_status(self):
         self.server.get()
