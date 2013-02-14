@@ -279,20 +279,33 @@ class TestLaunch(harness.TestCase):
                 launched = blessed.launch()
                 launched.delete()
 
-    def test_launch_bad_host_targeted(self, image_finder):
-        with self.harness.blessed(image_finder) as blessed:
-            host_name = random.choice(self.harness.config.hosts)
+    @harness.requires(requirements.AVAILABILITY_ZONE)
+    def test_launch_host_targeted(self, image_finder):
+        hosts = self.harness.config.hosts
+
+        def assert_launched_host(blessed, host_name):
+            host_az = host.Host(host_name, self.harness.config).host_az()
+            launched = blessed.launch(availability_zone=host_az)
+            launched.delete()
             assert_raises(BadRequest, blessed.launch,
                           availability_zone='nonexistent:%s' % host_name)
             assert_raises(BadRequest, blessed.launch,
                           availability_zone='%s:nonexistent' %\
-                           self.config.default_az)
+                          self.config.default_az)
 
+        with self.harness.blessed(image_finder) as blessed:
+            assert_launched_host(blessed, hosts[0])
+            if len(hosts) > 1:
+                assert_launched_host(blessed, hosts[1])
+            if len(hosts) > 2:
+                assert_launched_host(blessed, random.choice(hosts[2:]))
+
+    @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_launch_with_invalid_az(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
             assert_raises(BadRequest, blessed.launch, availability_zone='nonexistent-az')
 
-    # Launch to any host in an availability zone.
+    @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_launch_with_az(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch(availability_zone=self.config.default_az)

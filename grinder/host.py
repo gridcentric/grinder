@@ -28,6 +28,7 @@ class Host(object):
         self.config = config
 
     def host_az(self):
+        # Note that the host_az is ignored in Essex.
         # To get 100% certainty on the az of a host, we need to use
         # nova-manage. We do not do want to do that and instead impose
         # restrictions based on the az supplied. Eventually nova-manage will go

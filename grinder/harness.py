@@ -56,6 +56,7 @@ def boot(client, config, image_config=None, flavor=None):
     server = client.servers.create(name=name,
                                    image=image.id,
                                    key_name=image_config.key_name,
+                                   # host_az for Folsom and later, ignored in Essex
                                    availability_zone=host_az,
                                    security_groups=[config.security_group],
                                    flavor=flavor_id)

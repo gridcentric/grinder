@@ -92,6 +92,9 @@ the `--host_key_path` option.
 It's a good idea to set the environment variable `OS_NO_CACHE=1` to prevent
 novaclient form interrupting tests by asking about keyrings.
 
+Finally, the Grinder testing suite requires Folsom or later environments to
+test all features. Some tests will be skipped in Essex.
+
 Configuring Images
 -----------------
 
@@ -162,8 +165,9 @@ The list of hosts used for testing is generated as follows:
   aware of.
 * In either case, only those hosts in the list that are running the service
   `gridcentric` are retained.
-* All resulting hosts should belong to the availability zone set through the
-  `default_az` configuration option (defaults to 'nova').
+* *Folsom and later only*: All resulting hosts should belong to the 
+  availability zone set through the `default_az` configuration option (defaults
+  to 'nova').
 
 The list `hosts_without_gridcentric` is used for migration tests. It is
 generated as follows:

@@ -22,6 +22,7 @@ from . logger import log
 
 class TestSharing(harness.TestCase):
     @harness.hosttest
+    @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_sharing(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
             clonelist = []
