@@ -131,11 +131,12 @@ See the `Image` class in `test/config.py` for more options.
 Guest Platforms
 ---------------
 
-Currently Grinder supports Windows 7 instances in addition to Linux instances.
-Grinder can be made aware of instances running Windows by providing the
-`platform` key through the image configuration. For Windows instances the value
-should be `windows`.  When the key is not provided, the value defaults to
-`linux`. A Windows image configuration might look like this:
+Currently Grinder supports Windows instances in addition to Linux instances.
+Specifically, Windows 7 (any service pack), Windows Server 2008 R2, and Windows
+Server 2012.  Grinder can be made aware of instances running Windows by
+providing the `platform` key through the image configuration. For Windows
+instances the value should be `windows`.  When the key is not provided, the
+value defaults to `linux`. A Windows image configuration might look like this:
 
     --image=win7.img,distro=win7,arch=64,user=test,flavor=m1.large,platform=windows
 
