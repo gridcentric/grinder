@@ -61,7 +61,7 @@ class TestSharing(harness.TestCase):
                 vmsctl.set_flag("share.enabled")
                 vmsctl.set_flag("share.onfetch")
                 vmsctl.clear_flag("zeros.enabled")
-                vmsctl.clear_target()
+                # Eviction and target will be taken care of by full_hoard
 
             # Make them hoard to a full footprint. This will allow us to better
             # see the effect of sharing in the arithmetic below.

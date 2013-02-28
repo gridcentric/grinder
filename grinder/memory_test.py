@@ -40,16 +40,14 @@ class TestMemory(harness.TestCase):
             vmsctl.clear_flag("eviction.sharing")
 
             # No target so hoard finishes without surprises.
-            vmsctl.clear_target()
             info = vmsctl.info()
             assert int(info["eviction.dropshared"]) == 1
             assert int(info["zeros.enabled"]) == 0
             assert int(info["eviction.paging"]) == 0
             assert int(info["eviction.sharing"]) == 0
-            assert int(info["memory.target"]) == 0
             assert int(info["stats.enabled"]) == 1
 
-            # Hoard...
+            # Hoard. Will clear target and eviction, remember.
             assert vmsctl.full_hoard()
 
             # Make the guest throw away as much memory as possible
@@ -57,6 +55,7 @@ class TestMemory(harness.TestCase):
 
             # And ... evict everything we can
             vmsctl.set_flag("zeros.enabled")
+            vmsctl.set_flag("eviction.enabled")
             vmsctl.dropall()
 
             # First check the results of introspection

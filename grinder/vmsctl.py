@@ -71,17 +71,19 @@ class Vmsctl(object):
     def dropall(self):
         self.call("dropall")
 
-    def full_hoard(self, rate=10000, wait_seconds=default_config.ops_timeout, threshold=0.9):
+    def full_hoard(self, rate=10000, wait_seconds=default_config.ops_timeout):
+        self.clear_target()
+        self.clear_flag("eviction.enabled")
         self.set_flag("hoard")
         self.set_param("hoard.rate", str(rate))
         tries = 0
-        maxmem = self.get_max_memory()
 
-        while float(self.get_current_memory()) <= (threshold * float(maxmem)):
+        while int(self.get_param("memory.complete")) != 1:
             time.sleep(1.0)
             tries += 1
             if tries >= wait_seconds:
                 return False
+
         self.clear_flag("hoard")
         return True
 
