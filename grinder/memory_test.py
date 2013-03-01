@@ -78,39 +78,3 @@ class TestMemory(harness.TestCase):
 
             # Clean up.
             launched.delete()
-
-    @harness.archtest(exclude = ["32"])
-    @harness.hosttest
-    def test_pci_mmio_hole(self, image_finder):
-        # Guests capable of addressing RAM over 3GiB will run into
-        # the so called PCI MMIO hole from 3GiB to 4GiB. Ensure we
-        # handle that correctly. For that to be the case we must
-        # tweak the default image flavor to go to >= 4GiB, using
-        # the "big ram flavor"
-        with self.harness.booted(image_finder, flavor=self.config.big_ram_flavor_name) as master:
-            current_flavor =\
-                self.harness.client.flavors.find(name = master.image_config.flavor)
-            assert current_flavor.ram >= 4096
-
-            # Take over 3.5GiB of ram with random bytes
-            master.drop_caches()
-            balloon_size_pages = ((3 << 30) + (512 << 20)) >> 12
-            fingerprint = master.allocate_balloon(balloon_size_pages)
-
-            # Good to go, bless
-            blessed = master.bless()
-            launched = blessed.launch()
-
-            # Hoard the clone
-            vmsctl = launched.vmsctl()
-            vmsctl.clear_flag("zeros.enabled")
-            assert vmsctl.full_hoard()
-            assert vmsctl.get_current_memory >= balloon_size_pages
-
-            # Compare memory, should match
-            launched.assert_balloon_integrity(fingerprint)
-
-            # Clean up
-            launched.delete()
-            blessed.discard()
-
