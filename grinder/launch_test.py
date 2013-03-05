@@ -23,6 +23,7 @@ from . logger import log
 from . util import assert_raises
 from . import requirements
 from . import host
+from . import instance
 
 class TestLaunch(harness.TestCase):
 
@@ -299,3 +300,13 @@ class TestLaunch(harness.TestCase):
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch(availability_zone=self.config.default_az)
             launched.delete()
+
+    @harness.requires(requirements.NUM_INSTANCES)
+    def test_launch_multiple(self, image_finder):
+        with self.harness.blessed(image_finder) as blessed:
+            for num in [1, 2, 10]:
+                blessed.launch(num_instances=num)
+                launched = self.harness.client.gridcentric.list_launched(
+                                                                 blessed.server)
+                assert num == len(launched)
+                blessed.delete_launched()

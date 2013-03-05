@@ -218,7 +218,8 @@ class Instance(Notifier):
 
     @Notifier.notify
     def launch(self, target=None, guest_params=None, status='ACTIVE', name=None,
-               user_data=None, security_groups=None, availability_zone=None):
+               user_data=None, security_groups=None, availability_zone=None,
+               num_instances=None):
         log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -232,6 +233,8 @@ class Instance(Notifier):
             params['user_data'] = user_data
         if security_groups != None:
             params['security_groups'] = security_groups
+        if num_instances != None:
+            params['num_instances'] = num_instances
 
         # Folsom and later: pick the host, has to fall within the provided list
         if AVAILABILITY_ZONE.check(self.harness.client):
@@ -314,13 +317,7 @@ class Instance(Notifier):
     @Notifier.notify
     def discard(self, recursive=False):
         if recursive:
-            for id in self.list_launched():
-                instance = self.__class__(
-                    self.harness,
-                    self.harness.client.servers.get(id),
-                    self.image_config, breadcrumbs=False)
-                instance.delete(recursive=True)
-                time.sleep(1.0) # Sleep after the delete.
+            self.delete_launched()
         log.info('Discarding %s', self)
         self.harness.gcapi.discard_instance(self.server)
         self.wait_while_exists()
@@ -330,6 +327,15 @@ class Instance(Notifier):
 
     def list_launched(self):
         return map(lambda x: x['id'], self.harness.gcapi.list_launched_instances(self.server))
+
+    def delete_launched(self):
+        for id in self.list_launched():
+            instance = self.__class__(
+                self.harness,
+                self.harness.client.servers.get(id),
+                self.image_config, breadcrumbs=False)
+            instance.delete(recursive=True)
+            time.sleep(1.0) # Sleep after the delete.
 
     def vmsctl(self):
         return Vmsctl(self)
