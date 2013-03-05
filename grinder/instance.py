@@ -16,6 +16,7 @@
 import json
 import time
 import random
+import tempfile
 
 from . logger import log
 from . util import Notifier
@@ -77,7 +78,7 @@ class InstanceFactory(object):
 class Instance(Notifier):
 
     def __init__(self, harness, server, image_config,
-                 breadcrumbs=None, snapshot=None):
+                 breadcrumbs=None, snapshot=None, keypair=None):
         Notifier.__init__(self)
         self.harness = harness
         self.server = server
@@ -86,6 +87,14 @@ class Instance(Notifier):
         self.id = server.id
         self.snapshot = snapshot
         self.breadcrumbs = breadcrumbs
+
+        if keypair is not None:
+            self.privkey_fd = tempfile.NamedTemporaryFile()
+            self.privkey_fd.write(keypair.private_key)
+            self.privkey_fd.flush()
+            self.privkey_path = self.privkey_fd.name
+        else:
+            self.privkey_path = self.image_config.key_path
 
     def wait_for_boot(self, status='ACTIVE'):
         self.wait_while_status('BUILD')
@@ -219,7 +228,7 @@ class Instance(Notifier):
     @Notifier.notify
     def launch(self, target=None, guest_params=None, status='ACTIVE', name=None,
                user_data=None, security_groups=None, availability_zone=None,
-               num_instances=None):
+               num_instances=None, keypair=None):
         log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -235,6 +244,8 @@ class Instance(Notifier):
             params['security_groups'] = security_groups
         if num_instances != None:
             params['num_instances'] = num_instances
+        if keypair != None:
+            params['key_name'] = keypair.name
 
         # Folsom and later: pick the host, has to fall within the provided list
         if AVAILABILITY_ZONE.check(self.harness.client):
@@ -259,6 +270,9 @@ class Instance(Notifier):
         else:
             assert launched['name'] == name
 
+        if keypair != None:
+            assert launched['key_name'] == keypair.name
+
         # Retrieve the server from nova-compute. It should have our metadata added.
         server = self.harness.client.servers.get(launched['id'])
         assert server.metadata['launched_from'] == str(self.id)
@@ -266,7 +280,8 @@ class Instance(Notifier):
         # Build the instance.
         breadcrumbs = self.snapshot.instantiate(get_addrs(server))
         instance = self.__class__(self.harness, server, self.image_config,
-                                  breadcrumbs=breadcrumbs, snapshot=None)
+                                  breadcrumbs=breadcrumbs, snapshot=None,
+                                  keypair=keypair)
         instance.wait_for_boot(status)
 
         # Folsom and later: if the availability zone targeted a specific host, verify
@@ -451,21 +466,21 @@ log.close()
 """
 
     def __init__(self, harness, server, image_config,
-                 breadcrumbs=None, snapshot=None):
+                 breadcrumbs=None, **kwargs):
         Instance.__init__(
             self, harness, server, image_config,
             breadcrumbs=(breadcrumbs or SSHBreadcrumbs(self)),
-            snapshot=snapshot)
+            **kwargs)
 
     def get_shell(self):
         return SecureShell(self.get_addrs()[0],
-                           self.image_config.key_path,
+                           self.privkey_path,
                            self.image_config.user,
                            self.harness.config.ssh_port)
 
     def root_command(self, command, **kwargs):
         ssh = RootShell(self.get_addrs()[0],
-                        self.image_config.key_path,
+                        self.privkey_path,
                         self.image_config.user,
                         self.harness.config.ssh_port)
         return ssh.check_output(command, **kwargs)
@@ -494,7 +509,7 @@ log.close()
             agent_location = self.harness.config.agent_location
         self.harness.gcapi.install_agent(self.server,
                                          user=self.image_config.user,
-                                         key_path=self.image_config.key_path,
+                                         key_path=self.privkey_path,
                                          location=agent_location,
                                          version=self.harness.config.agent_version)
         self.breadcrumbs.add("Installed agent version %s" % self.harness.config.agent_version)

@@ -216,6 +216,19 @@ class SecurityGroup:
         if type == None or not(self.harness.config.leave_on_failure):
             self.harness.client.security_groups.delete(self.secgroup)
 
+class Keypair:
+    def __init__(self, harness, name):
+        self.harness = harness
+        self.name = name
+
+    def __enter__(self):
+        self.keypair = self.harness.client.keypairs.create(self.name)
+        return self.keypair
+
+    def __exit__(self, type, value, tb):
+        if type == None or not(self.harness.config.leave_on_failure):
+            self.harness.client.keypairs.delete(self.keypair)
+
 class TestHarness(Notifier):
     '''There's one instance of TestHarness per test function that runs.'''
     def __init__(self, config, test_name):
@@ -287,6 +300,9 @@ class TestHarness(Notifier):
 
     def security_group(self):
         return SecurityGroup(self)
+
+    def keypair(self, name):
+        return Keypair(self, name)
 
     def fake_id(self):
         # Generate a fake id (ensure it's fake).

@@ -15,6 +15,7 @@
 
 import uuid
 import random
+import pytest
 
 from novaclient.exceptions import ClientException, BadRequest
 
@@ -310,3 +311,17 @@ class TestLaunch(harness.TestCase):
                                                                  blessed.server)
                 assert num == len(launched)
                 blessed.delete_launched()
+
+    @harness.platformtest(only=["linux"])
+    @harness.requires(requirements.LAUNCH_KEY)
+    def test_launch_with_key(self, image_finder):
+        image_config = image_finder.find(self.harness.client,
+                                         self.harness.config)
+        if not image_config.cloudinit:
+            pytest.skip('Image does not have cloud-init')
+        with self.harness.blessed(image_finder) as blessed:
+            key_name = 'launch-with-key-{}'.format(uuid.uuid4())
+            with self.harness.keypair(key_name) as keypair:
+                launched = blessed.launch(keypair=keypair)
+                # launch asserts key_name correctness
+                launched.delete()

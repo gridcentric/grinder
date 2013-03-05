@@ -38,7 +38,7 @@ class GcApi(object):
         target = params.get('target', "0")
         launch_kwargs = {}
         for param in ('name', 'user_data', 'security_groups',
-                      'availability_zone', 'num_instances'):
+                      'availability_zone', 'num_instances', 'key_name'):
             if param in params:
                 launch_kwargs[param] = params[param]
         result = self.novaclient.gridcentric.launch(*args, target=target,
