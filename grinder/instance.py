@@ -183,7 +183,7 @@ class Instance(Notifier):
         return host.get_nova_compute_instance_filter_rules(server_id)
 
     @Notifier.notify
-    def bless(self):
+    def bless(self, **kwargs):
         log.info('Blessing %s', self)
         self.breadcrumbs.add('Pre bless')
 
@@ -192,7 +192,7 @@ class Instance(Notifier):
         # blessing the same instance multiple times.
         self.setup_params()
 
-        blessed_list = self.harness.gcapi.bless_instance(self.server)
+        blessed_list = self.harness.gcapi.bless_instance(self.server, **kwargs)
         assert len(blessed_list) == 1
         blessed = blessed_list[0]
 
@@ -200,7 +200,10 @@ class Instance(Notifier):
         assert blessed['id'] != self.id
         assert str(blessed['metadata']['blessed_from']) == str(self.id)
         assert blessed['name'] != self.server.name
-        assert self.server.name in blessed['name']
+        if 'name' in kwargs:
+            assert blessed['name'] == kwargs['name']
+        else:
+            assert self.server.name in blessed['name']
         assert blessed['status'] in ['BUILD', 'BLESSED']
 
         snapshot = self.breadcrumbs.snapshot()

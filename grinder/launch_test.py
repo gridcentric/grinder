@@ -34,6 +34,14 @@ class TestLaunch(harness.TestCase):
             assert [blessed.id] == master.list_blessed()
             blessed.discard()
 
+    @harness.requires(requirements.BLESS_NAME)
+    def test_bless_with_name(self, image_finder):
+        name = 'bless-with-name-{}'.format(uuid.uuid4())
+        with self.harness.booted(image_finder) as master:
+            blessed = master.bless(name=name)
+            # Assertions performed in bless
+            blessed.discard()
+
     def test_launch_one(self, image_finder):
         with self.harness.security_group() as sg,\
                 self.harness.security_group() as unassigned_sg,\

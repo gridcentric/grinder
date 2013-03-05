@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import gridcentric_python_novaclient_ext
-
 class NovaClientCapability(object):
 
     def __init__(self, capability):
@@ -24,9 +22,7 @@ class NovaClientCapability(object):
         return client.gridcentric.satisfies([self.capability])
 
 LAUNCH_NAME = NovaClientCapability('launch-name')
-
 USER_DATA = NovaClientCapability('user-data')
-
 SECURITY_GROUPS = NovaClientCapability('security-groups')
-
 AVAILABILITY_ZONE = NovaClientCapability('availability-zone')
+BLESS_NAME = NovaClientCapability('bless-name')
