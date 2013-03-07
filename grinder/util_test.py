@@ -50,3 +50,12 @@ def test_notifier():
     assert str(e.value) == 'pre_bad_method'
     # There's no easy way to see if a method has a decorator, so we allow this.
     tester.pre_no_notify
+
+def test_list_filter():
+    assert [3] == util.list_filter([1,2,3], exclude = [1,2])
+    assert [1, 2, 3, 4, 5] == util.list_filter([1,2,3], include = [4, 5])
+    assert [1] == util.list_filter([1,2,3], only=[1])
+    assert [1, 4] == util.list_filter([1,2,3], exclude = [2, 3], include = [4])
+    assert [1, 4] == util.list_filter([1,2,3,4], exclude = [2, 3], only = [1, 2, 4])
+    assert [1, 4] == util.list_filter([1,2,3], include = [4], only = [1, 4])
+    assert [1, 4] == util.list_filter([1,2,3,4], exclude = [2, 3], include = [5], only = [1, 2, 4])

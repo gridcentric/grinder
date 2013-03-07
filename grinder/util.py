@@ -81,12 +81,14 @@ class Notifier(object):
             return r
         return wrapped
 
-def list_filter(l, exclude=None, include=None):
+def list_filter(l, exclude=None, include=None, only=None):
     if exclude == None:
         exclude = []
     if include != None:
         l = l + include
-    return [e for e in l if e not in exclude]
+    if only == None:
+        only = l
+    return [e for e in l if e not in exclude and e in only]
 
 def wait_for(message, condition, interval=1):
     duration = int(default_config.ops_timeout)

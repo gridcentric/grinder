@@ -119,27 +119,30 @@ def mark_test(fn, **kwargs):
 def get_test_marker(fn, marker, default=None):
     return getattr(fn, '__test_markers', {}).get(marker, default)
 
-def archtest(exclude=None, include=None):
+def archtest(exclude=None, include=None, only=None):
     def _inner(fn):
-        archs = list_filter(default_config.get_all_archs(), exclude, include)
+        archs = list_filter(default_config.get_all_archs(),
+                            exclude, include, only)
         return mark_test(fn, archs=archs)
     return _inner
 
 def get_test_archs(fn):
     return get_test_marker(fn, 'archs', default_config.default_archs)
 
-def distrotest(exclude=None, include=None):
+def distrotest(exclude=None, include=None, only=None):
     def _inner(fn):
-        distros = list_filter(default_config.get_all_distros(), exclude, include)
+        distros = list_filter(default_config.get_all_distros(),
+                              exclude, include, only)
         return mark_test(fn, distros=distros)
     return _inner
 
 def get_test_distros(fn):
     return get_test_marker(fn, 'distros', default_config.default_distros)
 
-def platformtest(exclude=None, include=None):
+def platformtest(exclude=None, include=None, only=None):
     def _inner(fn):
-        platforms = list_filter(default_config.get_all_platforms(), exclude, include)
+        platforms = list_filter(default_config.get_all_platforms(),
+                                exclude, include, only)
         return mark_test(fn, platforms=platforms)
     return _inner
 
