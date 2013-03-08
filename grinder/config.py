@@ -43,10 +43,11 @@ key_path -- the path to the SSH key for the user,
 key_name -- the name of the key for booting.
 flavor -- the flavor to use to boot this image, overrides the global
           default config.flavor_name.
+cloudinit -- does the image have the cloud-init daemon
 e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
 '''
     def __init__(self, name, distro, arch, platform='linux', user='root', key_path=None,
-                 key_name=None, flavor=None):
+                 key_name=None, flavor=None, cloudinit=False):
         self.name = name
         self.distro = distro
         self.arch = arch
@@ -55,6 +56,7 @@ e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
         self.key_path = key_path
         self.key_name = key_name
         self.flavor = flavor
+        self.cloudinit = cloudinit
 
     def check(self):
         assert self.distro
@@ -66,8 +68,8 @@ e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
     def __repr__(self):
         return 'Image(name=%s, distro=%s, ' % (self.name, self.distro) + \
             'arch=%s, platform=%s, user=%s, ' % (self.arch, self.platform, self.user) + \
-            'key_path=%s, key_name=%s, flavor=%s)' % \
-                (self.key_path, self.key_name, self.flavor)
+            'key_path=%s, key_name=%s, flavor=%s, cloudinit=%s)' % \
+                (self.key_path, self.key_name, self.flavor, str(self.cloudinit))
 
 class Config(object):
 

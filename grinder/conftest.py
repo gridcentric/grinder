@@ -24,9 +24,12 @@ import novaclient
 import ConfigParser
 from socket import gethostname
 import exceptions
+import inspect
 
-def parse_option(value, *default_args, **default_kwargs):
-    '''Parses an option value qemu style: comma-separated, optional keys
+def parse_option(value, argspec):
+    '''Parses an option value qemu style: comma-separated, optional keys.
+    Args specified by name only (no key=val) are converted into True
+    booleans. ",-arg" adds arg as a False boolean
 
     Returns tuple (args, kwargs).
 
@@ -40,7 +43,22 @@ def parse_option(value, *default_args, **default_kwargs):
             split = arg.split('=', 1)
             kwargs[split[0]] = split[1]
         else:
-            args.append(arg)
+            if arg[0] == '-':
+                boolval = False
+                arg = arg[1:]
+            else:
+                boolval = True
+            if arg in argspec:
+                kwargs[arg] = boolval
+            elif boolval:
+                args.append(arg)
+            else:
+                raise Exception("Cannot provide -%s "
+                                "to --image." % arg)
+    # Fail bogus key=val arguments with a sensible message
+    for kwarg in kwargs.keys():
+        if kwarg not in argspec:
+            raise Exception("Unknown --image argument %s." % kwarg)
     return args, kwargs
 
 def pytest_runtest_setup(item):
@@ -66,13 +84,17 @@ def pytest_addoption(parser):
                 parser.addoption('--%s' % name, action="store", type="string", default=None,
                                  help='default is %s' % str(value))
 
+def parse_image_options(image):
+    argspec = inspect.getargspec(Image.__init__).args
+    args, kwargs = parse_option(image, argspec)
+    return Image(*args, **kwargs)
+
 def pytest_configure(config):
     for name, value in vars(default_config).iteritems():
         if name == 'images':
             new_value = getattr(config.option, 'image')
             for image in new_value:
-                args, kwargs = parse_option(image)
-                default_config.images.append(Image(*args, **kwargs))
+                default_config.images.append(parse_image_options(image))
         else:
             new_value = getattr(config.option, name)
             if new_value != None:
