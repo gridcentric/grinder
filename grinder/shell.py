@@ -128,7 +128,7 @@ class WinShell(object):
                 if retries <= 0:
                     raise
 
-    def check_output(self, command, expected_output="ok", timeout=10):
+    def check_output(self, command, expected_output="ok", timeout=60):
         sock = self._connect()
         try:
             log.debug("Link I: %s" % command)

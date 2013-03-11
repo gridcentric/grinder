@@ -100,7 +100,7 @@ class Instance(Notifier):
         self.wait_while_status('BUILD')
         assert self.get_status() == status
         if status == 'ACTIVE':
-            wait_for_ping(self.get_addrs())
+            self.instance_wait_for_ping()
             wait_for_shell(self.get_shell())
 
     def wait_while_host(self, host):
@@ -292,11 +292,14 @@ class Instance(Notifier):
 
         return instance
 
+    def instance_wait_for_ping(self):
+        wait_for_ping(self.get_addrs())
+
     def assert_alive(self, host=None):
         assert self.get_status() == 'ACTIVE'
         if host != None:
             assert self.get_host().id == host.id
-        wait_for_ping(self.get_addrs())
+        self.instance_wait_for_ping()
         wait_for_shell(self.get_shell())
         if host != None:
             self.breadcrumbs.add('alive on host %s' % host.id)
@@ -572,11 +575,11 @@ log.close()
 class WindowsInstance(Instance):
 
     def __init__(self, harness, server, image_config,
-                 breadcrumbs=None, snapshot=None):
+                 breadcrumbs=None, snapshot=None, **kwargs):
         Instance.__init__(
             self, harness, server, image_config,
             breadcrumbs=(breadcrumbs or LinkBreadcrumbs(self)),
-            snapshot=snapshot)
+            snapshot=snapshot, **kwargs)
 
     def get_shell(self):
         return WinShell(self.get_addrs()[0],
@@ -624,16 +627,24 @@ class WindowsInstance(Instance):
         except RuntimeError:
             return
 
+    def instance_wait_for_ping(self):
+        # Windows instances have ICMP blocked by default
+        pass
+
     def assert_userdata(self, userdata):
-        guest_userdata, _ = self.get_shell().check_output(
-            "get-userdata",
-            expected_output=None)
+        # Retry once
+        for i in range(2):
+            guest_userdata, _ = self.get_shell().check_output(
+                "get-userdata",
+                expected_output=None)
 
-        # TestListener uses DOS-style newlines and appends an extra newline at
-        # the end.
-        guest_userdata = guest_userdata.replace('\r', '')[:-1]
+            # TestListener uses DOS-style newlines and appends an extra newline at
+            # the end.
+            guest_userdata = guest_userdata.replace('\r', '')[:-1]
 
-        assert guest_userdata == userdata
+            if guest_userdata == userdata:
+                return
+        assert False
 
     def assert_guest_running(self):
         self.get_shell().check_output("agent-proxy ping")
