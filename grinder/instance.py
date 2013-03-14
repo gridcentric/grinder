@@ -599,7 +599,31 @@ class WindowsInstance(Instance):
             raise
 
     def install_agent(self):
+        # Agent name manipulation trickery. Watch out for the "URL" passing an
+        # authentication (username, password) tuple as space separated extra
+        # components. If the actual URL does not contain an agent filename,
+        # add it based on the arch. Finally, if the URL points to the wrong
+        # arch filename, try to patch.
         agent_location = self.harness.config.windows_agent_location
+        if len(agent_location.split()) == 3:
+            (agent_location, user, password) = agent_location.split()
+            split = True
+        else:
+            split = False
+        arch = self.image_config.arch
+        if not agent_location.endswith(".msi"):
+            if arch == "64":
+                agent_location += "/gc-agent-latest-amd64-release.msi"
+            else:
+                agent_location += "/gc-agent-latest-x86-release.msi"
+        else:
+            if arch == "64" and agent_location.find("amd64") == -1:
+                agent_location = agent_location.replace("x86", "amd64")
+            elif arch in ["pae", "32"] and agent_location.find("x86") == -1:
+                agent_location = agent_location.replace("amd64", "x86")
+        if split:
+            agent_location = ' '.join([agent_location, user, password])
+
         shell = self.get_shell()
         shell.check_output('agent-update %s' % agent_location,
                            timeout=self.harness.config.ops_timeout)
