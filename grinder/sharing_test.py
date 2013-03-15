@@ -49,19 +49,15 @@ class TestSharing(harness.TestCase):
                 clone = blessed.launch(availability_zone = availability_zone)
                 clonelist.append(clone)
                 vmsctl = clone.vmsctl()
-                if generation is None:
-                    generation = vmsctl.generation()
-                else:
-                    assert generation == vmsctl.generation()
-
-            # Set all these guys up.
-            for clone in clonelist:
-                vmsctl = clone.vmsctl()
                 vmsctl.pause()
                 vmsctl.set_flag("share.enabled")
                 vmsctl.set_flag("share.onfetch")
                 vmsctl.clear_flag("zeros.enabled")
                 # Eviction and target will be taken care of by full_hoard
+                if generation is None:
+                    generation = vmsctl.generation()
+                else:
+                    assert generation == vmsctl.generation()
 
             # Make them hoard to a full footprint. This will allow us to better
             # see the effect of sharing in the arithmetic below.
@@ -86,15 +82,12 @@ class TestSharing(harness.TestCase):
                 vmsctl = clone.vmsctl()
                 vmsctl.unpause()
                 clone.assert_guest_running()
+                vmsctl.pause()
 
             stats = target_host.get_vmsfs_stats(generation)
             assert stats['sh_cow'] > 0
 
-            # Pause everyone again, and force aggressive unsharing on a single clone.
-            for clone in clonelist:
-                vmsctl = clone.vmsctl()
-                vmsctl.pause()
-
+            # Force aggressive unsharing on a single clone.
             clone = clonelist[0]
             vmsctl = clone.vmsctl()
 
