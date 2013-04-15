@@ -28,9 +28,10 @@ class Breadcrumbs(object):
         def __init__(self, breadcrumbs):
             self.trail = list(breadcrumbs.trail)
             self.data = breadcrumbs.data
+            self.constructor = breadcrumbs.__class__
 
         def instantiate(self, server):
-            result = Breadcrumbs(server)
+            result = self.constructor(server)
             result.trail = list(self.trail)
             result.data = self.data
             return result

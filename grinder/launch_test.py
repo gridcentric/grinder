@@ -325,3 +325,21 @@ class TestLaunch(harness.TestCase):
                 launched = blessed.launch(keypair=keypair)
                 # launch asserts key_name correctness
                 launched.delete()
+
+    def test_clones_of_clones(self, image_finder):
+        with self.harness.blessed(image_finder) as blessed:
+            launched = blessed.launch()
+            clones = []
+            blessings = []
+            for i in range(4):
+                clones.append(launched)
+                blessed = launched.bless()
+                blessings.append(blessed)
+                launched = blessed.launch()
+            launched.delete()
+            # Now delete
+            for i in range(4):
+                blessed = blessings.pop()
+                blessed.discard()
+                launched = clones.pop()
+                launched.delete()

@@ -278,10 +278,10 @@ class Instance(Notifier):
         assert server.metadata['launched_from'] == str(self.id)
 
         # Build the instance.
-        breadcrumbs = self.snapshot.instantiate(get_addrs(server))
         instance = self.__class__(self.harness, server, self.image_config,
-                                  breadcrumbs=breadcrumbs, snapshot=None,
+                                  breadcrumbs=None, snapshot=None,
                                   keypair=keypair)
+        instance.breadcrumbs = self.snapshot.instantiate(instance)
         instance.wait_for_boot(status)
 
         # Folsom and later: if the availability zone targeted a specific host, verify
