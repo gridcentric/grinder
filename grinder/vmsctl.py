@@ -71,6 +71,17 @@ class Vmsctl(object):
     def dropall(self):
         self.call("dropall")
 
+    # You need to set the appropriate knobs for vmsd to have the
+    # right tools to meet your target.
+    def meet_target(self, target, wait_seconds=default_config.ops_timeout):
+        self.set_target(target)
+        while int(self.get_param("memory.current")) >= target:
+            time.sleep(1.0)
+            tries += 1
+            if tries >= wait_seconds:
+                return False
+        return True
+
     def full_hoard(self, rate=10000, wait_seconds=default_config.ops_timeout):
         self.clear_target()
         self.clear_flag("eviction.enabled")

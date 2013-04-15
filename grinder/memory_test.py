@@ -78,3 +78,45 @@ class TestMemory(harness.TestCase):
 
             # Clean up.
             launched.delete()
+
+    @harness.hosttest
+    def test_eviction_paging(self, image_finder):
+        with self.harness.blessed(image_finder) as blessed:
+            # Bring up a fully hoarded clone
+            launched = blessed.launch()
+            vmsctl = launched.vmsctl()
+            vmsctl.clear_flag("zeros.enabled")
+            # No sharing
+            vmsctl.clear_flag("share.enabled")
+            vmsctl.clear_flag("eviction.sharing")
+            assert vmsctl.full_hoard()
+
+            # Make the guest allocate a bunch of dirty RAM pages
+            launched.drop_caches()
+            flavor_used = self.harness.client.flavors.find(name=launched.image_config.flavor)
+            maxmem_pages = flavor_used.ram * 256
+            target_pages = min(256 * 256, int(0.9 * float(maxmem_pages)))
+            md5 = launched.allocate_balloon(target_pages)
+
+            # And ... evict-page to an arbitrary low watermark
+            pageout_pages = target_pages
+            vmsctl.set_flag("eviction.dropdirty")
+            vmsctl.clear_flag("eviction.dropclean")
+            vmsctl.clear_flag("eviction.dropshared")
+            vmsctl.set_flag("eviction.paging")
+            vmsctl.set_flag("eviction.enabled")
+            assert vmsctl.meet_target(pageout_pages)
+
+            # Did we meet the target?
+            paged_out = vmsctl.get_param("eviction.pagedout")
+            assert paged_out >= pageout_pages
+
+            # Is the VM alive?
+            launched.assert_guest_stable()
+
+            # Refill and check
+            assert vmsctl.full_hoard()
+            launched.assert_balloon_integrity(md5)
+
+            # Clean up.
+            launched.delete()
