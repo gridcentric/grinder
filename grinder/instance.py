@@ -627,8 +627,9 @@ class WindowsInstance(Instance):
         shell = self.get_shell()
         shell.check_output('agent-update %s' % agent_location,
                            timeout=self.harness.config.ops_timeout)
-        shell.check_output('agent-proxy wipe-idmap')
-        shell.check_output('agent-proxy regenerate-hash')
+
+        # Setup agent in continuous blessing mode with no preloading.
+        shell.check_output('agent-proxy set-mode 3 0')
 
         version, _ = shell.check_output('agent-version', expected_output=None)
         version = version.strip()
