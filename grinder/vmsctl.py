@@ -74,6 +74,7 @@ class Vmsctl(object):
     # You need to set the appropriate knobs for vmsd to have the
     # right tools to meet your target.
     def meet_target(self, target, wait_seconds=default_config.ops_timeout):
+        tries = 0
         self.set_target(target)
         while int(self.get_param("memory.current")) >= target:
             time.sleep(1.0)
