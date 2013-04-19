@@ -564,7 +564,7 @@ log.close()
         assert fingerprint == md5
 
     def thrash_balloon_memory(self, target_pages):
-        self.root_command("rm /dev/shm/file")
+        self.root_command("shred -f -u -n 1 /dev/shm/file")
         self.drop_caches()
         # Remount tmpfs with a 16MiB headroom on top of the requested size.
         tmpfs_size = (target_pages << 12) + (16 << 20)

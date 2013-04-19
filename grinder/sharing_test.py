@@ -59,6 +59,14 @@ class TestSharing(harness.TestCase):
                 else:
                     assert generation == vmsctl.generation()
 
+            # Now that all clones are paused snapshot the stats. Because we
+            # don't control when nova tells us the VM is ACTIVE, each clone
+            # could have amassed quite a few pages of private memory footprint
+            # before we set the knobs right.
+            stats = target_host.get_vmsfs_stats(generation)
+            pre_resident = stats['cur_resident']
+            pre_allocated = stats['cur_allocated']
+
             # Make them hoard to a full footprint. This will allow us to better
             # see the effect of sharing in the arithmetic below.
             for clone in clonelist:
@@ -67,8 +75,8 @@ class TestSharing(harness.TestCase):
 
             # There should be significant sharing going on now.
             stats = target_host.get_vmsfs_stats(generation)
-            resident = stats['cur_resident']
-            allocated = stats['cur_allocated']
+            resident = stats['cur_resident'] - pre_resident
+            allocated = stats['cur_allocated'] - pre_allocated
             expect_ratio = float(self.config.test_sharing_sharing_clones) *\
                                  self.config.test_sharing_share_ratio
             real_ratio = float(resident) / float(allocated)
