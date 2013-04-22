@@ -496,7 +496,15 @@ log.close()
         self.root_command("mv %s /etc/gridcentric/clone.d/%s" % (params_filename, params_filename))
 
     def read_params(self):
-        (output, _) = self.root_command('cat /tmp/clone.log')
+        attempt = 0
+        while attempt < 100:
+            try:
+                (output, _) = self.root_command('cat /tmp/clone.log')
+                break
+            except:
+                # Wait a short bit and retry.
+                attempt += 1
+                time.sleep(0.1)
         try:
             return json.loads(output)
         except:
