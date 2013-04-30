@@ -457,15 +457,37 @@ class Instance(Notifier):
 class LinuxInstance(Instance):
 
     PARAMS_SCRIPT = """#!/usr/bin/env python
-import sys
 import json
+import os
+import sys
+
+# Check the command-line arguments: all agent versions pass the raw params json
+# as argv[2].
+data = json.loads(sys.argv[2])
+assert isinstance(data, dict)
+
+# Try to import the old vmsagent params parsing library.
 sys.path.append('/etc/gridcentric/common')
-import common
-data = common.parse_params().get_dict()
-log = file("/tmp/clone.log", "w")
-log.write("%s" % json.dumps(data))
-log.flush()
-log.close()
+try:
+    import common
+except ImportError:
+    # Couldn't import the old library. Assume we're using the new agent, which
+    # parses the params json and passes in the string params as environment
+    # variables.
+    for key, val in data.items():
+        if isinstance(val, str):
+            assert os.environ['VMS_%s' % key] == val
+        else:
+            assert 'VMS_%s' % key not in os.environ
+else:
+    # Successfully imported the old params library. Make sure it parsed the
+    # command-line arguments properly.
+    params = common.parse_params()
+    assert sys.argv[1] == params.uid()
+    assert data == params.get_dict()
+
+# Dump the params json so grinder can do an end-to-end check.
+open("/tmp/clone.log", "w").write(sys.argv[2])
 """
 
     def __init__(self, harness, server, image_config,
@@ -489,11 +511,9 @@ log.close()
         return ssh.check_output(command, **kwargs)
 
     def setup_params(self):
-        params_filename = "90_clone_params"
-        self.root_command("rm -f %s" % params_filename)
-        self.root_command("cat > %s" % params_filename, input=self.PARAMS_SCRIPT)
-        self.root_command("chmod +x %s" % params_filename)
-        self.root_command("mv %s /etc/gridcentric/clone.d/%s" % (params_filename, params_filename))
+        params_path = "/etc/gridcentric/clone.d/90_clone_params"
+        self.root_command("cat > %s" % params_path, input=self.PARAMS_SCRIPT)
+        self.root_command("chmod a+x %s" % params_path)
 
     def read_params(self):
         attempt = 0
