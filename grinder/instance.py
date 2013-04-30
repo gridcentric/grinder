@@ -475,7 +475,7 @@ except ImportError:
     # parses the params json and passes in the string params as environment
     # variables.
     for key, val in data.items():
-        if isinstance(val, str):
+        if type(val) in [str, unicode]:
             assert os.environ['VMS_%s' % key] == val
         else:
             assert 'VMS_%s' % key not in os.environ
