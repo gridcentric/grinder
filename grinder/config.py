@@ -38,6 +38,7 @@ Fields are specified with comma-separated key=val pairs:
 name -- the name of the image in glance,
 distro -- the linux distribution,
 arch -- the architecture,
+platform -- Linux or Windows,
 user -- the user to login as,
 key_path -- the path to the SSH key for the user,
 key_name -- the name of the key for booting.

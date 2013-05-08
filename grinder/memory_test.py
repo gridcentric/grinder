@@ -21,6 +21,8 @@ class TestMemory(harness.TestCase):
     @harness.archtest()
     @harness.hosttest
     def test_agent_hoard_dropall(self, image_finder):
+        image_config = image_finder.find(self.harness.client,
+                                         self.harness.config)
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch()
 
@@ -58,20 +60,31 @@ class TestMemory(harness.TestCase):
             vmsctl.set_flag("eviction.enabled")
             vmsctl.dropall()
 
+            def conditional_check(cond, image_config):
+                if image_config.platform == 'windows':
+                    if not cond:
+                        return False
+                else:
+                    assert cond
+                return True
+
             # First check the results of introspection
             maxmem = vmsctl.get_max_memory()
             drop_target = float(maxmem) *\
                           self.config.test_memory_dropall_fraction
             freed = vmsctl.get_param("stats.eviction.drop.freepgsize.max")
-            assert drop_target < float(freed)
-            log.info("Agent helped to drop %d." % int(freed))
+            if conditional_check(drop_target < float(freed), image_config):
+                log.info("Agent helped to drop %d." % int(freed))
+            else:
+                log.warn("Agent could only free %d (%d)." %\
+                            (int(freed), int(drop_target)))
 
             # Now check the results in actual memory footprint
             generation = vmsctl.generation()
             host = vmsctl.instance.get_host()
             stats = host.get_vmsfs_stats(generation)
             freed = int(maxmem) - int(stats["cur_allocated"])
-            assert drop_target < float(freed)
+            conditional_check(drop_target < float(freed), image_config)
 
             # VM is not dead...
             launched.assert_guest_stable()
