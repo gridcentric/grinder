@@ -204,18 +204,18 @@ def pytest_configure(config):
             host_dict[host.host_name] = service_list
             log.debug('host %s service %s' % (host.host_name, host.service))
 
-        service = 'gridcentric'
-        if len(default_config.hosts_without_gridcentric) == 0:
-            default_config.hosts_without_gridcentric = \
-                [x for x in hosts if service not in host_dict.get(x, [])]
-            if len(default_config.hosts_without_gridcentric) == 0:
-                default_config.hosts_without_gridcentric = [gethostname()]
+        gc_services = ['gridcentric','cobalt']
 
-        default_config.hosts_without_gridcentric = \
-            [x for x in default_config.hosts_without_gridcentric if
-                service not in host_dict.get(x, [])]
-        default_config.hosts = [x for x in hosts if service in host_dict.get(x,
-            [])]
+        if len(default_config.hosts_without_gridcentric) == 0:
+            default_config.hosts_without_gridcentric = [x for x in hosts if
+                not (set(gc_services) & set(host_dict.get(x, [])))]
+            if len(default_config.hosts_without_gridcentric) == 0:
+                if not gethostname() in gc_services:
+                    default_config.hosts_without_gridcentric = [gethostname()]
+
+        if len(default_config.hosts) == 0:
+            default_config.hosts = [x for x in hosts if
+                set(gc_services) & set(host_dict.get(x, []))]
 
         # Remove duplicates
         default_config.hosts_without_gridcentric =\
