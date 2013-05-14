@@ -62,7 +62,8 @@ class GcApi(object):
         target = params.get('target', "0")
         launch_kwargs = {}
         for param in ('name', 'user_data', 'security_groups',
-                      'availability_zone', 'num_instances', 'key_name'):
+                      'availability_zone', 'num_instances', 'key_name',
+                      'scheduler_hints'):
             if param in params:
                 launch_kwargs[param] = params[param]
         result = self.__cobalt_select_method('launch')(*args, target=target,

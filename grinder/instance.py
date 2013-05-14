@@ -31,7 +31,7 @@ from . util import fix_url_for_yum
 from . util import wait_for
 from . util import wait_for_ping
 from . shell import wait_for_shell
-from . requirements import AVAILABILITY_ZONE
+from . requirements import AVAILABILITY_ZONE, SCHEDULER_HINTS
 
 from novaclient.exceptions import NotFound
 
@@ -228,7 +228,7 @@ class Instance(Notifier):
     @Notifier.notify
     def launch(self, target=None, guest_params=None, status='ACTIVE', name=None,
                user_data=None, security_groups=None, availability_zone=None,
-               num_instances=None, keypair=None):
+               num_instances=None, keypair=None, scheduler_hints=None):
         log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -246,9 +246,14 @@ class Instance(Notifier):
             params['num_instances'] = num_instances
         if keypair != None:
             params['key_name'] = keypair.name
+        if scheduler_hints != None:
+            params['scheduler_hints'] = scheduler_hints
 
-        # Folsom and later: pick the host, has to fall within the provided list
-        if AVAILABILITY_ZONE.check(self.harness.client):
+        # Folsom: pick the host, has to fall within the provided list.
+        # Grizzly and later: UNLESS, we have scheduler hints
+        if AVAILABILITY_ZONE.check(self.harness.client) and\
+            not (SCHEDULER_HINTS.check(self.harness.client) and\
+                    scheduler_hints != None):
             if availability_zone is None:
                 target_host = random.choice(self.harness.config.hosts)
                 availability_zone = Host(target_host, self.harness.config).host_az()
@@ -285,7 +290,8 @@ class Instance(Notifier):
         instance.wait_for_boot(status)
 
         # Folsom and later: if the availability zone targeted a specific host, verify
-        if AVAILABILITY_ZONE.check(self.harness.client):
+        if AVAILABILITY_ZONE.check(self.harness.client) and\
+                availability_zone != None:
             if ':' in availability_zone:
                 target_host = availability_zone.split(':')[1]
                 assert instance.get_host().id == target_host
