@@ -22,15 +22,39 @@ class GcApi(object):
     This object wraps around the Gridcentric API,
     so that future API changes can be easily adapted to
     and versioned without changing all tests. This object
-    was actually introduced for the Diablo -> Essex merge
-    but although we no longer support a Diablo API, it may
-    still be useful in the future.'''
+    was actually introduced for the Diablo -> Essex merge.
+    It is now used to bridge the Folsom -> Grizzly transition
+    during which we renamed the extension to cobalt. Note
+    the client is expected to support the old 'gridcentric'
+    and the new 'cobalt' extension names-spaces.'''
     
     def __init__(self, novaclient):
         self.novaclient = novaclient
 
+    def __gridcentric_method(self, method):
+        return getattr(self.novaclient.gridcentric, method)
+
+    def __cobalt_method(self, method):
+        return getattr(self.novaclient.cobalt, method)
+
+    def __cobalt_select_method(self, method):
+        compat_dict = {
+            'discard'       : 'delete_live_image',
+            'list_launched' : 'list_live_image_servers',
+            'list_blessed'  : 'list_live_images',
+            'bless'         : 'create_live_image',
+            'launch'        : 'start_live_image' }
+        if method not in compat_dict.keys():
+            return self.__gridcentric_method(method)
+        if not hasattr(self.novaclient, 'cobalt'):
+            return self.__gridcentric_method(method)
+        cobalt_method = compat_dict[method]
+        if hasattr(self.novaclient.cobalt, compat_dict[method]):
+            return self.__cobalt_method(compat_dict[method])
+        return self.__gridcentric_method(method)
+
     def discard_instance(self, *args, **kwargs):
-        return self.novaclient.gridcentric.discard(*args, **kwargs)
+        return self.__cobalt_select_method('discard')(*args, **kwargs)
 
     def launch_instance(self, *args, **kwargs):
         params = kwargs.get('params', {})
@@ -41,18 +65,21 @@ class GcApi(object):
                       'availability_zone', 'num_instances', 'key_name'):
             if param in params:
                 launch_kwargs[param] = params[param]
-        result = self.novaclient.gridcentric.launch(*args, target=target,
+        result = self.__cobalt_select_method('launch')(*args, target=target,
                 guest_params=guest, **launch_kwargs)
         return map(lambda x: x._info, result)
 
     def bless_instance(self, *args, **kwargs):
-        return map(lambda x: x._info, self.novaclient.gridcentric.bless(*args, **kwargs))
+        return map(lambda x: x._info,
+                    self.__cobalt_select_method('bless')(*args, **kwargs))
 
     def list_blessed_instances(self, *args, **kwargs):
-        return map(lambda x: x._info, self.novaclient.gridcentric.list_blessed(*args, **kwargs))
+        return map(lambda x: x._info,
+                    self.__cobalt_select_method('list_blessed')(*args, **kwargs))
 
     def list_launched_instances(self, *args, **kwargs):
-        return map(lambda x: x._info, self.novaclient.gridcentric.list_launched(*args, **kwargs))
+        return map(lambda x: x._info,
+                    self.__cobalt_select_method('list_launched')(*args, **kwargs))
 
     def migrate_instance(self, *args, **kwargs):
         return self.novaclient.gridcentric.migrate(*args, **kwargs)
