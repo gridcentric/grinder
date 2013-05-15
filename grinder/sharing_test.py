@@ -29,7 +29,8 @@ class TestSharing(harness.TestCase):
         with self.harness.booted(image_finder) as master:
             # Allocate a balloon of fixed size before we bless to ensure we'll
             # have a known amount of memory to unshare at our command.
-            flavor_used = self.harness.client.flavors.find(name=master.image_config.flavor)
+            flavor_used  = self.harness.client.flavors.find(
+                                    name=master.image_config.flavor)
             maxmem_pages = flavor_used.ram * 256
             target_pages = min(256 * 256, int(0.9 * float(maxmem_pages)))
 
@@ -37,16 +38,29 @@ class TestSharing(harness.TestCase):
             blessed = master.bless()
 
             clonelist = []
-            target_host_name = random.choice(self.config.hosts)
-            target_host = host.Host(target_host_name, self.config)
-            availability_zone = target_host.host_az()
-            log.debug("Using availability zone capability to target clone "
-                      "launching to host %s -> %s." %\
-                        (target_host_name, availability_zone))
+            if not requirements.SCHEDULER_HINTS.check(self.harness.client):
+                target_host_name    = random.choice(self.config.hosts)
+                target_host         = host.Host(target_host_name, self.config)
+                availability_zone   = target_host.host_az()
+                log.debug("Using availability zone capability to target clone "
+                          "launching to host %s -> %s." %
+                            (target_host_name, availability_zone))
 
             generation = None
             for i in range(self.config.test_sharing_sharing_clones):
-                clone = blessed.launch(availability_zone = availability_zone)
+                if requirements.SCHEDULER_HINTS.check(self.harness.client):
+                    if i == 0:
+                        clone               = blessed.launch()
+                        target_host         = clone.get_host()
+                        target_host_name    = target_host.id
+                        log.debug("Using SameHost scheduling hint to target "
+                                  "launching to host %s" % target_host_name)
+                    else:
+                        clone = blessed.launch(scheduler_hints=
+                                                {'same_host':clonelist[0].id})
+                        assert target_host_name == clone.get_host().id
+                else:
+                    clone = blessed.launch(availability_zone=availability_zone)
                 clonelist.append(clone)
                 vmsctl = clone.vmsctl()
                 vmsctl.pause()
@@ -63,9 +77,9 @@ class TestSharing(harness.TestCase):
             # don't control when nova tells us the VM is ACTIVE, each clone
             # could have amassed quite a few pages of private memory footprint
             # before we set the knobs right.
-            stats = target_host.get_vmsfs_stats(generation)
-            pre_resident = stats['cur_resident']
-            pre_allocated = stats['cur_allocated']
+            stats           = target_host.get_vmsfs_stats(generation)
+            pre_resident    = stats['cur_resident']
+            pre_allocated   = stats['cur_allocated']
 
             # Make them hoard to a full footprint. This will allow us to better
             # see the effect of sharing in the arithmetic below.
@@ -74,15 +88,16 @@ class TestSharing(harness.TestCase):
                 assert vmsctl.full_hoard()
 
             # There should be significant sharing going on now.
-            stats = target_host.get_vmsfs_stats(generation)
-            resident = stats['cur_resident'] - pre_resident
-            allocated = stats['cur_allocated'] - pre_allocated
+            stats        = target_host.get_vmsfs_stats(generation)
+            resident     = stats['cur_resident'] - pre_resident
+            allocated    = stats['cur_allocated'] - pre_allocated
             expect_ratio = float(self.config.test_sharing_sharing_clones) *\
                                  self.config.test_sharing_share_ratio
-            real_ratio = float(resident) / float(allocated)
-            log.debug("For %d clones on host %s: resident %d allocated %d ratio %f expect %f"
-                        % (self.config.test_sharing_sharing_clones, target_host.id, resident,
-                           allocated, real_ratio, expect_ratio))
+            real_ratio   = float(resident) / float(allocated)
+            log.debug("For %d clones on host %s: resident %d allocated %d "
+                      "ratio %f expect %f" %
+                        (self.config.test_sharing_sharing_clones, target_host.id,
+                            resident, allocated, real_ratio, expect_ratio))
             assert real_ratio > expect_ratio
 
             # Release the brakes on the clones and assert some unsharing happens.
@@ -96,7 +111,7 @@ class TestSharing(harness.TestCase):
             assert stats['sh_cow'] > 0
 
             # Force aggressive unsharing on a single clone.
-            clone = clonelist[0]
+            clone  = clonelist[0]
             vmsctl = clone.vmsctl()
 
             # Record the unshare statistics before we begin thrashing the guest
@@ -105,9 +120,7 @@ class TestSharing(harness.TestCase):
             unshare_before_force_cow = stats['sh_cow'] + stats['sh_un']
 
             vmsctl.unpause()
-
             time.sleep(1)
-
             clone.thrash_balloon_memory(target_pages)
 
             # Figure out the impact of forcing unsharing.

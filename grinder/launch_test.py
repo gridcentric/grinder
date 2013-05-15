@@ -278,8 +278,11 @@ class TestLaunch(harness.TestCase):
             host_az = host.Host(host_name, self.harness.config).host_az()
             launched = blessed.launch(availability_zone=host_az)
             launched.delete()
-            assert_raises(BadRequest, blessed.launch,
-                          availability_zone='nonexistent:%s' % host_name)
+            # In Grizzly (stock compute and cobalt for compatibility), the
+            # az part of an az:host construct is completely ignored!
+            if not requirements.SCHEDULER_HINTS.check(self.harness.client):
+                assert_raises(BadRequest, blessed.launch,
+                              availability_zone='nonexistent:%s' % host_name)
             assert_raises(BadRequest, blessed.launch,
                           availability_zone='%s:nonexistent' %\
                           self.config.default_az)
@@ -290,6 +293,13 @@ class TestLaunch(harness.TestCase):
                 assert_launched_host(blessed, hosts[1])
             if len(hosts) > 2:
                 assert_launched_host(blessed, random.choice(hosts[2:]))
+
+    @harness.requires(requirements.SCHEDULER_HINTS)
+    def test_launch_with_bad_hint(self, image_finder):
+        with self.harness.blessed(image_finder) as blessed:
+            # Ask for a petabyte of free RAM
+            assert_raises(BadRequest, blessed.launch,
+              scheduler_hints={'query':'[">=","$free_ram_mb",1099511627776]'})
 
     @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_launch_with_invalid_az(self, image_finder):

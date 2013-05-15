@@ -251,13 +251,13 @@ class Instance(Notifier):
 
         # Folsom: pick the host, has to fall within the provided list.
         # Grizzly and later: UNLESS, we have scheduler hints
-        if AVAILABILITY_ZONE.check(self.harness.client) and\
-            not (SCHEDULER_HINTS.check(self.harness.client) and\
-                    scheduler_hints != None):
+        if (AVAILABILITY_ZONE.check(self.harness.client) and
+            not (SCHEDULER_HINTS.check(self.harness.client) and
+                 scheduler_hints != None)):
             if availability_zone is None:
                 target_host = random.choice(self.harness.config.hosts)
                 availability_zone = Host(target_host, self.harness.config).host_az()
-                log.debug("Launching to host %s -> %s." %\
+                log.debug("Launching to host %s -> %s." %
                             (target_host, availability_zone))
             params['availability_zone'] = availability_zone
 
@@ -290,8 +290,8 @@ class Instance(Notifier):
         instance.wait_for_boot(status)
 
         # Folsom and later: if the availability zone targeted a specific host, verify
-        if AVAILABILITY_ZONE.check(self.harness.client) and\
-                availability_zone != None:
+        if (AVAILABILITY_ZONE.check(self.harness.client) and
+            availability_zone != None):
             if ':' in availability_zone:
                 target_host = availability_zone.split(':')[1]
                 assert instance.get_host().id == target_host
