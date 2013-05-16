@@ -15,7 +15,6 @@
 
 import uuid
 import pytest
-from uuid import uuid4
 import random
 
 from . logger import log
@@ -194,40 +193,59 @@ class BlessedInstance:
             self.master.delete(recursive=True)
 
 class SecurityGroup:
-    def __init__(self, harness, name=None):
+    def __init__(self, harness):
         self.harness = harness
-        self.name = name
+        self.name = str(uuid.uuid4())
 
     def __enter__(self):
-        if self.name == None:
-            name = str(uuid4())
-        self.secgroup = self.harness.client.security_groups.create(name, 'Created by grinder')
-        # Must allow ssh, Windows Test Listener, and icmp for further use
+        self.secgroup = self.harness.nova.security_groups.create(self.name, 'Created by grinder')
+        # Must allow ssh, Windows Test Listener, and icmp for further use.
         ssh_port = self.harness.config.ssh_port
         win_port = self.harness.config.windows_link_port
         for port in [ssh_port, win_port]:
-            self.harness.client.security_group_rules.create(self.secgroup.id,\
+            self.harness.nova.security_group_rules.create(self.secgroup.id,\
                 ip_protocol="tcp", from_port=port, to_port=port, cidr="0.0.0.0/0")
-        self.harness.client.security_group_rules.create(self.secgroup.id,\
+        self.harness.nova.security_group_rules.create(self.secgroup.id,\
             ip_protocol="icmp", from_port=-1, to_port=-1, cidr="0.0.0.0/0")
         return self.secgroup
 
     def __exit__(self, type, value, tb):
         if type == None or not(self.harness.config.leave_on_failure):
-            self.harness.client.security_groups.delete(self.secgroup)
+            self.harness.nova.security_groups.delete(self.secgroup)
 
 class Keypair:
-    def __init__(self, harness, name):
+    def __init__(self, harness):
         self.harness = harness
-        self.name = name
+        self.name = str(uuid.uuid4())
 
     def __enter__(self):
-        self.keypair = self.harness.client.keypairs.create(self.name)
+        self.keypair = self.harness.nova.keypairs.create(self.name)
         return self.keypair
 
     def __exit__(self, type, value, tb):
         if type == None or not(self.harness.config.leave_on_failure):
-            self.harness.client.keypairs.delete(self.keypair)
+            self.harness.nova.keypairs.delete(self.keypair)
+
+class Volume:
+    def __init__(self, harness, size=None, **kwargs):
+        self.harness = harness
+        self.name = str(uuid.uuid4())
+        if size is None:
+            self.size = 1
+        else:
+            self.size = size
+        self.kwargs = kwargs
+
+    def __enter__(self):
+        log.debug("Creating volume %s size %ld kwargs %s" %\
+                    (self.name, long(self.size), str(self.kwargs)))
+        self.volume = self.harness.cinder.volumes.create(
+            self.size, display_name=self.name, **self.kwargs)
+        return self.volume
+
+    def __exit__(self, type, value, tb):
+        if type == None or not(self.harness.config.leave_on_failure):
+            self.volume.delete()
 
 class TestHarness(Notifier):
     '''There's one instance of TestHarness per test function that runs.'''
@@ -235,7 +253,7 @@ class TestHarness(Notifier):
         Notifier.__init__(self)
         self.config = config
         self.test_name = test_name
-        (self.client, self.gcapi) = create_client(self.config)
+        (self.nova, self.gcapi, self.cinder) = create_client(self.config)
 
     @Notifier.notify
     def setup(self):
@@ -280,8 +298,8 @@ class TestHarness(Notifier):
 
     @Notifier.notify
     def boot(self, image_finder, agent=True, flavor=None):
-        image_config = image_finder.find(self.client, self.config)
-        server = boot(self.client, self.config, image_config, flavor)
+        image_config = image_finder.find(self.nova, self.config)
+        server = boot(self.nova, self.config, image_config, flavor)
         instance = InstanceFactory.create(self, server, image_config)
         if agent:
             try:
@@ -301,20 +319,23 @@ class TestHarness(Notifier):
     def security_group(self):
         return SecurityGroup(self)
 
-    def keypair(self, name):
-        return Keypair(self, name)
+    def keypair(self):
+        return Keypair(self)
+
+    def volume(self, size=None, **kwargs):
+        return Volume(self, size=size, **kwargs)
 
     def fake_id(self):
         # Generate a fake id (ensure it's fake).
         fake_id = str(uuid.uuid4())
-        assert fake_id not in [s.id for s in self.client.servers.list()]
+        assert fake_id not in [s.id for s in self.nova.servers.list()]
         class FakeServer(object):
             def __init__(self, id):
                 self.id = id
         return FakeServer(fake_id)
 
     def satisfies(self, requirements):
-        return all(req.check(self.client) for req in requirements)
+        return all(req.check(self.nova) for req in requirements)
 
 class TestCase(object):
 

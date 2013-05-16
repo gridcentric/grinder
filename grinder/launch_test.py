@@ -25,6 +25,7 @@ from . util import assert_raises
 from . import requirements
 from . import host
 from . import instance
+from . instance import Instance
 
 class TestLaunch(harness.TestCase):
 
@@ -280,7 +281,7 @@ class TestLaunch(harness.TestCase):
             launched.delete()
             # In Grizzly (stock compute and cobalt for compatibility), the
             # az part of an az:host construct is completely ignored!
-            if not requirements.SCHEDULER_HINTS.check(self.harness.client):
+            if not requirements.SCHEDULER_HINTS.check(self.harness.nova):
                 assert_raises(BadRequest, blessed.launch,
                               availability_zone='nonexistent:%s' % host_name)
             assert_raises(BadRequest, blessed.launch,
@@ -316,22 +317,22 @@ class TestLaunch(harness.TestCase):
     def test_launch_multiple(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
             for num in [1, 2, 10]:
-                blessed.launch(num_instances=num)
-                launched = self.harness.client.gridcentric.list_launched(
-                                                                 blessed.server)
-                assert num == len(launched)
+                launched = blessed.launch(num_instances=num)
+                if num != 1:
+                    assert num == len(launched)
+                else:
+                    assert issubclass(launched.__class__, Instance)
                 blessed.delete_launched()
 
     @harness.platformtest(only=["linux"])
     @harness.requires(requirements.LAUNCH_KEY)
     def test_launch_with_key(self, image_finder):
-        image_config = image_finder.find(self.harness.client,
+        image_config = image_finder.find(self.harness.nova,
                                          self.harness.config)
         if not image_config.cloudinit:
             pytest.skip('Image does not have cloud-init')
         with self.harness.blessed(image_finder) as blessed:
-            key_name = 'launch-with-key-{}'.format(uuid.uuid4())
-            with self.harness.keypair(key_name) as keypair:
+            with self.harness.keypair() as keypair:
                 launched = blessed.launch(keypair=keypair)
                 # launch asserts key_name correctness
                 launched.delete()

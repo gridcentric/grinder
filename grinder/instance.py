@@ -87,6 +87,7 @@ class Instance(Notifier):
         self.id = server.id
         self.snapshot = snapshot
         self.breadcrumbs = breadcrumbs
+        self.volumes = []
 
         if keypair is not None:
             self.privkey_fd = tempfile.NamedTemporaryFile()
@@ -125,7 +126,7 @@ class Instance(Notifier):
         # Test issue #152. The severs/detail and servers/<ID> were returning
         # difference statuses for blessed servers. servers.get() retrieves
         # servers/<ID> and servers.list() retrieves servers/detail.
-        for server in self.harness.client.servers.list():
+        for server in self.harness.nova.servers.list():
             if server.id == self.id:
                 assert server.status == 'BLESSED'
                 break
@@ -150,7 +151,7 @@ class Instance(Notifier):
         return self.server.status
 
     def get_ram(self):
-        flavor = self.harness.client.flavors.find(name=self.harness.config.flavor_name)
+        flavor = self.harness.nova.flavors.find(name=self.harness.config.flavor_name)
         return flavor.ram
 
     def get_addrs(self):
@@ -216,7 +217,7 @@ class Instance(Notifier):
         assert blessed['status'] in ['BUILD', 'BLESSED']
 
         snapshot = self.breadcrumbs.snapshot()
-        server = self.harness.client.servers.get(blessed['id'])
+        server = self.harness.nova.servers.get(blessed['id'])
         instance = self.__class__(self.harness, server, self.image_config,
                                   breadcrumbs=False, snapshot=snapshot)
 
@@ -251,8 +252,8 @@ class Instance(Notifier):
 
         # Folsom: pick the host, has to fall within the provided list.
         # Grizzly and later: UNLESS, we have scheduler hints
-        if (AVAILABILITY_ZONE.check(self.harness.client) and
-            not (SCHEDULER_HINTS.check(self.harness.client) and
+        if (AVAILABILITY_ZONE.check(self.harness.nova) and
+            not (SCHEDULER_HINTS.check(self.harness.nova) and
                  scheduler_hints != None)):
             if availability_zone is None:
                 target_host = random.choice(self.harness.config.hosts)
@@ -261,42 +262,51 @@ class Instance(Notifier):
                             (target_host, availability_zone))
             params['availability_zone'] = availability_zone
 
-        launched_list = self.harness.gcapi.launch_instance(self.server, params=params)
+        launched_list = self.harness.gcapi.launch_instance(self.server,
+                                                           params=params)
 
-        # Verify the metadata returned by nova-gc.
+        # Verify the metadata returned by nova-gc. Even with multiple instances
+        # requested, a single server is returned (as per nova boot semantics)
         assert len(launched_list) == 1
-        launched = launched_list[0]
-        assert launched['id'] != self.id
-        assert launched['status'] in [status, 'BUILD']
 
-        if name == None:
-            assert launched['name'] != self.server.name
-            assert self.server.name in launched['name']
-        else:
-            assert launched['name'] == name
+        launched_list = self.harness.nova.gridcentric.list_launched(self.server)
+        clones = []
+        for launched in launched_list:
+            assert launched.id != self.id
+            assert launched.status in [status, 'BUILD']
 
-        if keypair != None:
-            assert launched['key_name'] == keypair.name
+            if name == None:
+                assert launched.name != self.server.name
+                assert self.server.name in launched.name
+            else:
+                assert launched.name == name
 
-        # Retrieve the server from nova-compute. It should have our metadata added.
-        server = self.harness.client.servers.get(launched['id'])
-        assert server.metadata['launched_from'] == str(self.id)
+            if keypair != None:
+                assert launched.key_name == keypair.name
 
-        # Build the instance.
-        instance = self.__class__(self.harness, server, self.image_config,
-                                  breadcrumbs=None, snapshot=None,
-                                  keypair=keypair)
-        instance.breadcrumbs = self.snapshot.instantiate(instance)
-        instance.wait_for_boot(status)
+            # Retrieve the server from nova-compute. It should have our metadata added.
+            server = self.harness.nova.servers.get(launched.id)
+            assert server.metadata['launched_from'] == str(self.id)
 
-        # Folsom and later: if the availability zone targeted a specific host, verify
-        if (AVAILABILITY_ZONE.check(self.harness.client) and
-            availability_zone != None):
-            if ':' in availability_zone:
-                target_host = availability_zone.split(':')[1]
-                assert instance.get_host().id == target_host
+            instance = self.__class__(self.harness, server, self.image_config,
+                                      breadcrumbs=None, snapshot=None,
+                                      keypair=keypair)
+            instance.breadcrumbs = self.snapshot.instantiate(instance)
+            instance.wait_for_boot(status)
 
-        return instance
+            # Folsom and later: if the availability zone targeted a specific host, verify
+            if (AVAILABILITY_ZONE.check(self.harness.nova) and
+                availability_zone != None):
+                if ':' in availability_zone:
+                    target_host = availability_zone.split(':')[1]
+                    assert instance.get_host().id == target_host
+
+            clones.append(instance)
+
+        # Most callers expect a singleton return value
+        if num_instances is not None and num_instances != 1:
+            return clones
+        return clones[0]
 
     def instance_wait_for_ping(self):
         wait_for_ping(self.get_addrs())
@@ -331,9 +341,12 @@ class Instance(Notifier):
             for id in self.list_blessed():
                 instance = self.__class__(
                     self.harness,
-                    self.harness.client.servers.get(id),
+                    self.harness.nova.servers.get(id),
                     self.image_config, breadcrumbs=False)
                 instance.discard(recursive=True)
+        for volume in self.volumes:
+            log.info('Detaching volume %s', volume.id)
+            volume.detach()
         log.info('Deleting %s', self)
         self.server.delete()
         self.wait_while_exists()
@@ -356,7 +369,7 @@ class Instance(Notifier):
         for id in self.list_launched():
             instance = self.__class__(
                 self.harness,
-                self.harness.client.servers.get(id),
+                self.harness.nova.servers.get(id),
                 self.image_config, breadcrumbs=False)
             instance.delete(recursive=True)
             time.sleep(1.0) # Sleep after the delete.
@@ -369,6 +382,32 @@ class Instance(Notifier):
 
     def remove_security_group(self, *args, **kwargs):
         return self.server.remove_security_group(*args, **kwargs)
+
+    def attach_volume(self, volume):
+        # Figure out a decent name for a volume.
+        before = set(self.list_devices())
+        suggested = set(self.suggested_devices())
+        available = list(suggested.difference(before))
+        available.sort()
+        device = available[0]
+
+        # Do the attach and save the volume (returning the device).
+        wait_for('volume %s to be available' % (volume.id), \
+            lambda: self.harness.cinder.volumes.get(volume.id).status.lower() == 'available')
+
+        self.harness.nova.volumes.create_server_volume(self.server.id, volume.id, device)
+
+        self.volumes.append(volume)
+
+        volume.attach(self.server.id, device)
+
+        wait_for('volume %s to be attached' % (volume.id), \
+            lambda: self.harness.cinder.volumes.get(volume.id).status.lower() == 'in-use')
+
+        wait_for('volume %s to be listed' % (volume.id), \
+            lambda: device in self.list_devices())
+
+        return device
 
     ### Platform-specific functionality.
 
@@ -457,6 +496,33 @@ class Instance(Notifier):
         large amounts of guest physical memory to be
         re-allocated. This operation requires an existing balloon on
         the instance.
+        '''
+        raise NotImplementedError()
+
+    def list_devices(self):
+        '''
+        List attached devices.
+        '''
+        raise NotImplementedError()
+
+    def suggested_devices(self):
+        '''
+        Suggested device names.
+        '''
+        raise NotImplementedError()
+
+    def prime_volume(self, device):
+        '''
+        Format and do block IO to store random bytes on a named volume.
+        Returns the hash of the random bytes, which are guaranteed to
+        not be cached in RAM.
+        '''
+        raise NotImplementedError()
+
+    def verify_volume(self, device, md5):
+        '''
+        Remount the named volume and verify the stored random bytes.
+        Shred those bytes to test consistency of parent/sibling volumes.
         '''
         raise NotImplementedError()
 
@@ -605,6 +671,35 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
         self.root_command("mount -o remount,size=%d /dev/shm" % (tmpfs_size))
         self.root_command(
             "dd if=/dev/urandom of=/dev/shm/file bs=4k count=%d" % (target_pages))
+
+    def list_devices(self):
+        # Return the output from parsing /proc/partitions.
+        (output, _) = self.root_command("cat /proc/partitions")
+        lines = output.split("\n")[2:]
+        devices = ["/dev/%s" % line.split()[-1] for line in lines if len(line) > 0]
+        return devices
+
+    def suggested_devices(self):
+        return map(lambda x: '/dev/vd%s' % chr(x), range(ord('a'), ord('z')))
+
+    def prime_volume(self, device):
+        # Format, mount and umount the device.
+        self.root_command("mkfs.ext3 %s" % device)
+        self.root_command("mount %s /mnt" % device)
+        self.root_command("dd if=/dev/urandom of=/mnt/test.file bs=1K count=1024")
+        (md5, _) = self.root_command("md5sum /mnt/test.file")
+        # *Really* ensure it's no longer in the page cache
+        self.root_command("umount /mnt")
+        self.drop_caches()
+        self.root_command("blockdev --flushbufs %s" % device)
+        return md5
+
+    def verify_volume(self, device, md5):
+        self.root_command("mount %s /mnt" % device)
+        (new_md5, _) = self.root_command("md5sum /mnt/test.file")
+        self.root_command("shred -f -u -n 1 -z /mnt/test.file")
+        self.root_command("umount /mnt")
+        assert new_md5 == md5
 
 class WindowsInstance(Instance):
 

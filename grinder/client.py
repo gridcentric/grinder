@@ -15,8 +15,6 @@
 
 import os
 
-from novaclient.v1_1.client import Client
-
 class GcApi(object):
     '''Wrap the gridcentric API.
     This object wraps around the Gridcentric API,
@@ -96,18 +94,28 @@ def create_nova_client(config):
         'cobalt_python_novaclient_ext']) & set([e.name for e in extensions]):
         raise Exception("You don\'t have the gridcentric extension installed." \
                         "Try 'pip install gridcentric-python-novaclient-ext'.")
-    return Client(extensions=extensions,
-                  username=config.os_username,
-                  api_key=config.os_password,
-                  project_id=config.os_tenant_name,
-                  auth_url=config.os_auth_url,
-                  region_name=config.os_region_name,
-                  no_cache=os.environ.get('OS_NO_CACHE', 0) and True,
-                  http_log_debug=config.http_log_debug,
-                  service_type=os.environ.get('NOVA_SERVICE_TYPE', 'compute'),
-                  service_name=os.environ.get('NOVA_SERVICE_NAME', 'nova'))
+    from novaclient.v1_1.client import Client
+    return Client(
+        extensions=extensions,
+        username=config.os_username,
+        api_key=config.os_password,
+        project_id=config.os_tenant_name,
+        auth_url=config.os_auth_url,
+        region_name=config.os_region_name,
+        no_cache=os.environ.get('OS_NO_CACHE', 0) and True,
+        http_log_debug=config.http_log_debug)
+
+def create_cinder_client(config):
+    from cinderclient.client import Client
+    return Client(1,
+        username=config.os_username,
+        api_key=config.os_password,
+        project_id=config.os_tenant_name,
+        auth_url=config.os_auth_url,
+        region_name=config.os_region_name)
 
 def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''
-    client = create_nova_client(config)
-    return (client, GcApi(client))
+    nova = create_nova_client(config)
+    cinder = create_cinder_client(config)
+    return (nova, GcApi(nova), cinder)

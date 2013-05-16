@@ -21,7 +21,7 @@ class TestMemory(harness.TestCase):
     @harness.archtest()
     @harness.hosttest
     def test_agent_hoard_dropall(self, image_finder):
-        image_config = image_finder.find(self.harness.client,
+        image_config = image_finder.find(self.harness.nova,
                                          self.harness.config)
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch()
@@ -106,7 +106,7 @@ class TestMemory(harness.TestCase):
 
             # Make the guest allocate a bunch of dirty RAM pages
             launched.drop_caches()
-            flavor_used = self.harness.client.flavors.find(name=launched.image_config.flavor)
+            flavor_used = self.harness.nova.flavors.find(name=launched.image_config.flavor)
             maxmem_pages = flavor_used.ram * 256
             target_pages = min(256 * 256, int(0.9 * float(maxmem_pages)))
             md5 = launched.allocate_balloon(target_pages)

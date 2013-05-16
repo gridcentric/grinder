@@ -29,7 +29,7 @@ class TestSharing(harness.TestCase):
         with self.harness.booted(image_finder) as master:
             # Allocate a balloon of fixed size before we bless to ensure we'll
             # have a known amount of memory to unshare at our command.
-            flavor_used  = self.harness.client.flavors.find(
+            flavor_used  = self.harness.nova.flavors.find(
                                     name=master.image_config.flavor)
             maxmem_pages = flavor_used.ram * 256
             target_pages = min(256 * 256, int(0.9 * float(maxmem_pages)))
@@ -38,7 +38,7 @@ class TestSharing(harness.TestCase):
             blessed = master.bless()
 
             clonelist = []
-            if not requirements.SCHEDULER_HINTS.check(self.harness.client):
+            if not requirements.SCHEDULER_HINTS.check(self.harness.nova):
                 target_host_name    = random.choice(self.config.hosts)
                 target_host         = host.Host(target_host_name, self.config)
                 availability_zone   = target_host.host_az()
@@ -48,7 +48,7 @@ class TestSharing(harness.TestCase):
 
             generation = None
             for i in range(self.config.test_sharing_sharing_clones):
-                if requirements.SCHEDULER_HINTS.check(self.harness.client):
+                if requirements.SCHEDULER_HINTS.check(self.harness.nova):
                     if i == 0:
                         clone               = blessed.launch()
                         target_host         = clone.get_host()
