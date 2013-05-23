@@ -13,14 +13,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import types
-import time
+import copy
+import inspect
 import os
-import urlparse
+import sys
+import time
+import types
 import urllib
+import urlparse
 
 from . logger import log
 from . config import default_config
+from threading import Thread, Condition
 
 import novaclient.exceptions
 import cinderclient.exceptions
@@ -63,7 +67,7 @@ class Notifier(object):
         def watch(callback):
             self.__watch(event, method_name, callback)
         return watch
-        
+
     def __watch(self, event, method_name, callback):
         callbacks = event.get(method_name, [])
         callbacks.append(callback)
@@ -153,3 +157,137 @@ def fix_url_for_yum(url):
         elem = urllib.quote(s[i])
         parts.append(elem)
     return urlparse.urlunsplit(parts)
+
+def mb2pages(mb):
+    return mb * 256
+
+class Background(object):
+    """
+    A decorator for turning a function into an object which runs a periodic,
+    background task in a separate thread. The background thread is started when
+    the returned object's __enter__ function is called and cleaned up when the
+    __exit__ function is called.
+
+    If the decorator's target function ever raises an exception, the background
+    thread stops and the exception is re-raised in the main thread during
+    __exit__.
+
+    The target function must have an argument called context and this argument
+    must have a default value. This argument must not be provided at the call
+    site. This function will be automatically provided by the background thread
+    and is a way to share data between multiple invocations of the target
+    function. On the first call, a deep copy of the default value for context
+    will be passed to the target function. The deep copy prevents invocations
+    from unintentionally modifying the object specified in the function
+    definition. On subsequent calls, the return value from the previous call to
+    the target function is passed in as the context.
+
+    To use the context an a reference to a mutable object, return the reference
+    after making any modifications to it in the body of the target function. To
+    use the context as an accumulator, return the updated value.
+
+    An optional verifier function can be passed to the decorator. If provided,
+    this function will be called during clean up (i.e. from the main thread's
+    context during __exit__) with the last context. If the target function was
+    never called, the verifier will be passed a deep copy of the default value
+    for the context. Otherwise, the value returned by the last call to the
+    target function will be provided to the verifier.
+    """
+    def __init__(self, verifier=None, interval=1.0):
+        self.interval = interval
+        self.verifier = verifier
+
+    def __call__(self, func):
+        def wrapped(*args, **kwargs):
+            return Background.Executor(self.interval, self.verifier,
+                                       func, args, kwargs)
+        return wrapped
+
+    class Executor(Thread):
+        def __init__(self, interval, verifier, func, args, kwargs):
+            super(Background.Executor, self).__init__()
+            self.cond = Condition()
+            self.stop = False
+            self.interval = interval
+            self.verifier = verifier
+            self.func = func
+            self.args = args
+            self.kwargs = kwargs
+
+            # Do some introspection to ensure a default value for context was
+            # provided in the function definition. We strictly enforce that a
+            # default value is provided to avoid surprises (especially because
+            # otherwise the verify function will be called with seemingly
+            # 'random' return values from the function.
+            argspec = inspect.getargspec(self.func)
+            try:
+                defaults_dict = dict(zip(reversed(argspec.args),
+                                         reversed(argspec.defaults)))
+            except TypeError:
+                # No args or default values.
+                defaults_dict = {}
+
+            if not defaults_dict.has_key("context"):
+                raise TypeError("Backgrounded function '%s' " % self.func.__name__ +
+                               "must have an argument called 'context' with " +
+                               "a default value for it.")
+
+            # Make sure the caller isn't providing a value for 'context' as
+            # neither a positional argument nor a keyword argument at the call
+            # site. We magically patch in this value and don't want to silently
+            # replace the user-provided value to avoid surprises.
+            caller_pos_args = dict(zip(argspec.args, self.args))
+            if caller_pos_args.has_key("context"):
+                raise TypeError("Backgrounded function '%s' " % self.func.__name__ +
+                                "called with 'context' provided as a " +
+                                "positional argument (value=%s)." % \
+                                    str(caller_pos_args["context"]))
+
+            if self.kwargs.has_key("context"):
+                raise TypeError("Backgrounded function '%s' " % self.func.__name__ +
+                                "called with 'context' provided as a " +
+                                "keyword argument (value=%s)." % \
+                                    str(self.kwargs["context"]))
+
+            # Prime the default value as the first value we pass in via the
+            # 'context' kwargs. Take care to NOT use the default value we
+            # extracted out of the context directly because we DO NOT want to
+            # modify the global object attached to the function definition.
+            self.kwargs["context"] = copy.deepcopy(defaults_dict["context"])
+
+            self.exception = None
+
+        def run(self):
+            self.cond.acquire()
+            try:
+                while not self.stop:
+                    try:
+                        # Run target function and update the context. The
+                        # context automatically gets passed since we stuff it
+                        # into self.kwargs after each call.
+                        self.kwargs["context"] = self.func(*self.args, **self.kwargs)
+                    except Exception, ex:
+                        self.exception = sys.exc_info()
+                        return
+                    self.cond.wait(self.interval)
+            finally:
+                self.cond.release()
+
+        def join(self, timeout=None):
+            self.cond.acquire()
+            self.stop = True
+            self.cond.notifyAll()
+            self.cond.release()
+            super(Background.Executor, self).join(timeout)
+
+            if self.exception is not None:
+                raise self.exception[0], self.exception[1], self.exception[2]
+
+            if callable(self.verifier):
+                self.verifier(self.kwargs["context"])
+
+        def __enter__(self):
+            self.start()
+
+        def __exit__(self, typ, value, traceback):
+            self.join()

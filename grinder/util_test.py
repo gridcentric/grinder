@@ -13,7 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
 import pytest
+import sys
+import time
+
+from threading import Lock, Condition
 
 import util
 
@@ -59,3 +64,56 @@ def test_list_filter():
     assert [1, 4] == util.list_filter([1,2,3,4], exclude = [2, 3], only = [1, 2, 4])
     assert [1, 4] == util.list_filter([1,2,3], include = [4], only = [1, 4])
     assert [1, 4] == util.list_filter([1,2,3,4], exclude = [2, 3], include = [5], only = [1, 2, 4])
+
+def test_background():
+
+    def watch_len_result_check(rvals):
+        # From the background task interval and the runtime in the
+        # main thread, we can estimate the number of times the
+        # background thread will run.
+        assert len(rvals) < 12
+        assert len(rvals) > 8
+
+    @util.Background(verifier=watch_len_result_check, interval=0.1)
+    def watch_len(lock, lst, thresh, context=[]):
+        with lock:
+            try:
+                assert len(lst) <= thresh
+            except:
+                raise
+            context.append(len(lst))
+            return context
+
+    l = Lock()
+    iput = []
+
+    # We expect this to fail because the list length will exceed the
+    # threshold in the background task.
+    try:
+        with watch_len(l, iput, 10):
+            for i in xrange(0, 20):
+                with l:
+                    iput.append(True)
+                time.sleep(0.1)
+        assert False
+    except:
+        pass
+
+    iput = []
+
+    # This time it should succeed.
+    with watch_len(l, iput, 15):
+        for i in xrange(0, 10):
+            with l:
+                iput.append(True)
+            time.sleep(0.1)
+
+    iput = []
+
+    # Nesting multiple instances of the same background task should work fine.
+    with watch_len(l, iput, 15):
+        with watch_len(l, iput, 15):
+            for i in xrange(0, 10):
+                with l:
+                    iput.append(True)
+                time.sleep(0.1)

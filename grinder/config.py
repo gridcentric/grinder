@@ -223,6 +223,16 @@ class Config(object):
         # Set this flag on the command line to see HTTP request/response to nova API.
         self.http_log_debug = False
 
+        # The default vmspolicyd policy to install before starting tests. Note
+        # that this policy will affect all VMS on the test host and will be left
+        # in place when grinder exits (i.e. grinder won't remember and restore
+        # the policy it found on the host). Some grinder tests will also modify
+        # the policy to test policyd.
+        self.default_policy = """
+[*]
+managed = false
+"""
+
     def get_all_archs(self):
         return list(set([i.arch for i in self.images]))
 

@@ -13,9 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
 import uuid
 import pytest
 import random
+from tempfile import gettempdir
+from fcntl import flock, LOCK_EX, LOCK_UN
+from contextlib import contextmanager
+from urlparse import urlparse
 
 from . logger import log
 from . config import default_config
@@ -28,6 +33,7 @@ from . client import create_client
 from . instance import InstanceFactory
 from . host import Host
 from . network import network_name_to_uuid
+from . requirements import INSTALL_POLICY
 
 # This is set by pytest_runtest_setup in conftest.py.
 # This is done prior to each test.
@@ -271,6 +277,22 @@ class TestHarness(Notifier):
         (self.nova, self.gcapi, self.cinder, self.network) =\
                 create_client(self.config)
 
+        self.installed_policy = self.config.default_policy
+
+        # This lock file is used to ensure that when grinder forks multiple
+        # processes to run tests in parallel, tests don't end up obliterating
+        # policies some other test depends on. The lock file is a function of
+        # the authurl to prevent false contention between multiple grinder runs
+        # targetting different clusters.
+        authurl = urlparse(self.config.os_auth_url)
+        normalized_authurl = authurl.netloc + authurl.path
+        normalized_authurl = normalized_authurl.replace(":", "_")
+        normalized_authurl = normalized_authurl.replace("/", "_")
+        policy_lock_path = os.path.join(gettempdir(),
+                                        "grinder-policy-lock." +
+                                        normalized_authurl)
+        self.policy_lock_fp = open(policy_lock_path, 'a')
+
     @Notifier.notify
     def setup(self):
         # Make sure that we have at least one host.
@@ -308,9 +330,41 @@ class TestHarness(Notifier):
             log.error('os_auth_url must be defined')
             assert False
 
+        # Install the default policy on the test machine. The default value for
+        # the default policy cause policyd to ignore all VMs on the host.
+        with self.policy(self.config.default_policy, extend=False):
+            pass
+
     @Notifier.notify
     def teardown(self):
         pass
+
+    @contextmanager
+    def policy(self, policy, extend=True):
+        """
+        Modifies the vmspolicyd policy on the host. If extend is True,
+        the currently defined policy is extended with new policy (new
+        policy is prepended) rather than replaced by it.
+        """
+
+        if INSTALL_POLICY.check(self.nova):
+            # Since we always flock on the same file pointer within a single
+            # grinder process, recursive calls to flock will not block. This
+            # allows any callers of install_policy to grab the lock around the
+            # install_policy() call if they want a large critical section around
+            # the policy being installed, without having to worry about
+            # deadlocks.
+            if extend:
+                self.installed_policy = policy + self.installed_policy
+            else:
+                self.installed_policy = policy
+
+            flock(self.policy_lock_fp, LOCK_EX)
+            try:
+                self.gcapi.install_policy(self.installed_policy, wait=True)
+                yield
+            finally:
+                flock(self.policy_lock_fp, LOCK_UN)
 
     @Notifier.notify
     def boot(self, image_finder, agent=True, flavor=None):

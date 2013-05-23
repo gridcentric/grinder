@@ -520,7 +520,9 @@ class Instance(Notifier):
         '''
         Allocates a memory region of size 'size_pages' in the guest. Returns a
         fingerprint of the memory region which can be used with
-        assert_balloon_integrity() to verify the integrity of the balloon.
+        assert_balloon_integrity() to verify the integrity of the balloon. Only
+        a single balloon may be allocated on a guest. The effects of allocating
+        a new balloon without releasing the previous are undefined.
         '''
         raise NotImplementedError()
 
@@ -539,6 +541,12 @@ class Instance(Notifier):
         the instance.
         '''
         raise NotImplementedError()
+
+    def release_balloon(self):
+        '''
+        Frees all memory associated with any previously allocated balloon. This
+        is safe to call when no balloon has been allocated.
+        '''
 
     def list_devices(self):
         '''
@@ -757,6 +765,9 @@ cat %s > %s
         self.root_command(
             "dd if=/dev/urandom of=/dev/shm/file bs=4k count=%d" % (target_pages))
 
+    def release_balloon(self):
+        self.root_command("rm -f /dev/shm/file")
+
     def list_devices(self):
         # Return the output from parsing /proc/partitions.
         (output, _) = self.root_command("cat /proc/partitions")
@@ -933,3 +944,9 @@ class WindowsInstance(Instance):
             timeout=self.harness.config.ops_timeout,
             expected_output=None)
         assert int(output) != 0
+
+    def release_balloon(self):
+        self.get_shell().check_output(
+            "balloon-release",
+            timeout=self.harness.config.ops_timeout,
+            expected_output=None)

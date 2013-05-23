@@ -27,7 +27,7 @@ class GcApi(object):
     during which we renamed the extension to cobalt. Note
     the client is expected to support the old 'gridcentric'
     and the new 'cobalt' extension names-spaces.'''
-    
+
     def __init__(self, novaclient):
         self.novaclient = novaclient
 
@@ -87,6 +87,9 @@ class GcApi(object):
 
     def install_agent(self, *args, **kwargs):
         return self.novaclient.gridcentric.install_agent(*args, **kwargs)
+
+    def install_policy(self, *args, **kwargs):
+        return self.novaclient.cobalt.install_policy(*args, **kwargs)
 
 def create_nova_client(config):
     '''Creates a nova Client from the environment variables.'''
