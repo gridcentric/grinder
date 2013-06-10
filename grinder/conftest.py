@@ -187,8 +187,8 @@ def pytest_configure(config):
 
     # Gather list of hosts: either as defined in pytest.ini or all hosts
     # available.
-    client = create_nova_client(default_config)
     try:
+        client = create_nova_client(default_config)
         all_hosts = client.hosts.list_all()
         if len(default_config.hosts) == 0:
             hosts = [x.host_name for x in all_hosts]
@@ -223,8 +223,8 @@ def pytest_configure(config):
         default_config.hosts = list(set(default_config.hosts))
 
     except exceptions.AttributeError:
-        log.debug('Your version of novaclient does not support HostManager.list_all ')
-        log.debug('Please consider updating novaclient')
+        log.debug('You have not configure your nova credentials, or your version of novaclient')
+        log.debug('does not support HostManager.list_aall. Please consider updating novaclient.')
 
     log.debug('hosts: %s' % default_config.hosts)
     log.debug('hosts_without_gridcentric: %s' % default_config.hosts_without_gridcentric)
