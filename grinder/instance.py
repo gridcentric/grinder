@@ -371,7 +371,14 @@ class Instance(Notifier):
                 self.harness,
                 self.harness.nova.servers.get(id),
                 self.image_config, breadcrumbs=False)
-            instance.delete(recursive=True)
+            # Some tests purposefully fail the creation of an instance. So we
+            # may race here with a launched instance in BUILD status still present
+            # yet bound to make the delete fail
+            try:
+                instance.delete(recursive=True)
+            except:
+                if id in self.list_launched():
+                    raise
             time.sleep(1.0) # Sleep after the delete.
 
     def vmsctl(self):
