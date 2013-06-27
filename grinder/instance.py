@@ -260,7 +260,8 @@ class Instance(Notifier):
                 availability_zone = Host(target_host, self.harness.config).host_az()
                 log.debug("Launching to host %s -> %s." %
                             (target_host, availability_zone))
-            params['availability_zone'] = availability_zone
+            if availability_zone is not None:
+                params['availability_zone'] = availability_zone
 
         launched_list = self.harness.gcapi.launch_instance(self.server,
                                                            params=params)
