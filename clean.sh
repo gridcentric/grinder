@@ -1,7 +1,7 @@
 #!/bin/bash
 
 stall=0
-for uuid in $(nova list | grep -E '(ACTIVE|ERROR|BUILD|SHUTOFF)' | awk '{print $2;}'); do
+for uuid in $(nova list | grep -E '(ACTIVE|ERROR|BUILD|SHUTOFF|DELETE)' | awk '{print $2;}'); do
     nova delete $uuid
     stall=$(($stall+3))
 done
@@ -14,6 +14,10 @@ for uuid in $(nova list | grep -E '(BLESSED)' | awk '{print $2;}'); do
 done
 sleep $stall
 
-for uuid in $(nova secgroup-list | grep -i 'created by grinder' | awk '{print $2}'); do 
+for uuid in $(nova secgroup-list | grep -i 'created by grinder' | awk '{print $2}'); do
     nova secgroup-delete $uuid;
+done
+
+for disk in $(cinder list | grep 'grindervol-' | awk '{print $2}'); do
+    cinder delete $disk;
 done

@@ -21,6 +21,7 @@ from . logger import log
 from . config import default_config
 from . util import Notifier
 from . util import list_filter
+from . util import wait_for
 from . client import create_client
 from . instance import InstanceFactory
 from . instance import wait_while_status
@@ -229,7 +230,7 @@ class Keypair:
 class Volume:
     def __init__(self, harness, size=None, **kwargs):
         self.harness = harness
-        self.name = str(uuid.uuid4())
+        self.name = "grindervol-%s" % str(uuid.uuid4())
         if size is None:
             self.size = 1
         else:
@@ -241,6 +242,8 @@ class Volume:
                     (self.name, long(self.size), str(self.kwargs)))
         self.volume = self.harness.cinder.volumes.create(
             self.size, display_name=self.name, **self.kwargs)
+        wait_for('volume %s to be available' % (self.volume.id), \
+            lambda: self.harness.cinder.volumes.get(self.volume.id).status.lower() == 'available')
         return self.volume
 
     def __exit__(self, type, value, tb):

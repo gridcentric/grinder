@@ -28,6 +28,9 @@ class TestVolume(harness.TestCase):
     @harness.requires(requirements.VOLUME_SUPPORT)
     @harness.platformtest(exclude=["windows"])
     def test_bless_with_volume(self, image_finder):
+        # We call the image finder preemptively to skip building
+        # a volume for unworkable combinations
+        image_finder.find(self.harness.nova, self.harness.config)
         with self.harness.volume() as volume:
             with self.harness.booted(image_finder) as master:
                 device = master.attach_volume(volume)
@@ -40,6 +43,7 @@ class TestVolume(harness.TestCase):
     @harness.requires(requirements.VOLUME_SUPPORT)
     @harness.platformtest(exclude=["windows"])
     def test_launch_with_volume(self, image_finder):
+        image_finder.find(self.harness.nova, self.harness.config)
         with self.harness.volume() as volume:
             with self.harness.booted(image_finder) as master:
                 device = master.attach_volume(volume)
@@ -54,6 +58,7 @@ class TestVolume(harness.TestCase):
     @harness.requires(requirements.VOLUME_SUPPORT)
     @harness.platformtest(exclude=["windows"])
     def test_launch_with_multiple_volumes(self, image_finder):
+        image_finder.find(self.harness.nova, self.harness.config)
         with self.harness.volume() as volume_1, self.harness.volume() as volume_2:
             with self.harness.booted(image_finder) as master:
                 device_1 = master.attach_volume(volume_1)
@@ -72,6 +77,7 @@ class TestVolume(harness.TestCase):
     @harness.requires(requirements.VOLUME_SUPPORT)
     @harness.platformtest(exclude=["windows"])
     def test_multiple_launch_multiple_volumes(self, image_finder):
+        image_finder.find(self.harness.nova, self.harness.config)
         with self.harness.volume() as volume_1, self.harness.volume() as volume_2:
             with self.harness.booted(image_finder) as master:
                 device_1 = master.attach_volume(volume_1)
@@ -96,6 +102,7 @@ class TestVolume(harness.TestCase):
             py.test.skip('Skipping migration tests')
         if len(self.harness.config.hosts) < 2:
             py.test.skip('Need at least 2 hosts to do migration.')
+        image_finder.find(self.harness.nova, self.harness.config)
         with self.harness.volume() as volume:
             with self.harness.booted(image_finder) as master:
                 device = master.attach_volume(volume)
