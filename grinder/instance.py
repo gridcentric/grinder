@@ -407,8 +407,6 @@ class Instance(Notifier):
 
         self.volumes.append(volume)
 
-        volume.attach(self.server.id, device)
-
         wait_for('volume %s to be attached' % (volume.id), \
             lambda: self.harness.cinder.volumes.get(volume.id).status.lower() == 'in-use')
 
