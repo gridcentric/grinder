@@ -304,6 +304,8 @@ class TestHarness(Notifier):
         image_config = image_finder.find(self.nova, self.config)
         server = boot(self.nova, self.config, image_config, flavor)
         instance = InstanceFactory.create(self, server, image_config)
+        # ensure the instance is booted, ping-able and ssh-able.
+        instance.wait_for_boot()
         if agent:
             try:
                 instance.install_agent()
