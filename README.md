@@ -1,3 +1,6 @@
+Quickstart
+----------
+
 To run, use the standalone `py.test` binary:
 
     ./py.test grinder
@@ -12,12 +15,12 @@ You can use typical pytest options:
 
 For the brave & well (cluster) endowed:
 
-    easy_install -U pytest-xdist && py.test -n 6 grinder
+    pip install pytest-xdist && ./py.test -n 6 grinder
 
 The above command will fork and run 6 test in parallel. Because of increased
 load, latency increases and some test operations may timeout. YMMV.
 
-Run `py.test --help` to see the configuration options. Look at the headings
+Run `./py.test --help` to see the configuration options. Look at the headings
 below for more information on options. You can change which hosts the test runs
 on, for instance, with:
 
@@ -33,18 +36,16 @@ pytest.ini. Here's an example:
 Requirements
 ------------
 
-Alternatively to using the included `py.test`, you can install `pytest` on your
-own and use it:
+You can install all of the python dependencies from
+[pypi](http://pypi.python.org/) using `pip` or `easy_install`:
 
-    easy_install -U pytest
+* [python-novaclient](http://pypi.python.org/pypi/python-novaclient)
+* [python-cinderclient](http://pypi.python.org/pypi/python-cinderclient)
+* [cobalt_python_novaclient_ext](https://pypi.python.org/pypi/cobalt_python_novaclient_ext)
 
-From wherever you choose to run Grinder, you should have the ptyhon-novaclient
-package installed. Additionally, you need to have Gridcentric's nova client
-extension, version 1.1.1244 or greater. An easy way to install it is:
-
-    pip install --user gridcentric_python_novaclient_ext
-
-For further information look into: http://docs.gridcentric.com/openstack/installation.html
+Instead of using the provided py.test standalone binary, you can use the
+[latest py.test from pypi](http://pypi.python.org/pypi/python-novaclient)
+if you desire.
 
 You should have the appropriate environment variables set to be able to access
 the OpenStack cluster being tested, with *admin* privileges:
@@ -126,7 +127,7 @@ provided in the image configuration to specify the guest operation system. For
 more information regarding supported guest operating systems and additional
 setup required for non-Linux guests, see the "Guest Platforms" section below.
 
-See the `Image` class in `test/config.py` for more options.
+See the `Image` class in `grinder/config.py` for more options.
 
 Guest Platforms
 ---------------
