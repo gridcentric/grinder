@@ -52,11 +52,15 @@ def wait_while_exists(server):
             return True
     wait_for('server %s to not exist' % server.id, condition)
 
-def get_addrs(server):
-    ips = []
-    for network in server.networks.values():
-        ips.extend(network)
-    return ips
+def get_addrs(server, network=None):
+    log.debug('get_addrs network=%s: %s', network, server.networks)
+    if network != None:
+        return server.networks[network]
+    else:
+        ips = []
+        for network in server.networks.values():
+            ips.extend(network)
+        return ips
 
 class InstanceFactory(object):
 
@@ -155,7 +159,12 @@ class Instance(Notifier):
         return flavor.ram
 
     def get_addrs(self):
+        '''Returns all IP addresses associated with the instance.'''
         return get_addrs(self.server)
+
+    def get_address(self):
+        '''Returns the preferred ip address to access an instance via.'''
+        return get_addrs(self.server, self.harness.config.network_name)[0]
 
     def get_raw_id(self):
         """
@@ -310,7 +319,7 @@ class Instance(Notifier):
         return clones[0]
 
     def instance_wait_for_ping(self):
-        wait_for_ping(self.get_addrs())
+        wait_for_ping([self.get_address()])
 
     def assert_alive(self, host=None):
         assert self.get_status() == 'ACTIVE'
@@ -576,13 +585,13 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
             **kwargs)
 
     def get_shell(self):
-        return SecureShell(self.get_addrs()[0],
+        return SecureShell(self.get_address(),
                            self.privkey_path,
                            self.image_config.user,
                            self.harness.config.ssh_port)
 
     def root_command(self, command, **kwargs):
-        ssh = RootShell(self.get_addrs()[0],
+        ssh = RootShell(self.get_address(),
                         self.privkey_path,
                         self.image_config.user,
                         self.harness.config.ssh_port)
@@ -717,7 +726,7 @@ class WindowsInstance(Instance):
             snapshot=snapshot, **kwargs)
 
     def get_shell(self):
-        return WinShell(self.get_addrs()[0],
+        return WinShell(self.get_address(),
                         self.harness.config.windows_link_port)
 
     def setup_params(self):

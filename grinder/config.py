@@ -102,6 +102,10 @@ class Config(object):
         # into guests. We require logging into guests as part of the tests.
         self.guest_key_path = DEFAULT_KEY_PATH
 
+        # The name of the network to access instances via. By default,
+        # an arbitrary network that the instance is attached to is chosen.
+        self.network_name = None
+
         # Some tests will ssh to the hosts and ensure that the state is as
         # expected. This will happen using the host_user and the private key
         # behind host_key_path below.
