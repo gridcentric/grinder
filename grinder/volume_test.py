@@ -20,7 +20,7 @@ from . import harness
 from . logger import log
 from . util import assert_raises
 from . import requirements
-from . import host
+from . host import Host
 from . import instance
 
 class TestVolume(harness.TestCase):
