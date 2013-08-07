@@ -620,30 +620,32 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
             raise
 
     def install_agent(self):
-        if self.image_config.distro in ["centos", "rpm"] and\
+        if not self.image_config.agent_skip:
+            if self.image_config.distro in ["centos", "rpm"] and\
                 self.harness.config.agent_location is not None:
-            agent_location = fix_url_for_yum(self.harness.config.agent_location)
-        else:
-            agent_location = self.harness.config.agent_location
-        self.harness.gcapi.install_agent(self.server,
-                                         user=self.image_config.user,
-                                         key_path=self.privkey_path,
-                                         location=agent_location,
-                                         version=self.harness.config.agent_version)
-        self.breadcrumbs.add("Installed agent version %s" % self.harness.config.agent_version)
-        self.assert_agent_running()
+                agent_location = fix_url_for_yum(self.harness.config.agent_location)
+            else:
+                agent_location = self.harness.config.agent_location
+            self.harness.gcapi.install_agent(self.server,
+                                             user=self.image_config.user,
+                                             key_path=self.privkey_path,
+                                             location=agent_location,
+                                             version=self.harness.config.agent_version)
+            self.breadcrumbs.add("Installed agent version %s" % self.harness.config.agent_version)
+            self.assert_agent_running()
 
     def remove_agent(self):
-        # Remove package, ensure its paths are gone.
-        # Principally, we want to see that removing works, and that
-        # reinstallation and upgrades work.
-        REMOVE_COMMAND = " \
-            dpkg -r vms-agent || \
-            rpm -e vms-agent || \
-            (/etc/init.d/vmsagent stop && rm -rf /var/lib/vms)"
-        self.root_command(REMOVE_COMMAND)
-        self.breadcrumbs.add("Removed agent")
-        self.assert_agent_not_running()
+        if not self.image_config.agent_skip:
+            # Remove package, ensure its paths are gone.
+            # Principally, we want to see that removing works, and that
+            # reinstallation and upgrades work.
+            REMOVE_COMMAND = " \
+                dpkg -r vms-agent || \
+                rpm -e vms-agent || \
+                (/etc/init.d/vmsagent stop && rm -rf /var/lib/vms)"
+            self.root_command(REMOVE_COMMAND)
+            self.breadcrumbs.add("Removed agent")
+            self.assert_agent_not_running()
 
     def assert_agent_running(self):
         self.root_command("pidof vmsagent")

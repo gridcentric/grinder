@@ -45,10 +45,11 @@ key_name -- the name of the key for booting.
 flavor -- the flavor to use to boot this image, overrides the global
           default config.flavor_name.
 cloudinit -- does the image have the cloud-init daemon
+agent_skip -- should the test harness skip agent installation
 e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
 '''
     def __init__(self, name, distro, arch, platform='linux', user='root', key_path=None,
-                 key_name=None, flavor=None, cloudinit=False):
+                 key_name=None, flavor=None, cloudinit=False, agent_skip=False):
         self.name = name
         self.distro = distro
         self.arch = arch
@@ -58,6 +59,7 @@ e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
         self.key_name = key_name
         self.flavor = flavor
         self.cloudinit = cloudinit
+        self.agent_skip = agent_skip
 
     def check(self):
         assert self.distro
@@ -69,8 +71,9 @@ e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
     def __repr__(self):
         return 'Image(name=%s, distro=%s, ' % (self.name, self.distro) + \
             'arch=%s, platform=%s, user=%s, ' % (self.arch, self.platform, self.user) + \
-            'key_path=%s, key_name=%s, flavor=%s, cloudinit=%s)' % \
-                (self.key_path, self.key_name, self.flavor, str(self.cloudinit))
+            'key_path=%s, key_name=%s, flavor=%s, cloudinit=%s, agent_skip=%s)' % \
+                (self.key_path, self.key_name, self.flavor,
+                    str(self.cloudinit), str(self.agent_skip))
 
 class Config(object):
 
