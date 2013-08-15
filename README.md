@@ -43,6 +43,11 @@ You can install all of the python dependencies from
 * [python-cinderclient](http://pypi.python.org/pypi/python-cinderclient)
 * [cobalt_python_novaclient_ext](https://pypi.python.org/pypi/cobalt_python_novaclient_ext)
 
+You also need either client for the network service, depending on the version
+of the network service in use:
+* [python-quantumclient](http://pypi.python.org/pypi/python-quantumclient)
+* [python-neutronclient](http://pypi.python.org/pypi/python-neutronclient)
+
 Instead of using the provided py.test standalone binary, you can use the
 [latest py.test from pypi](http://pypi.python.org/pypi/python-novaclient)
 if you desire.

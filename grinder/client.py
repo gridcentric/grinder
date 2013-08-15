@@ -15,6 +15,8 @@
 
 import os
 
+from . logger import log
+
 class GcApi(object):
     '''Wrap the gridcentric API.
     This object wraps around the Gridcentric API,
@@ -114,8 +116,34 @@ def create_cinder_client(config):
         auth_url=config.os_auth_url,
         region_name=config.os_region_name)
 
+# Because one day it will not be named neutron either
+def create_network_client(config):
+    try:
+        from neutronclient.common import clientmanager
+        from neutronclient.common.exceptions import EndpointNotFound
+        client_name = 'neutron'
+    except ImportError:
+        from quantumclient.common import clientmanager
+        from quantumclient.common.exceptions import EndpointNotFound
+        client_name = 'quantum'
+
+    # Maybe we have old schoool nova-network. Watch out
+    try:
+        return getattr(clientmanager.ClientManager(
+            tenant_name=config.os_tenant_name,
+            username=config.os_username,
+            password=config.os_password,
+            auth_url=config.os_auth_url,
+            region_name=config.os_region_name,
+            api_version = {'network' : '2.0'}), client_name)
+    except EndpointNotFound:
+        log.warn("Keystone does not expose a network (quantum/neutron) "
+                 "service for this OpenStack cloud.")
+        return None
+
 def create_client(config):
     '''Creates a nova Client with a gcapi client embeded.'''
     nova = create_nova_client(config)
     cinder = create_cinder_client(config)
-    return (nova, GcApi(nova), cinder)
+    network = create_network_client(config)
+    return (nova, GcApi(nova), cinder, network)

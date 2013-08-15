@@ -26,12 +26,13 @@ from . client import create_client
 from . instance import InstanceFactory
 from . instance import wait_while_status
 from . host import Host
+from . network import network_name_to_uuid
 
 # This is set by pytest_runtest_setup in conftest.py.
 # This is done prior to each test.
 test_name = ''
 
-def boot(client, config, image_config=None, flavor=None):
+def boot(client, network_client, config, image_config=None, flavor=None):
     name = '%s-%s' % (config.run_name, test_name)
 
     if image_config == None:
@@ -53,13 +54,21 @@ def boot(client, config, image_config=None, flavor=None):
     host = random.choice(default_config.hosts)
     host_az = Host(host, config).host_az()
     log.debug('Selected host %s -> %s' % (host, host_az))
+
+    if config.network_name is not None:
+        network_uuid = network_name_to_uuid(network_client, config.network_name)
+        nics = [{'net-id' : network_uuid}]
+    else:
+        nics = None
+
     server = client.servers.create(name=name,
                                    image=image.id,
                                    key_name=image_config.key_name,
                                    # host_az for Folsom and later, ignored in Essex
                                    availability_zone=host_az,
                                    security_groups=[config.security_group],
-                                   flavor=flavor_id)
+                                   flavor=flavor_id,
+                                   nics=nics)
     setattr(server, 'image_config', image_config)
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
@@ -256,7 +265,8 @@ class TestHarness(Notifier):
         Notifier.__init__(self)
         self.config = config
         self.test_name = test_name
-        (self.nova, self.gcapi, self.cinder) = create_client(self.config)
+        (self.nova, self.gcapi, self.cinder, self.network) =\
+                create_client(self.config)
 
     @Notifier.notify
     def setup(self):
@@ -302,7 +312,7 @@ class TestHarness(Notifier):
     @Notifier.notify
     def boot(self, image_finder, agent=True, flavor=None):
         image_config = image_finder.find(self.nova, self.config)
-        server = boot(self.nova, self.config, image_config, flavor)
+        server = boot(self.nova, self.network, self.config, image_config, flavor)
         instance = InstanceFactory.create(self, server, image_config)
         # ensure the instance is booted, ping-able and ssh-able.
         instance.wait_for_boot()
