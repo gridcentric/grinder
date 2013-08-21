@@ -46,29 +46,13 @@ class TestLaunch(harness.TestCase):
             blessed.discard()
 
     def test_launch_one(self, image_finder):
-        with self.harness.security_group() as sg,\
-                self.harness.security_group() as unassigned_sg,\
-                self.harness.booted(image_finder) as master:
-            master.add_security_group(sg.name)
-
+        with self.harness.booted(image_finder) as master:
             # We need the master around to extract addresses.
             blessed = master.bless()
 
             assert [] == blessed.list_launched()
             launched = blessed.launch()
             assert [launched.id] == blessed.list_launched()
-
-            if self.harness.satisfies((requirements.SECURITY_GROUPS,)):
-                # TODO (tkeith): We are removing security groups rather than
-                # querying for them because Essex doesn't support querying.
-                # Switch to querying once Essex is no longer supported.
-
-                # Check that security group got passed through from master to
-                # launched by removing it
-                launched.remove_security_group(sg.name)
-
-                # Try removing a non-assigned security group
-                assert_raises(ClientException, launched.remove_security_group, (unassigned_sg.name,))
 
             # Ensure that the addresses are disjoint.
             launched_addrs = launched.get_addrs()
@@ -77,6 +61,31 @@ class TestLaunch(harness.TestCase):
 
             # Verify that there's no user_data
             launched.assert_userdata('')
+
+            # Cleanup.
+            launched.delete()
+            blessed.discard()
+
+    @harness.requires(requirements.SECURITY_GROUPS)
+    def test_launch_secgroup(self, image_finder):
+        with self.harness.security_group() as sg,\
+                self.harness.security_group() as unassigned_sg,\
+                self.harness.booted(image_finder) as master:
+            master.add_security_group(sg.name)
+
+            blessed = master.bless()
+            launched = blessed.launch()
+
+            # TODO (tkeith): We are removing security groups rather than
+            # querying for them because Essex doesn't support querying.
+            # Switch to querying once Essex is no longer supported.
+
+            # Check that security group got passed through from master to
+            # launched by removing it
+            launched.remove_security_group(sg.name)
+
+            # Try removing a non-assigned security group
+            assert_raises(ClientException, launched.remove_security_group, (unassigned_sg.name,))
 
             # Cleanup.
             launched.delete()
