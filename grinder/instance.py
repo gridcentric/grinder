@@ -148,7 +148,7 @@ class Instance(Notifier):
                 self.harness.config.hosts.append(hostname)
             return Host(hostname, self.harness.config)
         else:
-            return Host(self.harness.config.id_to_hostname(self.server.tenant_id, self.server.hostId))
+            return Host(self.harness.config.id_to_hostname(self.server.tenant_id, self.server.hostId), self.harness.config)
 
     def get_status(self):
         self.server.get()
