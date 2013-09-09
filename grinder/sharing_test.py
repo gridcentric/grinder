@@ -46,28 +46,37 @@ class TestSharing(harness.TestCase):
                           "launching to host %s -> %s." %
                             (target_host_name, availability_zone))
 
+            # It would be nice to call launch() with
+            # num_clones=num_sharing_clones.  However, that interface
+            # has no guarantee that the clones will all launch on the
+            # same host.  That's why this test launches each
+            # individually, with code to coerce the scheduler to
+            # co-locate the clones.
             generation = None
             for i in range(self.config.test_sharing_sharing_clones):
                 if requirements.SCHEDULER_HINTS.check(self.harness.nova):
                     if i == 0:
-                        clone               = blessed.launch()
+                        clone               = blessed.launch(paused_on_launch=True)
                         target_host         = clone.get_host()
                         target_host_name    = target_host.id
                         log.debug("Using SameHost scheduling hint to target "
                                   "launching to host %s" % target_host_name)
                     else:
                         clone = blessed.launch(scheduler_hints=
-                                                {'same_host':clonelist[0].id})
+                                                {'same_host':clonelist[0].id},
+                                               paused_on_launch=True)
                         assert target_host_name == clone.get_host().id
                 else:
-                    clone = blessed.launch(availability_zone=availability_zone)
+                    clone = blessed.launch(availability_zone=availability_zone,
+                                           paused_on_launch=True)
                 clonelist.append(clone)
                 vmsctl = clone.vmsctl()
-                vmsctl.pause()
                 vmsctl.set_flag("share.enabled")
                 vmsctl.set_flag("share.onfetch")
                 vmsctl.clear_flag("zeros.enabled")
-                # Eviction and target will be taken care of by full_hoard
+                # Turn off eviction to prevent it from unpausing the VM.
+                vmsctl.clear_flag("eviction.enabled")
+                # Target will be taken care of by full_hoard
                 if generation is None:
                     generation = vmsctl.generation()
                 else:

@@ -238,7 +238,8 @@ class Instance(Notifier):
     @Notifier.notify
     def launch(self, target=None, guest_params=None, status='ACTIVE', name=None,
                user_data=None, security_groups=None, availability_zone=None,
-               num_instances=None, keypair=None, scheduler_hints=None):
+               num_instances=None, keypair=None, scheduler_hints=None,
+               paused_on_launch=False):
         log.info("Launching from %s with target=%s guest_params=%s status=%s"
                   % (self, target, guest_params, status))
         params = {}
@@ -272,6 +273,10 @@ class Instance(Notifier):
             if availability_zone is not None:
                 params['availability_zone'] = availability_zone
 
+        # get an old list of launched VMs so we can discount these
+        # from the launched VMs we're about to create.
+        old_launches = self.harness.nova.gridcentric.list_launched(self.server)
+
         launched_list = self.harness.gcapi.launch_instance(self.server,
                                                            params=params)
 
@@ -279,7 +284,31 @@ class Instance(Notifier):
         # requested, a single server is returned (as per nova boot semantics)
         assert len(launched_list) == 1
 
-        launched_list = self.harness.nova.gridcentric.list_launched(self.server)
+        # The conform to the nova boot semantics, launch_instance only
+        # returns one instance ID.  However, the user may have
+        # requested more than one instance.  That's why we need to
+        # re-list the launched instances to find the other instances
+        # launched from the call above (and exclude the old launches).
+        #
+        # FIXME: TODO:
+        #
+        # The launch itself is using the wrapped gcapi.launch, which
+        # is good.  We really should be using
+        # harness.gcapi.list_launched_instances here for consistency.
+        # Unfortunately, all of the code that depends on this function
+        # expects a 'server' object instead of a 'dict'.
+        launched_list = []
+        all_launches = self.harness.nova.gridcentric.list_launched(self.server)
+        for launched in all_launches:
+            isnew = True
+            for existing in old_launches:
+                if existing.id == launched.id:
+                    isnew = False
+                    break
+            if isnew:
+                launched_list.append(launched)
+        assert len(launched_list) >= 1
+
         clones = []
         for launched in launched_list:
             assert launched.id != self.id
@@ -311,6 +340,8 @@ class Instance(Notifier):
                     target_host = availability_zone.split(':')[1]
                     assert instance.get_host().id == target_host
 
+            if paused_on_launch:
+                self.harness.nova.servers.pause(server)
             clones.append(instance)
 
         # Most callers expect a singleton return value
