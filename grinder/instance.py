@@ -332,6 +332,8 @@ class Instance(Notifier):
                                       keypair=keypair)
             instance.breadcrumbs = self.snapshot.instantiate(instance)
             instance.wait_for_boot(status)
+            # Only ensure cloud init for launched clones
+            instance.ensure_cloudinit_done()
 
             # Folsom and later: if the availability zone targeted a specific host, verify
             if (AVAILABILITY_ZONE.check(self.harness.nova) and
@@ -463,6 +465,9 @@ class Instance(Notifier):
     def root_command(self, command, **kwargs):
         raise NotImplementedError()
 
+    def ensure_cloudinit_done(self):
+        raise NotImplementedError()
+
     def setup_params(self):
         '''
         Performs any configuration on the guest necessary for reading
@@ -488,6 +493,9 @@ class Instance(Notifier):
         raise NotImplementedError()
 
     def assert_agent_not_running(self):
+        raise NotImplementedError()
+
+    def post_hook_cloudinit(self):
         raise NotImplementedError()
 
     def assert_userdata(self, userdata):
@@ -614,6 +622,8 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
             self, harness, server, image_config,
             breadcrumbs=(breadcrumbs or SSHBreadcrumbs(self)),
             **kwargs)
+        self.TMP_SSH_KEY_PATH   = "/tmp/curr_ssh_key"
+        self.RSA_HOST_KEY_PATH  = "/etc/ssh/ssh_host_rsa_key.pub"
 
     def get_shell(self):
         return SecureShell(self.get_address(),
@@ -627,6 +637,27 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
                         self.image_config.user,
                         self.harness.config.ssh_port)
         return ssh.check_output(command, **kwargs)
+
+    def ensure_cloudinit_done(self):
+        # Do we have cloud init? Wait until it's done reshuffling ssh
+        if not self.image_config.cloudinit:
+            return
+
+        # Ssh comes up and down while waiting for cloud init.
+        # Hence tolerate errors. Note we got here after ensuring
+        # ssh was up at least once
+        def check_cloudinit_done():
+            try:
+                (key, stderr) =\
+                    self.root_command("cat %s" % self.RSA_HOST_KEY_PATH)
+                (tmpkey, stderr) =\
+                    self.root_command("cat %s" % self.TMP_SSH_KEY_PATH)
+                assert key == tmpkey
+                return True
+            except Exception:
+                return False
+
+        wait_for("Cloud init to be done", check_cloudinit_done)
 
     def setup_params(self):
         params_path = "/etc/gridcentric/clone.d/90_clone_params"
@@ -683,6 +714,25 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
 
     def assert_agent_not_running(self):
         self.root_command("pidof vmsagent", expected_rc=1)
+
+    def post_hook_cloudinit(self):
+        # Do we have cloud init on Linux? Then install extra hooks
+        # that will help us know when cloud init reshuffle is done
+        if not self.image_config.cloudinit:
+            return
+
+        reset_path = "/etc/gridcentric/clone.d/01_reset"
+        post_ci_path = "/etc/gridcentric/clone.d/21_post-cloud-init"
+        reset_script = """#!/bin/bash
+rm -f %s
+""" % self.TMP_SSH_KEY_PATH
+        post_ci_script = """#!/bin/bash
+cat %s > %s
+""" % (self.RSA_HOST_KEY_PATH, self.TMP_SSH_KEY_PATH)
+        for (path, script) in [(reset_path, reset_script),
+                               (post_ci_path, post_ci_script)]:
+            self.root_command("cat > %s" % path, input=script)
+            self.root_command("chmod a+x %s" % path)
 
     def assert_userdata(self, userdata):
         self.get_shell().check_output('curl http://169.254.169.254/latest/user-data 2>/dev/null',
@@ -762,6 +812,9 @@ class WindowsInstance(Instance):
         return WinShell(self.get_address(),
                         self.harness.config.windows_link_port)
 
+    def ensure_cloudinit_done(self):
+        pass
+
     def setup_params(self):
         pass
 
@@ -828,6 +881,9 @@ class WindowsInstance(Instance):
             assert "Agent should not be running!" and False
         except RuntimeError:
             return
+
+    def post_hook_cloudinit(self):
+        pass
 
     def instance_wait_for_ping(self):
         # Windows instances have ICMP blocked by default

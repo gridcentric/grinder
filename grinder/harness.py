@@ -319,6 +319,8 @@ class TestHarness(Notifier):
         if agent:
             try:
                 instance.install_agent()
+                instance.post_hook_cloudinit()
+
             except:
                 if not(self.config.leave_on_failure):
                     instance.delete()
