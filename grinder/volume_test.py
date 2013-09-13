@@ -59,41 +59,43 @@ class TestVolume(harness.TestCase):
     @harness.platformtest(exclude=["windows"])
     def test_launch_with_multiple_volumes(self, image_finder):
         image_finder.find(self.harness.nova, self.harness.config)
-        with self.harness.volume() as volume_1, self.harness.volume() as volume_2:
-            with self.harness.booted(image_finder) as master:
-                device_1 = master.attach_volume(volume_1)
-                md5_1 = master.prime_volume(device_1)
-                device_2 = master.attach_volume(volume_2)
-                md5_2 = master.prime_volume(device_2)
-                blessed = master.bless()
-                launched = blessed.launch()
-                launched.verify_volume(device_1, md5_1)
-                launched.verify_volume(device_2, md5_2)
-                master.verify_volume(device_1, md5_1)
-                master.verify_volume(device_2, md5_2)
-                launched.delete()
-                blessed.discard()
+        with self.harness.volume() as volume_1:
+            with self.harness.volume() as volume_2:
+                with self.harness.booted(image_finder) as master:
+                    device_1 = master.attach_volume(volume_1)
+                    md5_1 = master.prime_volume(device_1)
+                    device_2 = master.attach_volume(volume_2)
+                    md5_2 = master.prime_volume(device_2)
+                    blessed = master.bless()
+                    launched = blessed.launch()
+                    launched.verify_volume(device_1, md5_1)
+                    launched.verify_volume(device_2, md5_2)
+                    master.verify_volume(device_1, md5_1)
+                    master.verify_volume(device_2, md5_2)
+                    launched.delete()
+                    blessed.discard()
 
     @harness.requires(requirements.VOLUME_SUPPORT)
     @harness.platformtest(exclude=["windows"])
     def test_multiple_launch_multiple_volumes(self, image_finder):
         image_finder.find(self.harness.nova, self.harness.config)
-        with self.harness.volume() as volume_1, self.harness.volume() as volume_2:
-            with self.harness.booted(image_finder) as master:
-                device_1 = master.attach_volume(volume_1)
-                md5_1 = master.prime_volume(device_1)
-                device_2 = master.attach_volume(volume_2)
-                md5_2 = master.prime_volume(device_2)
-                blessed = master.bless()
-                clones = blessed.launch(num_instances=3)
-                for clone in clones:
-                    clone.verify_volume(device_1, md5_1)
-                    clone.verify_volume(device_2, md5_2)
-                master.verify_volume(device_1, md5_1)
-                master.verify_volume(device_2, md5_2)
-                for clone in clones:
-                    clone.delete()
-                blessed.discard()
+        with self.harness.volume() as volume_1:
+            with self.harness.volume() as volume_2:
+                with self.harness.booted(image_finder) as master:
+                    device_1 = master.attach_volume(volume_1)
+                    md5_1 = master.prime_volume(device_1)
+                    device_2 = master.attach_volume(volume_2)
+                    md5_2 = master.prime_volume(device_2)
+                    blessed = master.bless()
+                    clones = blessed.launch(num_instances=3)
+                    for clone in clones:
+                        clone.verify_volume(device_1, md5_1)
+                        clone.verify_volume(device_2, md5_2)
+                    master.verify_volume(device_1, md5_1)
+                    master.verify_volume(device_2, md5_2)
+                    for clone in clones:
+                        clone.delete()
+                    blessed.discard()
 
     @harness.requires(requirements.VOLUME_SUPPORT)
     @harness.platformtest(exclude=["windows"])
