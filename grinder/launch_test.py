@@ -68,28 +68,28 @@ class TestLaunch(harness.TestCase):
 
     @harness.requires(requirements.SECURITY_GROUPS)
     def test_launch_secgroup(self, image_finder):
-        with self.harness.security_group() as sg,\
-                self.harness.security_group() as unassigned_sg,\
-                self.harness.booted(image_finder) as master:
-            master.add_security_group(sg.name)
+        with self.harness.security_group() as sg:
+            with self.harness.security_group() as unassigned_sg:
+                with self.harness.booted(image_finder) as master:
+                    master.add_security_group(sg.name)
 
-            blessed = master.bless()
-            launched = blessed.launch()
+                    blessed = master.bless()
+                    launched = blessed.launch()
 
-            # TODO (tkeith): We are removing security groups rather than
-            # querying for them because Essex doesn't support querying.
-            # Switch to querying once Essex is no longer supported.
+                    # TODO (tkeith): We are removing security groups rather than
+                    # querying for them because Essex doesn't support querying.
+                    # Switch to querying once Essex is no longer supported.
 
-            # Check that security group got passed through from master to
-            # launched by removing it
-            launched.remove_security_group(sg.name)
+                    # Check that security group got passed through from master to
+                    # launched by removing it
+                    launched.remove_security_group(sg.name)
 
-            # Try removing a non-assigned security group
-            assert_raises(ClientException, launched.remove_security_group, (unassigned_sg.name,))
+                    # Try removing a non-assigned security group
+                    assert_raises(ClientException, launched.remove_security_group, (unassigned_sg.name,))
 
-            # Cleanup.
-            launched.delete()
-            blessed.discard()
+                    # Cleanup.
+                    launched.delete()
+                    blessed.discard()
 
     def test_master_gone(self, image_finder):
         # We do a manual boot to ensure the ordering.
