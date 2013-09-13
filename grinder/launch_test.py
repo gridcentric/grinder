@@ -253,23 +253,23 @@ class TestLaunch(harness.TestCase):
 
     @harness.requires(requirements.SECURITY_GROUPS)
     def test_launch_with_security_group(self, image_finder):
-        with self.harness.security_group() as master_sg,\
-                 self.harness.security_group() as launched_sg,\
-                 self.harness.booted(image_finder) as master:
-            master.server.add_security_group(master_sg.name)
-            blessed = master.bless()
-            launched = blessed.launch(\
-                security_groups=[self.config.security_group, launched_sg.name])
+        with self.harness.security_group() as master_sg:
+            with self.harness.security_group() as launched_sg:
+                with self.harness.booted(image_finder) as master:
+                    master.server.add_security_group(master_sg.name)
+                    blessed = master.bless()
+                    launched = blessed.launch(\
+                        security_groups=[self.config.security_group, launched_sg.name])
 
-            # TODO (tkeith): We are removing security groups rather than
-            # querying for them because Essex doesn't support querying.
-            # Switch to querying once Essex is no longer supported.
+                    # TODO (tkeith): We are removing security groups rather than
+                    # querying for them because Essex doesn't support querying.
+                    # Switch to querying once Essex is no longer supported.
 
-            # Verify that master_sg didn't get passed from master to launched
-            assert_raises(ClientException, launched.remove_security_group, (master_sg.name,))
+                    # Verify that master_sg didn't get passed from master to launched
+                    assert_raises(ClientException, launched.remove_security_group, (master_sg.name,))
 
-            # Verify that launched_sg was added to launched
-            launched.remove_security_group(launched_sg.name)
+                    # Verify that launched_sg was added to launched
+                    launched.remove_security_group(launched_sg.name)
 
     def test_repeat_launch_delete(self, image_finder):
         """ This test was added because repeated launching & discarding caused an issue
