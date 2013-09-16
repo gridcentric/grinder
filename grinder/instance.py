@@ -332,8 +332,12 @@ class Instance(Notifier):
                                       keypair=keypair)
             instance.breadcrumbs = self.snapshot.instantiate(instance)
             instance.wait_for_boot(status)
-            # Only ensure cloud init for launched clones
-            instance.ensure_cloudinit_done()
+
+            # Only ensure cloud init for instances that are active. We know ssh
+            #et al will be dead for other status
+            if launched.status == 'ACTIVE':
+                # Only ensure cloud init for launched clones
+                instance.ensure_cloudinit_done()
 
             # Folsom and later: if the availability zone targeted a specific host, verify
             if (AVAILABILITY_ZONE.check(self.harness.nova) and
