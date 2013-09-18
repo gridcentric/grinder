@@ -21,10 +21,11 @@ from . logger import log
 from . config import default_config
 from . util import Notifier
 from . util import list_filter
-from . util import wait_for
+from . util import wait_while_status
+from . util import wait_for_status
+from . util import wait_while_exists
 from . client import create_client
 from . instance import InstanceFactory
-from . instance import wait_while_status
 from . host import Host
 from . network import network_name_to_uuid
 
@@ -251,13 +252,15 @@ class Volume:
                     (self.name, long(self.size), str(self.kwargs)))
         self.volume = self.harness.cinder.volumes.create(
             self.size, display_name=self.name, **self.kwargs)
-        wait_for('volume %s to be available' % (self.volume.id), \
-            lambda: self.harness.cinder.volumes.get(self.volume.id).status.lower() == 'available')
+        wait_for_status(self.volume, 'available')
         return self.volume
 
     def __exit__(self, type, value, tb):
         if type == None or not(self.harness.config.leave_on_failure):
+            log.debug("Deleting volume %s size %ld kwargs %s" %\
+                (self.name, long(self.size), str(self.kwargs)))
             self.volume.delete()
+            wait_while_exists(self.volume)
 
 class TestHarness(Notifier):
     '''There's one instance of TestHarness per test function that runs.'''

@@ -30,27 +30,11 @@ from . breadcrumbs import LinkBreadcrumbs
 from . util import fix_url_for_yum
 from . util import wait_for
 from . util import wait_for_ping
+from . util import wait_while_status
+from . util import wait_for_status
+from . util import wait_while_exists
 from . shell import wait_for_shell
 from . requirements import AVAILABILITY_ZONE, SCHEDULER_HINTS
-
-from novaclient.exceptions import NotFound
-
-def wait_while_status(server, status):
-    def condition():
-        if server.status != status:
-            return True
-        server.get()
-        return False
-    wait_for('%s on ID %s to finish' % (status, str(server.id)), condition)
-
-def wait_while_exists(server):
-    def condition():
-        try:
-            server.get()
-            return False
-        except NotFound:
-            return True
-    wait_for('server %s to not exist' % server.id, condition)
 
 def get_addrs(server, network=None):
     log.debug('get_addrs network=%s: %s', network, server.networks)
@@ -394,6 +378,7 @@ class Instance(Notifier):
         for volume in self.volumes:
             log.info('Detaching volume %s', volume.id)
             volume.detach()
+            wait_for_status(volume, 'available')
         log.info('Deleting %s', self)
         self.server.delete()
         self.wait_while_exists()
@@ -446,15 +431,13 @@ class Instance(Notifier):
         device = available[0]
 
         # Do the attach and save the volume (returning the device).
-        wait_for('volume %s to be available' % (volume.id), \
-            lambda: self.harness.cinder.volumes.get(volume.id).status.lower() == 'available')
+        wait_for_status(volume, 'available')
 
         self.harness.nova.volumes.create_server_volume(self.server.id, volume.id, device)
 
         self.volumes.append(volume)
 
-        wait_for('volume %s to be attached' % (volume.id), \
-            lambda: self.harness.cinder.volumes.get(volume.id).status.lower() == 'in-use')
+        wait_for_status(volume, 'in-use')
 
         wait_for('volume %s to be listed' % (volume.id), \
             lambda: device in self.list_devices())

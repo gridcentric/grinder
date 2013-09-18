@@ -22,6 +22,9 @@ import urllib
 from . logger import log
 from . config import default_config
 
+import novaclient.exceptions
+import cinderclient.exceptions
+
 def assert_raises(exception_type, command, *args, **kwargs):
     try:
         command(*args, **kwargs)
@@ -107,6 +110,40 @@ def wait_for_ping(addrs):
     ip = addrs[0]
     wait_for('ping %s to respond' % ip,
              lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0)
+
+# The .get() method and id field apply to nova servers and cinder volumes. More
+# generally to all subclasses of an Openstack Resource.
+def wait_while_status(os_resource, status):
+    def condition():
+        if os_resource.status.lower() != status.lower():
+            return True
+        os_resource.get()
+        return False
+    wait_for('%s on %s ID %s to finish' % \
+             (status, os_resource.__class__.__name__, \
+              str(os_resource.id)), condition)
+
+def wait_for_status(os_resource, status):
+    def condition():
+        if os_resource.status.lower() == status.lower():
+            return True
+        os_resource.get()
+        return False
+    wait_for('%s ID %s to reach status %s' % (os_resource.__class__.__name__, \
+              str(os_resource.id), status), condition)
+
+def wait_while_exists(os_resource):
+    def condition():
+        try:
+            os_resource.get()
+            return False
+        # I hate this. But each client redefines the exception. And there is
+        # apparently no way to work back from the os_resource to the client
+        # that produced it and the exceptions it will raise
+        except (novaclient.exceptions.NotFound, cinderclient.exceptions.NotFound):
+            return True
+    wait_for('%s %s to not exist' % \
+             (os_resource.__class__.__name__, str(os_resource.id)), condition)
 
 def fix_url_for_yum(url):
     # Yum's URL parser cannot deal with commas and such.
