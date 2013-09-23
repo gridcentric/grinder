@@ -77,7 +77,7 @@ class Host(object):
     # into a list of string repr of rules.
     def __get_iptables_rules(self, chain):
         # Return the list of iptables rules for the specified chain
-        stdout, stderr = self.check_output('iptables -L %s || true' % chain)
+        stdout, stderr = self.check_output('iptables -n -L %s || true' % chain)
         try:
             rules = stdout.split('\n')[2:]
             if rules[-1] == '':

@@ -109,7 +109,7 @@ def wait_for_ping(addrs):
     assert len(addrs) > 0
     ip = addrs[0]
     wait_for('ping %s to respond' % ip,
-             lambda: os.system('ping %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0)
+             lambda: os.system('ping -n %s -c 1 -W 1 > /dev/null 2>&1' % ip) == 0)
 
 # The .get() method and id field apply to nova servers and cinder volumes. More
 # generally to all subclasses of an Openstack Resource.
