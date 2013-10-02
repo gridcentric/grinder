@@ -76,6 +76,8 @@ class Instance(Notifier):
         self.snapshot = snapshot
         self.breadcrumbs = breadcrumbs
         self.volumes = []
+        self.volume_snapshots = []
+        self.is_clone = False
 
         if keypair is not None:
             self.privkey_fd = tempfile.NamedTemporaryFile()
@@ -120,6 +122,10 @@ class Instance(Notifier):
                 break
         else:
             assert False
+
+    def wait_while_snapshots_exist(self):
+        for snapshot in self.volume_snapshots:
+            wait_while_exists(snapshot)
 
     def __str__(self):
         return 'Instance(name=%s, id=%s)' % (self.server.name, self.id)
@@ -185,6 +191,15 @@ class Instance(Notifier):
         # Check if the server has iptables rules.
         return host.get_nova_compute_instance_filter_rules(server_id)
 
+    def get_volume_snapshots(self):
+        snapshots = []
+        for volume in self.volumes:
+            search_opt = {'volume_id': getattr(volume, 'id')}
+            snapshots.extend(
+                self.harness.cinder.volume_snapshots.list(
+                    search_opts=search_opt))
+        return snapshots
+
     @Notifier.notify
     def bless(self, **kwargs):
         log.info('Blessing %s', self)
@@ -194,6 +209,10 @@ class Instance(Notifier):
         # operation is idempotent, so it is safe to do this even if
         # blessing the same instance multiple times.
         self.setup_params()
+
+        # Get the list of snapshots that exist for master's volumes
+        # to perform a diff and discern the newly created snapshots
+        previous_snapshots = self.get_volume_snapshots()
 
         blessed_list = self.harness.gcapi.bless_instance(self.server, **kwargs)
         assert len(blessed_list) == 1
@@ -215,6 +234,23 @@ class Instance(Notifier):
                                   breadcrumbs=False, snapshot=snapshot)
 
         instance.wait_for_bless()
+
+        # Now get the list of snapshots afterwards to discern what was
+        # newly created
+        # (OmgLag): Too bad we can't use python sets for these
+        # since Cinder resources don't have __eq__ overloaded
+        afterwards_snapshots = self.get_volume_snapshots()
+        created_snapshots = []
+        for afterwards_snapshot in afterwards_snapshots:
+            isnew = True
+            for previous_snapshot in previous_snapshots:
+                if (afterwards_snapshot.id == previous_snapshot.id):
+                    isnew = False
+                    break
+            if (isnew):
+                created_snapshots.append(afterwards_snapshot)
+
+        instance.volume_snapshots = created_snapshots
 
         self.breadcrumbs.add('Post bless, child is %s' % instance.id)
         return instance
@@ -314,6 +350,7 @@ class Instance(Notifier):
             instance = self.__class__(self.harness, server, self.image_config,
                                       breadcrumbs=None, snapshot=None,
                                       keypair=keypair)
+            instance.is_clone = True
             instance.breadcrumbs = self.snapshot.instantiate(instance)
             instance.wait_for_boot(status)
 
@@ -322,6 +359,19 @@ class Instance(Notifier):
             if launched.status == 'ACTIVE':
                 # Only ensure cloud init for launched clones
                 instance.ensure_cloudinit_done()
+
+            # Make sure all volumes are here
+            instance.volumes = self.harness.cinder.volumes.list(
+                search_opts={'instance_uuid': getattr(server, 'id')})
+            # (OmgLag): Recreate this list of IDs for each launched instance
+            # since we're going to be popping IDs as they're found
+            snapshot_ids = [s.id for s in self.volume_snapshots]
+            assert len(instance.volumes) == len(snapshot_ids)
+            for volume in instance.volumes:
+                assert hasattr(volume, 'snapshot_id')
+                assert getattr(volume, 'snapshot_id') in snapshot_ids
+                # Ensures 1-1 mapping
+                snapshot_ids.remove(getattr(volume, 'snapshot_id'))
 
             # Folsom and later: if the availability zone targeted a specific host, verify
             if (AVAILABILITY_ZONE.check(self.harness.nova) and
@@ -375,13 +425,17 @@ class Instance(Notifier):
                     self.harness.nova.servers.get(id),
                     self.image_config, breadcrumbs=False)
                 instance.discard(recursive=True)
-        for volume in self.volumes:
-            log.info('Detaching volume %s', volume.id)
-            volume.detach()
-            wait_for_status(volume, 'available')
+        if (not self.is_clone):
+            for volume in self.volumes:
+                log.info('Detaching volume %s', volume.id)
+                volume.detach()
+                wait_for_status(volume, 'available')
         log.info('Deleting %s', self)
         self.server.delete()
         self.wait_while_exists()
+        if (self.is_clone):
+            for volume in self.volumes:
+                wait_while_exists(volume)
 
     @Notifier.notify
     def discard(self, recursive=False):
@@ -390,6 +444,7 @@ class Instance(Notifier):
         log.info('Discarding %s', self)
         self.harness.gcapi.discard_instance(self.server)
         self.wait_while_exists()
+        self.wait_while_snapshots_exist()
 
     def list_blessed(self):
         return map(lambda x: x['id'], self.harness.gcapi.list_blessed_instances(self.server))
