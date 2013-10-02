@@ -230,7 +230,7 @@ class Config(object):
         # the policy to test policyd.
         self.default_policy = """
 [*]
-managed = false
+unmanaged = true
 """
 
     def get_all_archs(self):
