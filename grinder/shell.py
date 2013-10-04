@@ -40,6 +40,8 @@ class SecureShell(object):
                 '-o', 'UserKnownHostsFile=/dev/null',
                 '-o', 'StrictHostKeyChecking=no',
                 "-o", "PasswordAuthentication=no",
+                "-o", "TCPKeepAlive=yes",
+                "-o", "ServerAliveInterval=30",
                 "-i", self.key_path,
                 "%s@%s" % (self.user, self.host),
                ]

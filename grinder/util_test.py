@@ -65,6 +65,98 @@ def test_list_filter():
     assert [1, 4] == util.list_filter([1,2,3], include = [4], only = [1, 4])
     assert [1, 4] == util.list_filter([1,2,3,4], exclude = [2, 3], include = [5], only = [1, 2, 4])
 
+def test_background_context_handling():
+    cond = Condition()
+    count = 0
+
+    @util.Background()
+    def task_with_no_args():
+        cond.acquire()
+        cond.notifyAll()
+        cond.release()
+
+    cond.acquire()
+    with task_with_no_args():
+        cond.wait(3.0)
+        cond.release()
+
+    # Background decorator should be ok with the task function not
+    # having a context kwarg as long as no verifier is begin used.
+    @util.Background(interval=0.001)
+    def task_with_no_context(arg1, arg2):
+        cond.acquire()
+        cond.notifyAll()
+        cond.release()
+
+    cond.acquire()
+    with task_with_no_context(1, 2):
+        cond.wait(3.0)
+        cond.release()
+
+    @util.Background(interval=0.001)
+    def task_with_globargs_and_context(arg1, arg2, context=0, *args, **kwargs):
+        try:
+            s = arg1 + arg2
+            assert context == 0 or context == s
+            return s
+        finally:
+            cond.acquire()
+            cond.notifyAll()
+            cond.release()
+
+    cond.acquire()
+    count = 0
+    with task_with_globargs_and_context(4, 5):
+        while count < 5:
+            count += 1
+            cond.wait(1.0)
+        cond.release()
+
+    @util.Background(interval=0.001)
+    def task_with_no_context_magic(arg1, arg2, context):
+        try:
+            assert arg1 == 1
+            assert arg2 == 2
+            assert context == "context"
+        finally:
+            cond.acquire()
+            cond.notifyAll()
+            cond.release()
+
+    cond.acquire()
+    with task_with_no_context_magic(1, 2, "context"):
+        cond.wait(3.0)
+        cond.release()
+
+    cond.acquire()
+    with task_with_no_context_magic(1, 2, context="context"):
+        cond.wait(3.0)
+        cond.release()
+
+    @util.Background(interval=0.001, verifier=lambda x: x)
+    def task_with_verifier_but_no_context():
+        # We should never be called
+        assert False
+
+    try:
+        with task_with_verifier_but_no_context():
+            pass
+        assert False
+    except TypeError:
+        pass
+
+    @util.Background()
+    def task_with_context_passed_at_callsite(context=None):
+        # We should never be called
+        assert False
+
+    try:
+        with task_with_context_passed_at_callsite(context="foobar"):
+            pass
+        assert False
+    except TypeError:
+        pass
+
 def test_background():
 
     def watch_len_result_check(rvals):

@@ -172,15 +172,16 @@ class Background(object):
     thread stops and the exception is re-raised in the main thread during
     __exit__.
 
-    The target function must have an argument called context and this argument
-    must have a default value. This argument must not be provided at the call
-    site. This function will be automatically provided by the background thread
-    and is a way to share data between multiple invocations of the target
-    function. On the first call, a deep copy of the default value for context
-    will be passed to the target function. The deep copy prevents invocations
-    from unintentionally modifying the object specified in the function
-    definition. On subsequent calls, the return value from the previous call to
-    the target function is passed in as the context.
+    If a verifier function is provided, the target function must have an
+    argument called context and this argument must have a default value. This
+    argument must not be provided at the call site. This function will be
+    automatically provided by the background thread and is a way to share data
+    between multiple invocations of the target function. On the first call, a
+    deep copy of the default value for context will be passed to the target
+    function. The deep copy prevents invocations from unintentionally modifying
+    the object specified in the function definition. On subsequent calls, the
+    return value from the previous call to the target function is passed in as
+    the context.
 
     To use the context an a reference to a mutable object, return the reference
     after making any modifications to it in the body of the target function. To
@@ -215,10 +216,10 @@ class Background(object):
             self.kwargs = kwargs
 
             # Do some introspection to ensure a default value for context was
-            # provided in the function definition. We strictly enforce that a
-            # default value is provided to avoid surprises (especially because
-            # otherwise the verify function will be called with seemingly
-            # 'random' return values from the function.
+            # provided in the function definition if we're using a verifier. We
+            # strictly enforce that a default value is provided to avoid
+            # surprises (especially because otherwise the verify function will
+            # be called with seemingly 'random' return values from the function.
             argspec = inspect.getargspec(self.func)
             try:
                 defaults_dict = dict(zip(reversed(argspec.args),
@@ -227,23 +228,30 @@ class Background(object):
                 # No args or default values.
                 defaults_dict = {}
 
-            if not defaults_dict.has_key("context"):
+            if callable(self.verifier) and not defaults_dict.has_key("context"):
                 raise TypeError("Backgrounded function '%s' " % self.func.__name__ +
                                "must have an argument called 'context' with " +
                                "a default value for it.")
 
-            # Make sure the caller isn't providing a value for 'context' as
-            # neither a positional argument nor a keyword argument at the call
-            # site. We magically patch in this value and don't want to silently
-            # replace the user-provided value to avoid surprises.
+            # Should we do the context passing magic? We only do this if a
+            # context kwarg is specified for the background task function. Note
+            # that we also enforce that a context arg is provided if using a
+            # verifier function.
+            self.use_context = defaults_dict.has_key("context")
+
+            # If we're using the context magic, make sure the caller isn't
+            # providing a value for 'context' as either a positional argument
+            # or a keyword argument at the call site. We magically patch in
+            # this value and don't want to silently replace the user-provided
+            # value to avoid surprises.
             caller_pos_args = dict(zip(argspec.args, self.args))
-            if caller_pos_args.has_key("context"):
+            if self.use_context and caller_pos_args.has_key("context"):
                 raise TypeError("Backgrounded function '%s' " % self.func.__name__ +
                                 "called with 'context' provided as a " +
                                 "positional argument (value=%s)." % \
                                     str(caller_pos_args["context"]))
 
-            if self.kwargs.has_key("context"):
+            if self.use_context and self.kwargs.has_key("context"):
                 raise TypeError("Backgrounded function '%s' " % self.func.__name__ +
                                 "called with 'context' provided as a " +
                                 "keyword argument (value=%s)." % \
@@ -253,7 +261,8 @@ class Background(object):
             # 'context' kwargs. Take care to NOT use the default value we
             # extracted out of the context directly because we DO NOT want to
             # modify the global object attached to the function definition.
-            self.kwargs["context"] = copy.deepcopy(defaults_dict["context"])
+            if self.use_context:
+                self.kwargs["context"] = copy.deepcopy(defaults_dict["context"])
 
             self.exception = None
 
@@ -265,7 +274,9 @@ class Background(object):
                         # Run target function and update the context. The
                         # context automatically gets passed since we stuff it
                         # into self.kwargs after each call.
-                        self.kwargs["context"] = self.func(*self.args, **self.kwargs)
+                        result = self.func(*self.args, **self.kwargs)
+                        if self.use_context:
+                            self.kwargs["context"] = result
                     except Exception, ex:
                         self.exception = sys.exc_info()
                         return

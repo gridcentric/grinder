@@ -355,7 +355,7 @@ class TestHarness(Notifier):
             # the policy being installed, without having to worry about
             # deadlocks.
             if extend:
-                self.installed_policy = policy + self.installed_policy
+                self.installed_policy += policy
             else:
                 self.installed_policy = policy
 

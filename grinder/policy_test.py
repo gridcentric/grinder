@@ -36,11 +36,12 @@ class TestPolicy(harness.TestCase):
     @harness.platformtest(exclude=["windows"])
     def test_memory_limit_enforcement(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
-            memory_limit_mb = 256
+            memory_limit_mb = 128
             new_policy = \
 """
 [*;blessed=%s;*]
 memory_limit_mb = %d
+unmanaged = false
 """ % (blessed.id, memory_limit_mb)
 
             # Launch a new instance an try to push it's memory above the limit
@@ -61,8 +62,9 @@ memory_limit_mb = %d
             with self.harness.policy(new_policy):
                 with check_memory_usage(vmsctl, mb2pages(memory_limit_mb) +
                                         LIMIT_UPPER_HEADROOM_PAGES):
-                    # Allocate memory_limit_mb of new memory in the launched VM.
-                    launched.allocate_balloon(mb2pages(memory_limit_mb))
+                    # Allocate memory in the launched VM. Allocate more memory
+                    # than the limit set by policy to force eviction.
+                    launched.allocate_balloon(int(mb2pages(memory_limit_mb)) * 2)
 
             launched.delete()
 
@@ -85,6 +87,7 @@ memory_limit_mb = %d
 burst_size_mb = %d
 burst_time_ms = %d
 update_interval_ms = %d
+unmanaged = false
 """ % (blessed.id, memory_limit_mb, burst_size_mb, burst_time_ms,
        update_interval_ms)
 
@@ -118,8 +121,10 @@ update_interval_ms = %d
                 return context
 
             with self.harness.policy(new_policy):
-                # Wait for the domain to accumulate burst credits.
-                time.sleep(float(burst_time_ms + update_interval_ms) / 1000)
+
+                # Wait for the domain to accumulate burst credits. Note that
+                # domains start at 50% credits.
+                time.sleep(float(burst_time_ms + update_interval_ms) / 1000 / 2)
 
                 # We shouldn't be bursting yet.
                 assert int(vmsctl.get_param("memory.current")) <= \
@@ -137,10 +142,16 @@ update_interval_ms = %d
                                   mb2pages(memory_limit_mb + burst_size_mb) +
                                   LIMIT_UPPER_HEADROOM_PAGES):
 
-                    # Allocate a large balloon which should cause bursting.
+                    # Allocate a large balloon which should cause bursting. We
+                    # avoid allocating memory right up to the limit to avoid
+                    # thrashing. Note that the balloon size needs to take into
+                    # account the memory used by the guest to ensure the usage
+                    # is in the bursting range but not thrashing. We
+                    # empherically found 50% of the burst limit to be the right
+                    # balloon size for a barebones linux guest.
                     start_time = datetime.now()
-                    launched.allocate_balloon(
-                        mb2pages(memory_limit_mb + burst_size_mb))
+                    launched.allocate_balloon(int(
+                        mb2pages(memory_limit_mb + burst_size_mb) * 0.50))
                     alloc_time = (datetime.now() - start_time).total_seconds()
                     remaining_time = (float(burst_time_ms) / 1000) - alloc_time
 
@@ -151,7 +162,14 @@ update_interval_ms = %d
                     remaining_time *= 1.10
 
                     if remaining_time > 0:
+                        log.debug("Waiting %.2f for burst." % remaining_time)
                         time.sleep(remaining_time)
+
+                    # Busy wait until we're no longer allowed to burst.
+                    while int(vmsctl.get_param("memory.current")) > \
+                            mb2pages(memory_limit_mb):
+                        log.debug("Waiting for burst to end.")
+                        time.sleep(1.0)
 
                 # Release the balloon and wait for the memory usage to fall
                 # under the normal limit. Then ensure that policyd has loosened
@@ -159,9 +177,11 @@ update_interval_ms = %d
                 launched.release_balloon()
                 while int(vmsctl.get_param("memory.current")) > \
                         mb2pages(memory_limit_mb):
+                    log.debug("Waiting for burst to end after balloon release.")
                     time.sleep(1.0)
 
-                while vmsctl.get_param("memory.target") != 0:
+                while int(vmsctl.get_param("memory.target")) != 0:
+                    log.debug("Waiting for policyd to relax target.")
                     time.sleep(1.0)
 
                 # Assert the limit is set to the burst limit. Allow for slight

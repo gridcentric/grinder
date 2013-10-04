@@ -1,7 +1,7 @@
 #!/bin/bash
 
 stall=0
-for uuid in $(nova list | grep -E '(ACTIVE|ERROR|BUILD|SHUTOFF|DELETE)' | awk '{print $2;}'); do
+for uuid in $(nova list | grep -v 'BLESSED' | tail -n +4 | head -n -1 | awk '{print $2;}'); do
     nova delete $uuid
     stall=$(($stall+3))
 done
