@@ -90,11 +90,10 @@ class RootShell(SecureShell):
     '''The RootShell implements a subclass of the SecureShell,
     except we check if a sudo prefix is necessary when running commands.'''
 
-    def __init__(self, *args, **kwargs):
-        SecureShell.__init__(self, *args, **kwargs)
+    def __init__(self, host, key_path, user, port):
+        SecureShell.__init__(self, host, key_path, user, port)
         self.sudo = []
-        (whoami, err) = self.check_output('whoami')
-        if whoami != 'root':
+        if user != 'root':
             self.sudo = ['sudo']
 
     def ssh_args(self):
