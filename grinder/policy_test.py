@@ -52,7 +52,7 @@ memory_limit_mb = %d
             launched = blessed.launch(paused_on_launch=True)
             vmsctl = launched.vmsctl()
             vmsctl.clear_flag("share.enabled")
-            vmsctl.unpause()
+            launched.unpause()
 
             @Background()
             def check_memory_usage(ctl, memory_threshold):
@@ -91,7 +91,7 @@ update_interval_ms = %d
             launched = blessed.launch(paused_on_launch=True)
             vmsctl = launched.vmsctl()
             vmsctl.clear_flag("share.enabled")
-            vmsctl.unpause()
+            launched.unpause()
 
             # This test ensures a domain is allowed to burst unrestricted for a
             # minimum period of of burst_time_ms. Once this period expires,

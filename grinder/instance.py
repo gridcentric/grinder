@@ -389,6 +389,12 @@ class Instance(Notifier):
             return clones
         return clones[0]
 
+    def pause(self):
+        self.harness.nova.servers.pause(self.server)
+
+    def unpause(self):
+        self.harness.nova.servers.unpause(self.server)
+
     def instance_wait_for_ping(self):
         wait_for_ping([self.get_address()])
 

@@ -111,24 +111,22 @@ class TestSharing(harness.TestCase):
 
             # Release the brakes on the clones and assert some unsharing happens.
             for clone in clonelist:
-                vmsctl = clone.vmsctl()
-                vmsctl.unpause()
+                clone.unpause()
                 clone.assert_guest_running()
-                vmsctl.pause()
+                clone.pause()
 
             stats = target_host.get_vmsfs_stats(generation)
             assert stats['sh_cow'] > 0
 
             # Force aggressive unsharing on a single clone.
             clone  = clonelist[0]
-            vmsctl = clone.vmsctl()
 
             # Record the unshare statistics before we begin thrashing the guest
             # with random bytes.
             stats = target_host.get_vmsfs_stats(generation)
             unshare_before_force_cow = stats['sh_cow'] + stats['sh_un']
 
-            vmsctl.unpause()
+            clone.unpause()
             time.sleep(1)
             clone.thrash_balloon_memory(target_pages)
 

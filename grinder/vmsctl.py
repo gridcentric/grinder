@@ -32,12 +32,6 @@ class Vmsctl(object):
             "vmsctl %s %d " % (command, self.vmsid) + " ".join(args))
         return stdout
 
-    def pause(self):
-        self.call("pause")
-
-    def unpause(self):
-        self.call("unpause")
-
     def set_param(self, key, value):
         self.call("set", key, str(value))
 
