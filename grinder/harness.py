@@ -288,10 +288,11 @@ class TestHarness(Notifier):
         normalized_authurl = authurl.netloc + authurl.path
         normalized_authurl = normalized_authurl.replace(":", "_")
         normalized_authurl = normalized_authurl.replace("/", "_")
-        policy_lock_path = os.path.join(gettempdir(),
+        self.policy_lock_path = os.path.join(gettempdir(),
                                         "grinder-policy-lock." +
                                         normalized_authurl)
-        self.policy_lock_fp = open(policy_lock_path, 'a')
+        self.policy_lock_fp = open(self.policy_lock_path, 'a')
+        os.chmod(self.policy_lock_path, 0666)
 
     @Notifier.notify
     def setup(self):
@@ -337,7 +338,10 @@ class TestHarness(Notifier):
 
     @Notifier.notify
     def teardown(self):
-        pass
+        try:
+            os.unlink(self.policy_lock_path)
+        except OSError:
+            pass
 
     @contextmanager
     def policy(self, policy, extend=True):

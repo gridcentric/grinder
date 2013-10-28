@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Delete grinder lockfiles.
+rm -f /tmp/grinder-policy-lock.*
+
 stall=0
 for uuid in $(nova list | grep -v 'BLESSED' | tail -n +4 | head -n -1 | awk '{print $2;}'); do
     nova delete $uuid
