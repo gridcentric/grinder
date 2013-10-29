@@ -180,13 +180,16 @@ unmanaged = false
                     log.debug("Waiting for burst to end after balloon release.")
                     time.sleep(1.0)
 
-                while int(vmsctl.get_param("memory.target")) != 0:
-                    log.debug("Waiting for policyd to relax target.")
-                    time.sleep(1.0)
-
                 # Assert the limit is set to the burst limit. Allow for slight
                 # discrepancy due to policyd rounding.
-                assert int(vmsctl.get_param("memory.limit")) > \
-                    (mb2pages(memory_limit_mb + burst_size_mb) * 0.95)
+                # assert int(vmsctl.get_param("memory.limit")) > \
+                #     (mb2pages(memory_limit_mb + burst_size_mb) * 0.95)
+                while int(vmsctl.get_param("memory.limit")) < \
+                        (mb2pages(memory_limit_mb + burst_size_mb) * 0.95):
+                    log.debug("Waiting for limit relax.")
+                    time.sleep(1.0)
+
+                # Target should be relaxed as well once we've relaxed the limit.
+                assert int(vmsctl.get_param("memory.target")) == 0
 
             launched.delete()
