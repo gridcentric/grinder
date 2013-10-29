@@ -381,7 +381,7 @@ class Instance(Notifier):
                     assert instance.get_host().id == target_host
 
             if paused_on_launch:
-                self.harness.nova.servers.pause(server)
+                instance.pause()
             clones.append(instance)
 
         # Most callers expect a singleton return value
@@ -391,9 +391,11 @@ class Instance(Notifier):
 
     def pause(self):
         self.harness.nova.servers.pause(self.server)
+        wait_for_status(self.server, 'PAUSED')
 
     def unpause(self):
         self.harness.nova.servers.unpause(self.server)
+        self.wait_while_status('PAUSED')
 
     def instance_wait_for_ping(self):
         wait_for_ping([self.get_address()])
