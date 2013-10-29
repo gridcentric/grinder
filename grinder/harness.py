@@ -369,6 +369,8 @@ class TestHarness(Notifier):
                 yield
             finally:
                 flock(self.policy_lock_fp, LOCK_UN)
+        else:
+            yield
 
     @Notifier.notify
     def boot(self, image_finder, agent=True, flavor=None):
