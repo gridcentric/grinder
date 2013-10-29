@@ -21,6 +21,10 @@ for uuid in $(nova secgroup-list | grep -i 'created by grinder' | awk '{print $2
     nova secgroup-delete $uuid;
 done
 
+for snap in $(cinder snapshot-list | grep 'gridndervol-' | awk '{print $2}'); do
+    cinder snapshot-delete $snap;
+done
+
 for disk in $(cinder list | grep 'grindervol-' | awk '{print $2}'); do
     cinder delete $disk;
 done
