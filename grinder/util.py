@@ -24,6 +24,7 @@ import urlparse
 
 from . logger import log
 from . config import default_config
+
 from threading import Thread, Condition
 
 import novaclient.exceptions
@@ -302,3 +303,23 @@ class Background(object):
 
         def __exit__(self, typ, value, traceback):
             self.join()
+
+def install_policy(gcapi, policy, timeout=60):
+    # On a busy system this may timeout after the default RPC timeout, which
+    # is typically less than the grinder operations timeout (1 min vs 10
+    # min).
+    start = time.time()
+    while True:
+        try:
+            gcapi.install_policy(policy, wait=True)
+            return
+        except novaclient.exceptions.BadRequest:
+            elapsed = time.time() - start
+            if elapsed > timeout:
+                raise Exception("Failed to install policy after " +
+                                "%0.2f of %0.2f seconds." % \
+                                    (float(elapsed), float(timeout)))
+            else:
+                log.debug("Policy install failed after " +
+                          "%0.2f of %0.2f seconds. Retrying." % \
+                              (float(elapsed), float(timeout)))

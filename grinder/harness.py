@@ -17,10 +17,8 @@ import os
 import uuid
 import pytest
 import random
-from tempfile import gettempdir
 from fcntl import flock, LOCK_EX, LOCK_UN
 from contextlib import contextmanager
-from urlparse import urlparse
 
 from . logger import log
 from . config import default_config
@@ -29,6 +27,7 @@ from . util import list_filter
 from . util import wait_while_status
 from . util import wait_for_status
 from . util import wait_while_exists
+from . util import install_policy
 from . client import create_client
 from . instance import InstanceFactory
 from . host import Host
@@ -276,23 +275,7 @@ class TestHarness(Notifier):
         self.test_name = test_name
         (self.nova, self.gcapi, self.cinder, self.network) =\
                 create_client(self.config)
-
         self.installed_policy = self.config.default_policy
-
-        # This lock file is used to ensure that when grinder forks multiple
-        # processes to run tests in parallel, tests don't end up obliterating
-        # policies some other test depends on. The lock file is a function of
-        # the authurl to prevent false contention between multiple grinder runs
-        # targetting different clusters.
-        authurl = urlparse(self.config.os_auth_url)
-        normalized_authurl = authurl.netloc + authurl.path
-        normalized_authurl = normalized_authurl.replace(":", "_")
-        normalized_authurl = normalized_authurl.replace("/", "_")
-        self.policy_lock_path = os.path.join(gettempdir(),
-                                        "grinder-policy-lock." +
-                                        normalized_authurl)
-        self.policy_lock_fp = open(self.policy_lock_path, 'a')
-        os.chmod(self.policy_lock_path, 0666)
 
     @Notifier.notify
     def setup(self):
@@ -331,17 +314,15 @@ class TestHarness(Notifier):
             log.error('os_auth_url must be defined')
             assert False
 
-        # Install the default policy on the test machine. The default value for
-        # the default policy cause policyd to ignore all VMs on the host.
-        with self.policy(self.config.default_policy, extend=False):
-            pass
+        # Learn policy fp from default config. The default catch-all policy was
+        # installed during grinder startup and all custom policies are targetted
+        # to specific instances so they shouldn't interfere with any other
+        # tests.
+        self.policy_lock_fp = self.config.policy_lock_fp
 
     @Notifier.notify
     def teardown(self):
-        try:
-            os.unlink(self.policy_lock_path)
-        except OSError:
-            pass
+        pass
 
     @contextmanager
     def policy(self, policy, extend=True):
@@ -365,7 +346,8 @@ class TestHarness(Notifier):
 
             flock(self.policy_lock_fp, LOCK_EX)
             try:
-                self.gcapi.install_policy(self.installed_policy, wait=True)
+                install_policy(self.gcapi, self.installed_policy,
+                               self.config.ops_timeout)
                 yield
             finally:
                 flock(self.policy_lock_fp, LOCK_UN)
@@ -424,6 +406,13 @@ class TestCase(object):
     def setup_method(self, method):
         self.config = default_config
         self.harness = TestHarness(self.config, test_name)
+
+        # Early discard truculent image/arch/platform combos
+        image_finder = getattr(method, 'image_config', None)
+        if image_finder is not None:
+            # This will result in a skip
+            image_config = image_finder.find(self.harness.nova, self.config)
+
         self.harness.setup()
         requirements = get_test_marker(method, 'requirements', ())
         if not self.harness.satisfies(requirements):

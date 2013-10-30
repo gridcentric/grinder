@@ -13,18 +13,23 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
+import ConfigParser
+import exceptions
+import inspect
 import logging
+import novaclient
+import os
+from socket import gethostname
+from tempfile import gettempdir
+from urlparse import urlparse
+
 from . config import default_config, Image
 from . harness import ImageFinder, get_test_distros, get_test_archs, get_test_platforms
 from . client import create_nova_client
+from . client import GcApi
 from . logger import log
-from . requirements import AVAILABILITY_ZONE
-import novaclient
-import ConfigParser
-from socket import gethostname
-import exceptions
-import inspect
+from . requirements import INSTALL_POLICY
+from . util import install_policy
 
 def parse_option(value, argspec):
     '''Parses an option value qemu style: comma-separated, optional keys.
@@ -153,9 +158,10 @@ def pytest_configure(config):
         default_config.tc_image_ref = cfg.get('compute', 'image_ref')
         default_config.tc_flavor_ref = cfg.get('compute', 'flavor_ref')
 
-        client = create_nova_client(default_config)
         # Create an instance of Image for the parameters obtained from
         # tempest.conf. Try to find an image by ID or name.
+        image_details = None
+        client = create_nova_client(default_config)
         try:
             image_details = client.images.find(id=default_config.tc_image_ref)
         except novaclient.exceptions.NotFound:
@@ -164,13 +170,17 @@ def pytest_configure(config):
                     name=default_config.tc_image_ref)
             except novaclient.exceptions.NotFound, e:
                 log.error(str(e))
-                image_details = None
+        except Exception:
+            # Some connection error happened
+            pass
         if image_details != None:
             log.debug('Image name: %s' % image_details.name)
             image = Image(image_details.name, default_config.tc_distro,
                           default_config.tc_arch, default_config.tc_user)
             log.debug('Appending image %s' % str(image))
             default_config.images.append(image)
+
+        default_config.flavor_name = None
         try:
             tc_flavor = client.flavors.find(id=default_config.tc_flavor_ref)
             default_config.flavor_name = tc_flavor.name
@@ -181,9 +191,12 @@ def pytest_configure(config):
                 default_config.flavor_name = tc_flavor.name
             except novaclient.exceptions.NotFound, e:
                 log.error(str(e))
-                default_config.flavor_name = None
-        log.debug('Flavor used (read from %s): %s' % (tempest_config,
-            default_config.flavor_name))
+        except Exception:
+            # Some connection error happened
+            pass
+        if default_config.flavor_name is not None:
+            log.debug('Flavor used (read from %s): %s' % (tempest_config,
+                default_config.flavor_name))
 
     # Gather list of hosts: either as defined in pytest.ini or all hosts
     # available.
@@ -229,6 +242,30 @@ def pytest_configure(config):
     log.debug('hosts: %s' % default_config.hosts)
     log.debug('hosts_without_gridcentric: %s' % default_config.hosts_without_gridcentric)
 
+    # Install policy lock and default policy. Tack onto default config. This
+    # lock file is used to ensure that when grinder forks multiple processes to
+    # run tests in parallel, tests don't end up obliterating policies some other
+    # test depends on. The lock file is a function of the authurl to prevent
+    # false contention between multiple grinder runs targetting different
+    # clusters. Don't do pointless work. This could be a run just to do
+    # --collectonly
+    if default_config.os_auth_url is not None:
+        authurl = urlparse(default_config.os_auth_url)
+        normalized_authurl = authurl.netloc + authurl.path
+        normalized_authurl = normalized_authurl.replace(":", "_")
+        normalized_authurl = normalized_authurl.replace("/", "_")
+        default_config.policy_lock_path = os.path.join(gettempdir(),
+                                           "grinder-policy-lock." +
+                                            normalized_authurl)
+        default_config.policy_lock_fp = open(default_config.policy_lock_path, 'a')
+        os.chmod(default_config.policy_lock_path, 0666)
+        # Install the default policy on the test machine. The default value for
+        # the default policy causes policyd to ignore all VMs on the host.
+        client = create_nova_client(default_config)
+        if INSTALL_POLICY.check(client):
+            install_policy(GcApi(client), default_config.default_policy,
+                           timeout=default_config.ops_timeout)
+
     default_config.post_config()
 
 def pytest_generate_tests(metafunc):
@@ -237,3 +274,15 @@ def pytest_generate_tests(metafunc):
                                 get_test_distros(metafunc.function),
                                 get_test_archs(metafunc.function),
                                 get_test_platforms(metafunc.function))
+
+def pytest_unconfigure(config):
+    try:
+        os.unlink(default_config.policy_lock_path)
+    except OSError:
+        pass
+    try:
+        default_config.policy_lock_fp.close()
+    except OSError:
+        pass
+
+
