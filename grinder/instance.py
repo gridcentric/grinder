@@ -723,6 +723,7 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
         self.root_command("chmod a+x %s" % params_path)
 
     def read_params(self):
+        output = None
         attempt = 0
         while attempt < 100:
             try:
