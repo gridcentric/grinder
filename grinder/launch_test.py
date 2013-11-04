@@ -39,7 +39,7 @@ class TestLaunch(harness.TestCase):
 
     @harness.requires(requirements.BLESS_NAME)
     def test_bless_with_name(self, image_finder):
-        name = 'bless-with-name-{}'.format(uuid.uuid4())
+        name = 'bless-with-name-{0}'.format(uuid.uuid4())
         with self.harness.booted(image_finder) as master:
             blessed = master.bless(name=name)
             # Assertions performed in bless
@@ -232,7 +232,7 @@ class TestLaunch(harness.TestCase):
 
     @harness.requires(requirements.LAUNCH_NAME)
     def test_launch_with_name(self, image_finder):
-        test_name = 'launch-name-{}'.format(str(uuid.uuid4()))
+        test_name = 'launch-name-{0}'.format(str(uuid.uuid4()))
         with self.harness.blessed(image_finder) as blessed:
             launched = blessed.launch(name=test_name)
             # blessed.launch will take care of assertions
