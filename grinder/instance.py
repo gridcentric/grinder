@@ -236,7 +236,7 @@ class Instance(Notifier):
         instance.wait_for_bless()
 
         # Now get the list of snapshots afterwards to discern what was
-        # newly created
+        # newly created.
         # (OmgLag): Too bad we can't use python sets for these
         # since Cinder resources don't have __eq__ overloaded
         afterwards_snapshots = self.get_volume_snapshots()
@@ -249,7 +249,6 @@ class Instance(Notifier):
                     break
             if (isnew):
                 created_snapshots.append(afterwards_snapshot)
-
         instance.volume_snapshots = created_snapshots
 
         self.breadcrumbs.add('Post bless, child is %s' % instance.id)
@@ -439,6 +438,15 @@ class Instance(Notifier):
                 volume.detach()
                 wait_for_status(volume, 'available')
         log.info('Deleting %s', self)
+        # Extra care to ensure we don't leak snapshots
+        # (which later fail volume deletion)
+        if not self.is_clone:
+            while True:
+                snapshots = self.get_volume_snapshots()
+                if snapshots == []:
+                    break
+                for snap in snapshots:
+                    wait_while_exists(snap)
         self.server.delete()
         self.wait_while_exists()
         if (self.is_clone):
