@@ -222,13 +222,15 @@ def pytest_configure(config):
         if len(default_config.hosts_without_gridcentric) == 0:
             default_config.hosts_without_gridcentric = [x for x in hosts if
                 not (set(gc_services) & set(host_dict.get(x, [])))]
-            if len(default_config.hosts_without_gridcentric) == 0:
-                if not gethostname() in gc_services:
-                    default_config.hosts_without_gridcentric = [gethostname()]
 
         if len(default_config.hosts) == 0:
             default_config.hosts = [x for x in hosts if
                 set(gc_services) & set(host_dict.get(x, []))]
+
+        # Last ditch effort for host without: localhost
+        if len(default_config.hosts_without_gridcentric) == 0:
+            if not gethostname() in default_config.hosts:
+                default_config.hosts_without_gridcentric = [gethostname()]
 
         # Remove duplicates
         default_config.hosts_without_gridcentric =\
@@ -236,8 +238,8 @@ def pytest_configure(config):
         default_config.hosts = list(set(default_config.hosts))
 
     except exceptions.AttributeError:
-        log.debug('You have not configure your nova credentials, or your version of novaclient')
-        log.debug('does not support HostManager.list_aall. Please consider updating novaclient.')
+        log.debug('You have not configured your nova credentials, or your version of novaclient')
+        log.debug('does not support HostManager.list_all. Please consider updating novaclient.')
 
     log.debug('hosts: %s' % default_config.hosts)
     log.debug('hosts_without_gridcentric: %s' % default_config.hosts_without_gridcentric)
@@ -248,8 +250,9 @@ def pytest_configure(config):
     # test depends on. The lock file is a function of the authurl to prevent
     # false contention between multiple grinder runs targetting different
     # clusters. Don't do pointless work. This could be a run just to do
-    # --collectonly
-    if default_config.os_auth_url is not None:
+    # --collectonly.
+    if (default_config.os_auth_url is not None and
+        default_config.hosts != []):
         authurl = urlparse(default_config.os_auth_url)
         normalized_authurl = authurl.netloc + authurl.path
         normalized_authurl = normalized_authurl.replace(":", "_")
@@ -259,12 +262,14 @@ def pytest_configure(config):
                                             normalized_authurl)
         default_config.policy_lock_fp = open(default_config.policy_lock_path, 'a')
         os.chmod(default_config.policy_lock_path, 0666)
-        # Install the default policy on the test machine. The default value for
-        # the default policy causes policyd to ignore all VMs on the host.
+        # Install the default policy on the test machine(s). The default value
+        # for the default policy causes policyd to ignore all VMs on the host.
         client = create_nova_client(default_config)
         if INSTALL_POLICY.check(client):
             install_policy(GcApi(client), default_config.default_policy,
                            timeout=default_config.ops_timeout)
+    else:
+        default_config.policy_lock_path = None
 
     default_config.post_config()
 
@@ -276,6 +281,8 @@ def pytest_generate_tests(metafunc):
                                 get_test_platforms(metafunc.function))
 
 def pytest_unconfigure(config):
+    if default_config.policy_lock_path is None:
+        return
     try:
         os.unlink(default_config.policy_lock_path)
     except OSError:
