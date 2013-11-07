@@ -416,7 +416,7 @@ class TestCase(object):
         self.harness.setup()
         requirements = get_test_marker(method, 'requirements', ())
         if not self.harness.satisfies(requirements):
-            pytest.skip('Requirements not met for {}'.format(method.__name__))
+            pytest.skip('Requirements not met for {0}'.format(method.__name__))
         if get_test_marker(method, 'hosttest', False):
             if not(default_config.host_user):
                 pytest.skip('Need host user to run %s.' % method.__name__)
