@@ -17,6 +17,7 @@ import os
 import pytest
 import sys
 import time
+from datetime import timedelta
 
 from threading import Lock, Condition
 
@@ -209,3 +210,32 @@ def test_background():
                 with l:
                     iput.append(True)
                 time.sleep(0.1)
+
+def test_timedelta_total_seconds():
+    # Take care not to directly compare results of float operations
+    # for exact values!
+    assert util.timedelta_total_seconds(timedelta(0, 0, 0)) == 0.0
+    assert util.timedelta_total_seconds(timedelta(0, 1, 0)) == 1.0
+    assert abs(util.timedelta_total_seconds(timedelta(1, 0, 1)) -
+               ((24 * 60 * 60) + 0.000001)) < 0.001
+    assert abs(util.timedelta_total_seconds(timedelta(1, 1, 1)) -
+               ((24 * 60 * 60) + 1 + 0.000001)) < 0.001
+    assert abs(util.timedelta_total_seconds(timedelta(1, 5, 1)) -
+               ((24 * 60 * 60) + 5 + 0.000001)) < 0.001
+    assert abs(util.timedelta_total_seconds(timedelta(1, 5, 100)) -
+               ((24 * 60 * 60) + 5 + 0.0001)) < 0.001
+    assert abs(util.timedelta_total_seconds(timedelta(3, 5, 100)) -
+               ((3 * 24 * 60 * 60) + 5 + 0.0001)) < 0.001
+    assert abs(util.timedelta_total_seconds(timedelta(0, 5, 100)) -
+               (5 + 0.0001)) < 0.001
+    assert abs(util.timedelta_total_seconds(timedelta(3, 0, 100)) -
+               ((3 * 24 * 60 * 60) + 0.0001)) < 0.001
+    assert abs(util.timedelta_total_seconds(timedelta(3, 5, 0)) -
+               ((3 * 24 * 60 * 60) + 5)) < 0.001
+
+
+
+
+
+
+

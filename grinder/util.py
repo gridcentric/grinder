@@ -323,3 +323,12 @@ def install_policy(gcapi, policy, timeout=60):
                 log.debug("Policy install failed after " +
                           "%0.2f of %0.2f seconds. Retrying." % \
                               (float(elapsed), float(timeout)))
+
+# Backport datetime.total_seconds() from Python 2.7 since grinder
+# needs to work on Python 2.6 (on RDO).
+def timedelta_total_seconds(delta):
+    total_seconds = 0.0
+    total_seconds += delta.days * 86400 # 24 * 60 * 60
+    total_seconds += delta.seconds
+    total_seconds += delta.microseconds / 1000000
+    return total_seconds

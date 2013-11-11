@@ -23,6 +23,7 @@ from . logger import log
 from . import requirements
 from . import instance
 from . util import Background, mb2pages
+from . util import timedelta_total_seconds
 
 LIMIT_UPPER_HEADROOM_PAGES = 256
 
@@ -152,7 +153,7 @@ unmanaged = false
                     start_time = datetime.now()
                     launched.allocate_balloon(int(
                         mb2pages(memory_limit_mb + burst_size_mb) * 0.50))
-                    alloc_time = (datetime.now() - start_time).total_seconds()
+                    alloc_time = timedelta_total_seconds(datetime.now() - start_time)
                     remaining_time = (float(burst_time_ms) / 1000) - alloc_time
 
                     # Pad the remaining time slightly to avoid clipping samples
