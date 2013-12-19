@@ -132,13 +132,23 @@ def create_network_client(config):
 
     # Maybe we have old schoool nova-network. Watch out
     try:
-        return getattr(clientmanager.ClientManager(
-            tenant_name=config.os_tenant_name,
-            username=config.os_username,
-            password=config.os_password,
-            auth_url=config.os_auth_url,
-            region_name=config.os_region_name,
-            api_version = {'network' : '2.0'}), client_name)
+        if client_name == 'neutron':
+            return getattr(clientmanager.ClientManager(
+                endpoint_type='publicURL',
+                tenant_name=config.os_tenant_name,
+                username=config.os_username,
+                password=config.os_password,
+                auth_url=config.os_auth_url,
+                region_name=config.os_region_name,
+                api_version = {'network' : '2.0'}), client_name)
+        else:
+            return getattr(clientmanager.ClientManager(
+                tenant_name=config.os_tenant_name,
+                username=config.os_username,
+                password=config.os_password,
+                auth_url=config.os_auth_url,
+                region_name=config.os_region_name,
+                api_version = {'network' : '2.0'}), client_name)
     except EndpointNotFound:
         log.warn("Keystone does not expose a network (quantum/neutron) "
                  "service for this OpenStack cloud.")
