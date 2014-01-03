@@ -167,13 +167,35 @@ class TestLaunch(harness.TestCase):
             # Remember the instance's ID before we delete the instance.
             server_id = launched.get_raw_id()
 
+            # Remember the net interface ID before deleting the instance
+            # Using config.network_name to determine quantum/neutron vs nova-network
+            if self.harness.config.network_name is not None:
+                # Quantum/Neutron uses the "tap-NNNNNN" as the chain identifer
+                # They use "most" of the interface_id - 10 of the 11 digits
+                interface_id = host.get_dom_interface_id(server_id)[:10]
+                if 'neutron' in self.harness.network.list_agents()['agents'][0]['binary']:
+                    #Neutron
+                    # Neutron uses "most" of the interface_id - 10 of the 11 digits
+                    server_iptables_chain = "neutron-openvswi-i%s" % interface_id
+                    iptables_master_rule = 'neutron-openvswi-sg-chain'
+                else:
+                    # Quantum
+                    iptables_master_rule = 'quantum-openvswi-sg-chain'
+                    server_iptables_chain = "quantum-openvswi-i%s" % interface_id
+            else:
+                # Nova-network
+                log.Debug("Nova network assumed. Set config.network_name to use Quantum/Neutron")
+                server_iptables_chain = "nova-compute-inst-%s" % (str(id))
+                iptables_master_rule = 'nova-compute-local'
+
             # Ensure that iptables rules exist before deleting the instance.
             assert launched.get_iptables_rules()[0]
             assert [] != launched.get_iptables_rules()[1]
             launched.delete()
 
             # Ensure that the rules are cleaned up after deleting the instance.
-            assert (False, []) == host.get_nova_compute_instance_filter_rules(server_id)
+            assert (False, []) == host.get_nova_compute_instance_filter_rules(
+                iptables_master_rule, server_iptables_chain)
 
             # Cleanup the blessed instance.
             blessed.discard()

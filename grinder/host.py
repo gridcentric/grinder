@@ -15,6 +15,8 @@
 
 import re
 
+from xml.dom.minidom import parseString
+
 from . logger import log
 from . shell import RootShell
 
@@ -102,14 +104,33 @@ class Host(object):
                     (chain, self.id, str(modified_rules)))
         return modified_rules
 
+    # Return the unique string that Neutron uses for tracking VM network devices
+    # between libvirt domains, ipchains and neutron networks
+    # Return None if not found
+    def get_dom_interface_id(self, id):
+        virsh_id_string = 'instance-' + hex(id)[2:].zfill(8)
+        stdout, stderr = self.check_output('virsh dumpxml %s' % virsh_id_string)
+        try:
+            doc = parseString(stdout)
+            target = doc.getElementsByTagName('interface')[0].getElementsByTagName('target')
+            target_dev = target[0].getAttribute('dev')
+            # Return just the ID portion of the string ex:
+            # target_dev is "tap08e2be78-d8" - return "08e2be78-d8"
+            return target_dev[3:]
+        except:
+            log.error("Failed to parse XML for Virsh domain %s" % virsh_id_string)
+            return None
+
     # Return a (bool, [list]), where bool indicates that a chain
     # for this instance exists in the main filtering chain, and
     # the list contains the rules for the instance chain as per
     # __get_iptables_rules. That way we can catch cases when
     # empty chains are left dangling
-    def get_nova_compute_instance_filter_rules(self, id):
-        server_iptables_chain = "nova-compute-inst-%s" % (str(id))
-        for rule in self.__get_iptables_rules('nova-compute-local'):
+    # Note:
+    # Grizzly and earlier use the INT(RAW ID) of the dom to identify rules
+    # Havana and later uses the tapNNNNN instead of the raw ID to identify rules
+    def get_nova_compute_instance_filter_rules(self, iptables_master_rule, server_iptables_chain):
+        for rule in self.__get_iptables_rules(iptables_master_rule):
             if server_iptables_chain in rule:
                 # This server has rules defined on this host.
                 # Grab the server rules for that chain.
