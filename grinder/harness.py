@@ -66,7 +66,6 @@ def boot(client, network_client, config, image_config=None, flavor=None):
         nics = [{'net-id' : network_uuid}]
     else:
         nics = None
-
     server = client.servers.create(name=name,
                                    image=image.id,
                                    key_name=image_config.key_name,
@@ -359,7 +358,7 @@ class TestHarness(Notifier):
         image_config = image_finder.find(self.nova, self.config)
         server = boot(self.nova, self.network, self.config, image_config, flavor)
         instance = InstanceFactory.create(self, server, image_config)
-        # ensure the instance is booted, ping-able and ssh-able.
+        # ensure the instance is booted, (ping-able and ssh-able for linux)
         instance.wait_for_boot()
         if agent:
             try:

@@ -837,7 +837,17 @@ cat %s > %s
     def allocate_balloon(self, size_pages):
         # Remount tmpfs with a 16MiB headroom on top of the requested size.
         tmpfs_size = (size_pages << 12) + (16 << 20)
-        self.root_command("mount -o remount,size=%d /dev/shm" % (tmpfs_size))
+        # The remount was failing on Havana.
+        # Joseph Kubik - Jan 9th, 2014
+        try:
+            self.root_command("mount -o remount,size=%d /dev/shm" % (tmpfs_size))
+        except:
+            log.error("Remounting /dev/shm failed!")
+            (output, _) = self.root_command("ps aux")
+            log.error("ps aux shows:\n%s", output)
+            (output, _) = self.root_command("free")
+            log.error("free shows:\n%s", output)
+            raise
         # Convert target to 2M super pages.
         self.root_command("dd if=/dev/urandom of=/dev/shm/file bs=2M count=%d" % (size_pages >> 9))
         (md5, _) = self.root_command("md5sum /dev/shm/file")
