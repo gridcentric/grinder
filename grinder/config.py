@@ -132,7 +132,7 @@ class Config(object):
         # A custom Windows agent location (passed to the Windows
         # TestListener). The location must be a url directly to the msi file.
         self.windows_agent_location = \
-            "http://downloads.gridcentriclabs.com/packages/public/windows/"
+            "http://downloads.gridcentric.com/packages/agent/windows/"
 
         # The arch to use for non-arch tests (i.e., tests that aren't sensitive
         # to the arch).
