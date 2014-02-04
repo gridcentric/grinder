@@ -184,7 +184,7 @@ class TestLaunch(harness.TestCase):
                     server_iptables_chain = "quantum-openvswi-i%s" % interface_id
             else:
                 # Nova-network
-                log.Debug("Nova network assumed. Set config.network_name to use Quantum/Neutron")
+                log.debug("Nova network assumed. Set config.network_name to use Quantum/Neutron")
                 server_iptables_chain = "nova-compute-inst-%s" % (str(id))
                 iptables_master_rule = 'nova-compute-local'
 
