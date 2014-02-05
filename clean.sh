@@ -28,3 +28,9 @@ done
 for disk in $(cinder list | grep 'grindervol-' | awk '{print $2}'); do
     cinder delete $disk;
 done
+
+# Instances in ERROR state that remain after all of the above, are probably failed
+# live-image-create entries
+for uuid in $(nova list | awk '{print $2}' | grep -v ID); do
+    echo $uuid; nova discard $uuid;
+done
