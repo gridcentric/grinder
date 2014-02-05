@@ -22,6 +22,7 @@ from novaclient.exceptions import ClientException, BadRequest
 from . import harness
 from . logger import log
 from . util import assert_raises
+from . util import wait_for
 from . import requirements
 from . import host
 from . import instance
@@ -194,8 +195,10 @@ class TestLaunch(harness.TestCase):
             launched.delete()
 
             # Ensure that the rules are cleaned up after deleting the instance.
-            assert (False, []) == host.get_nova_compute_instance_filter_rules(
-                iptables_master_rule, server_iptables_chain)
+            wait_for('the iptables rules to be cleaned up for interface: %s'\
+                     % interface_id,\
+                    lambda: (False, []) == host.get_nova_compute_instance_filter_rules(\
+                        iptables_master_rule, server_iptables_chain))
 
             # Cleanup the blessed instance.
             blessed.discard()
