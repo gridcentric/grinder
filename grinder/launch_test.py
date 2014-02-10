@@ -170,6 +170,7 @@ class TestLaunch(harness.TestCase):
 
             # Remember the net interface ID before deleting the instance
             # Using config.network_name to determine quantum/neutron vs nova-network
+            interface_id = None
             if self.harness.config.network_name is not None:
                 # Quantum/Neutron uses the "tap-NNNNNN" as the chain identifer
                 # They use "most" of the interface_id - 10 of the 11 digits

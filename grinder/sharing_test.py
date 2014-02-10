@@ -103,7 +103,7 @@ class TestSharing(harness.TestCase):
             expect_ratio = float(self.config.test_sharing_sharing_clones) *\
                                  self.config.test_sharing_share_ratio
             real_ratio   = float(resident) / float(allocated)
-            log.debug("For %d clones on host %s: resident %d allocated %d "
+            log.info("For %d clones on host %s: resident %d allocated %d "
                       "ratio %f expect %f" %
                         (self.config.test_sharing_sharing_clones, target_host.id,
                             resident, allocated, real_ratio, expect_ratio))
