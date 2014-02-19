@@ -66,6 +66,8 @@ def boot(client, network_client, config, image_config=None, flavor=None):
         nics = [{'net-id' : network_uuid}]
     else:
         nics = None
+
+    user_data_grinder_UUID = str(uuid.uuid4())
     server = client.servers.create(name=name,
                                    image=image.id,
                                    key_name=image_config.key_name,
@@ -73,8 +75,10 @@ def boot(client, network_client, config, image_config=None, flavor=None):
                                    availability_zone=host_az,
                                    security_groups=[config.security_group],
                                    flavor=flavor_id,
-                                   nics=nics)
+                                   nics=nics,
+                                   userdata=user_data_grinder_UUID)
     setattr(server, 'image_config', image_config)
+    setattr(server, 'user_data_grinder_UUID', user_data_grinder_UUID)
     wait_while_status(server, 'BUILD')
     assert server.status == 'ACTIVE'
     assert getattr(server, 'OS-EXT-STS:power_state') == 1

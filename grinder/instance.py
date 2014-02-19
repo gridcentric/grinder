@@ -93,6 +93,7 @@ class Instance(Notifier):
         if status == 'ACTIVE':
             self.instance_wait_for_ping()
             wait_for_shell(self.get_shell())
+            self.ensure_cloudinit_done()
 
     def wait_while_host(self, host):
         wait_for('%s to not be on host %s' % (self, host),
@@ -357,19 +358,16 @@ class Instance(Notifier):
                 assert self.server.name in launched.name
             else:
                 assert launched.name == name
-
             if keypair != None:
                 assert launched.key_name == keypair.name
 
-            # Retrieve the server from nova-compute. It should have our metadata added.
-            server = self.harness.nova.servers.get(launched.id)
-            assert server.metadata['launched_from'] == str(self.id)
-
-            instance = self.__class__(self.harness, server, self.image_config,
+            instance = self.__class__(self.harness, launched, self.image_config,
                                       breadcrumbs=None, snapshot=None,
                                       keypair=keypair)
+            assert instance.server.metadata['launched_from'] == str(self.id)
             instance.is_clone = True
             instance.breadcrumbs = self.snapshot.instantiate(instance)
+            # wait_for_boot has a handy side effect: It calls .get() so the client item is refreshed
             instance.wait_for_boot(status)
 
             # Only ensure cloud init for instances that are active. We know ssh
@@ -380,7 +378,7 @@ class Instance(Notifier):
 
             # Make sure all volumes are here
             instance.volumes = self.harness.cinder.volumes.list(
-                search_opts={'instance_uuid': getattr(server, 'id')})
+                search_opts={'instance_uuid': getattr(launched, 'id')})
             # (OmgLag): Recreate this list of IDs for each launched instance
             # since we're going to be popping IDs as they're found
             snapshot_ids = [s.id for s in self.volume_snapshots]
@@ -733,16 +731,29 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
         # ssh was up at least once
         def check_cloudinit_done():
             try:
-                (key, stderr) =\
-                    self.root_command("cat %s" % self.RSA_HOST_KEY_PATH)
-                (tmpkey, stderr) =\
-                    self.root_command("cat %s" % self.TMP_SSH_KEY_PATH)
-                assert key == tmpkey
+                if self.is_clone:
+                    # This works on a clone (bless -> launch) because we can't access
+                    # the VM via IP before vmsagent has reset the mac addr
+                    (key, stderr) =\
+                        self.root_command("cat %s" % self.RSA_HOST_KEY_PATH)
+                    (tmpkey, stderr) =\
+                        self.root_command("cat %s" % self.TMP_SSH_KEY_PATH)
+                    assert key == tmpkey
+                else:
+                    # For a new instance:
+                    # If /var/lib/cloud/instance/boot-finished exists cloud-init
+                    # finished at least once
+                    # If we pass in userdata it will be in /var/lib/cloud/instance/user-data.txt
+                    if self.server.user_data_grinder_UUID is not None:
+                        (userdata, stderr) =\
+                            self.root_command("cat /var/lib/cloud/instance/user-data.txt")
+                        assert self.server.user_data_grinder_UUID in userdata
+                    self.root_command("cat /var/lib/cloud/instance/boot-finished")
                 return True
             except Exception:
                 return False
 
-        wait_for("Cloud init to be done", check_cloudinit_done)
+        wait_for("Cloud-init to be done", check_cloudinit_done)
 
     def setup_params(self):
         params_path = "/etc/gridcentric/clone.d/90_clone_params"
