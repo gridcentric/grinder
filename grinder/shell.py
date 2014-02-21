@@ -21,9 +21,58 @@ import time
 from . logger import log
 from . util import wait_for
 
-class SecureShell(object):
+class UnixShell(object):
+    def create_command(self, command):
+        raise NotImplementedError()
 
+    def check_output(self, command, input=None,
+                     expected_rc=0, expected_output=None,
+                     exc=False):
+        # Run the given command through a shell on the other end.
+        command = self.create_command(command)
+        p = subprocess.Popen(command,
+                             stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,
+                             close_fds=True)
+
+        # Always execute the command in one go, we don't support
+        # running long running commands in the test framework.
+        (stdout, stderr) = p.communicate(input)
+        (stdout, stderr) = (stdout.strip(), stderr.strip())
+        if (expected_rc != None and expected_rc != p.returncode) or \
+           (expected_output != None and stdout != expected_output):
+            errormsg = 'Command failed: %s\n' \
+                       'returncode: %d\n' \
+                       '-------------------------\n' \
+                       'stdout:\n%s\n' \
+                       '-------------------------\n' \
+                       'stderr:\n%s' % (" ".join(command), p.returncode, stdout, stderr)
+            if exc:
+                raise Exception(errormsg)
+            log.error(errormsg)
+            assert (expected_rc == None or expected_rc == p.returncode)
+            assert (expected_output == None or expected_output == stdout)
+
+        return (stdout, stderr)
+
+    def is_alive(self):
+        '''Runs a dummy command through the shell. Returns True if the
+        shell is responsive, false otherwise. Useful for ensuring the
+        shell is operational.'''
+        try:
+            self.check_output('true', exc=True)
+            return True
+        except:
+            return False
+
+class LocalShell(UnixShell):
+    def create_command(self, command):
+        return ['sh', '-c', "%s" % command]
+
+class SecureShell(UnixShell):
     def __init__(self, host, key_path, user, port):
+        UnixShell.__init__(self)
         self.host = host
         self.key_path = key_path
         self.user = user
@@ -46,46 +95,8 @@ class SecureShell(object):
                 "%s@%s" % (self.user, self.host),
                ]
 
-    def check_output(self, command, input=None,
-                     expected_rc=0, expected_output=None,
-                     exc=False):
-        # Run the given command through a shell on the other end.
-        command = self.ssh_args() + ['sh', '-c', "'%s'" % command]
-        ssh = subprocess.Popen(command,
-                               stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               close_fds=True)
-
-        # Always execute the command in one go, we don't support
-        # running long running commands in the test framework.
-        (stdout, stderr) = ssh.communicate(input)
-        (stdout, stderr) = (stdout.strip(), stderr.strip())
-        if (expected_rc != None and expected_rc != ssh.returncode) or \
-           (expected_output != None and stdout != expected_output):
-            errormsg = 'Command failed: %s\n' \
-                       'returncode: %d\n' \
-                       '-------------------------\n' \
-                       'stdout:\n%s\n' \
-                       '-------------------------\n' \
-                       'stderr:\n%s' % (" ".join(command), ssh.returncode, stdout, stderr)
-            if exc:
-                raise Exception(errormsg)
-            log.error(errormsg)
-            assert (expected_rc == None or expected_rc == ssh.returncode)
-            assert (expected_output == None or expected_output == stdout)
-
-        return (stdout, stderr)
-
-    def is_alive(self):
-        '''Runs a dummy command through the shell. Returns True if the
-        shell is responsive, false otherwise. Useful for ensuring the
-        shell is operational.'''
-        try:
-            self.check_output('true', exc=True)
-            return True
-        except:
-            return False
+    def create_command(self, command):
+        return self.ssh_args() + ['sh', '-c', "'%s'" % command]
 
 class RootShell(SecureShell):
 
