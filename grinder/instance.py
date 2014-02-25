@@ -17,14 +17,12 @@ import json
 import time
 import random
 import tempfile
-import re
 
 from . logger import log
 from . util import Notifier
 from . shell import SecureShell
 from . shell import RootShell
 from . shell import WinShell
-from . shell import LocalShell
 from . host import Host
 from . vmsctl import Vmsctl
 from . breadcrumbs import SSHBreadcrumbs
@@ -954,25 +952,10 @@ class WindowsInstance(Instance):
             split = False
         arch = self.image_config.arch
         if not agent_location.endswith(".msi"):
-            # The filename changes each build, but we can build the URL from git tags
-            local_shell = LocalShell()
-            (stdout, stderr) =\
-                local_shell.check_output("/usr/bin/git ls-remote git@github.com:gridcentric/agent-windows.git | grep \"build/Agent\"")
-            # Turn "ade38e4d46bc8f8f34c8cdfb687e4941fd07d91b        refs/tags/build/Agent-2.97^{}"
-            # into a list of build numbers
-            tags = re.sub('(\n.*\t)|(^.*\t)', '\n', stdout)
-            tags = re.sub('\^\{\}', '', tags)
-            tags = re.sub('\nrefs/tags/build/Agent-1.[0-9]+', '\n', tags)
-            tags = re.sub('refs/tags/build/Agent-2.', '', tags)
-            tags = tags.lstrip()
-            builds = re.split('\n',tags)
-            builds.sort(key=int)
-            latest_build = builds[-1]
-
             if arch == "64":
-                agent_location += "/gc-agent-2.0." + latest_build + "-x64-release.msi"
+                agent_location += "/gc-agent-latest-amd64-release.msi"
             else:
-                agent_location += "/gc-agent-2.0." + latest_build + "-x86-release.msi"
+                agent_location += "/gc-agent-latest-x86-release.msi"
         else:
             if arch == "64" and agent_location.find("amd64") == -1:
                 agent_location = agent_location.replace("x86", "amd64")
@@ -980,7 +963,7 @@ class WindowsInstance(Instance):
                 agent_location = agent_location.replace("amd64", "x86")
         if split:
             agent_location = ' '.join([agent_location, user, password])
-        log.debug("Installing agent from: %s", agent_location)
+
         shell = self.get_shell()
         shell.check_output('agent-update %s' % agent_location,
                            timeout=self.harness.config.ops_timeout)
