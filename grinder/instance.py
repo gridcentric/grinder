@@ -370,12 +370,6 @@ class Instance(Notifier):
             # wait_for_boot has a handy side effect: It calls .get() so the client item is refreshed
             instance.wait_for_boot(status)
 
-            # Only ensure cloud init for instances that are active. We know ssh
-            #et al will be dead for other status
-            if launched.status == 'ACTIVE':
-                # Only ensure cloud init for launched clones
-                instance.ensure_cloudinit_done()
-
             # Make sure all volumes are here
             instance.volumes = self.harness.cinder.volumes.list(
                 search_opts={'instance_uuid': getattr(launched, 'id')})
