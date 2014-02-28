@@ -137,7 +137,7 @@ class WinShell(object):
 
             # If timeout is None, we don't expect a response back.
             if timeout is None:
-                return
+                return (None, None)
 
             # Do a nonblocking wait for 'timeout'.
             sock.setblocking(0)
