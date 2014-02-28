@@ -140,3 +140,15 @@ class Host(object):
         # No chains and no rules
         return (False, [])
 
+    # Because hooks are not exposed as a capability (and could potentially be
+    # enabled on a per compute host basis), do a rudimentary check of the hooks
+    # dir (which the cobalt packages lay out with some dumb readmes).
+    def check_supports_hooks(self):
+        # exc=True causes an exception if rc != 0 (no cobalt hooks dir).
+        # If we catch other exceptions, we might as well decalre defeat.
+        try:
+            stdout, stderr = self.check_output('stat /etc/cobalt/hooks.d/',
+                                                exc=True)
+        except Exception:
+            return False
+
