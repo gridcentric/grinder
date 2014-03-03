@@ -29,7 +29,7 @@ class TestMigration(harness.TestCase):
             py.test.skip('Skipping migration tests')
         if len(self.harness.config.hosts) < 2:
             py.test.skip('Need at least 2 hosts to do migration.')
-        with self.harness.booted(image_finder) as master:
+        with self.harness.booted(image_finder, agent=False) as master:
             host = master.get_host()
             dest = Host([h for h in self.config.hosts if h != host.id][0], self.harness.config)
             assert host.id != dest.id
@@ -41,7 +41,7 @@ class TestMigration(harness.TestCase):
             py.test.skip('Skipping migration tests')
         if len(self.harness.config.hosts_without_gridcentric) == 0:
             py.test.skip('Need at least one host without gridcentric to test for migration errors.')
-        with self.harness.booted(image_finder) as master:
+        with self.harness.booted(image_finder, agent=False) as master:
             host = master.get_host()
 
             def fail_migrate(dest):
@@ -70,7 +70,7 @@ class TestMigration(harness.TestCase):
             py.test.skip('Skipping migration tests')
         if len(self.harness.config.hosts) < 2:
             py.test.skip('Need at least 2 hosts to do migration.')
-        with self.harness.booted(image_finder) as master:
+        with self.harness.booted(image_finder, agent=False) as master:
             host = master.get_host()
             dest = Host([h for h in self.config.hosts if h != host.id][0], self.harness.config)
             assert host.id != dest.id

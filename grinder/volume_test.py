@@ -106,7 +106,7 @@ class TestVolume(harness.TestCase):
             py.test.skip('Need at least 2 hosts to do migration.')
         image_finder.find(self.harness.nova, self.harness.config)
         with self.harness.volume() as volume:
-            with self.harness.booted(image_finder) as master:
+            with self.harness.booted(image_finder, agent=False) as master:
                 device = master.attach_volume(volume)
                 md5 = master.prime_volume(device)
                 host = master.get_host()
