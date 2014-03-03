@@ -23,7 +23,6 @@ from . host import Host
 
 class TestMigration(harness.TestCase):
 
-    @harness.platformtest(exclude=["windows"])
     def test_migration_one(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')
@@ -35,7 +34,6 @@ class TestMigration(harness.TestCase):
             assert host.id != dest.id
             master.migrate(host, dest)
 
-    @harness.platformtest(exclude=["windows"])
     def test_migration_errors(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')
@@ -64,7 +62,6 @@ class TestMigration(harness.TestCase):
             # Cannot migrate to self.
             fail_migrate(host)
 
-    @harness.platformtest(exclude=["windows"])
     def test_back_and_forth(self, image_finder):
         if self.harness.config.skip_migration_tests:
             py.test.skip('Skipping migration tests')
