@@ -17,6 +17,7 @@ import json
 import time
 import random
 import tempfile
+import re
 
 from . logger import log
 from . util import Notifier
@@ -962,6 +963,13 @@ class WindowsInstance(Instance):
         shell.check_output('agent-update %s' % agent_location,
                            timeout=self.harness.config.ops_timeout)
 
+        # Assert build number to check that update passed or failed
+        target_build = re.findall('0\.[0-9]+\-', agent_location)[0]
+        target_build = re.sub('0\.','',target_build)
+        target_build = re.sub('\-','',target_build)
+        target_build = target_build.rstrip()
+        self.assert_agent_running(target_build)
+
         # Setup agent in continuous blessing mode with no preloading.
         shell.check_output('agent-proxy set-mode 3 0')
 
@@ -969,15 +977,18 @@ class WindowsInstance(Instance):
         version = version.strip()
 
         self.breadcrumbs.add("Installed agent version %s" % version)
-        self.assert_agent_running()
 
     def remove_agent(self):
         self.get_shell().check_output('agent-remove')
         self.breadcrumbs.add("Removed agent")
         self.assert_agent_not_running()
 
-    def assert_agent_running(self):
+    def assert_agent_running(self, build=None):
         self.get_shell().check_output('agent-proxy ping')
+        if build is not None:
+            actual_build, _ = self.get_shell().check_output('agent-proxy build',
+                timeout=self.harness.config.ops_timeout, expected_output=None)
+            assert build == actual_build.rstrip()
 
     def assert_agent_not_running(self):
         try:
