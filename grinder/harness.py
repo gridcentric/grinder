@@ -38,7 +38,8 @@ from . requirements import INSTALL_POLICY
 # This is done prior to each test.
 test_name = ''
 
-def boot(client, network_client, config, image_config=None, flavor=None):
+def boot(client, network_client, config, image_config=None,
+         flavor=None, host=None):
     name = '%s-%s' % (config.run_name, test_name)
 
     if image_config == None:
@@ -57,9 +58,14 @@ def boot(client, network_client, config, image_config=None, flavor=None):
     image = client.images.find(name=image_config.name)
 
     log.info('Booting %s instance named %s', image.name, name)
-    host = random.choice(default_config.hosts)
-    host_az = Host(host, config).host_az()
-    log.debug('Selected host %s -> %s' % (host, host_az))
+
+    if isinstance(host, Host):
+        host_az     = host.host_az()
+        hostname    = host.id
+    else:
+        hostname = random.choice(default_config.hosts)
+        host_az  = Host(hostname, config).host_az()
+    log.debug('Selected host %s -> %s' % (hostname, host_az))
 
     if config.network_name is not None:
         network_uuid = network_name_to_uuid(network_client, config.network_name)
@@ -358,9 +364,10 @@ class TestHarness(Notifier):
             yield
 
     @Notifier.notify
-    def boot(self, image_finder, agent=True, flavor=None):
+    def boot(self, image_finder, agent=True, flavor=None, host=None):
         image_config = image_finder.find(self.nova, self.config)
-        server = boot(self.nova, self.network, self.config, image_config, flavor)
+        server = boot(self.nova, self.network, self.config,
+                      image_config, flavor, host)
         instance = InstanceFactory.create(self, server, image_config)
         # ensure the instance is booted, (ping-able and ssh-able for linux)
         instance.wait_for_boot()
