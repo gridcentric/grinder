@@ -13,12 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
 import re
 
 from xml.dom.minidom import parseString
 
 from . logger import log
 from . shell import RootShell
+
+COBALT_HOOKS_DIR = '/etc/cobalt/hooks.d/'
 
 class Host(object):
 
@@ -147,8 +150,25 @@ class Host(object):
         # exc=True causes an exception if rc != 0 (no cobalt hooks dir).
         # If we catch other exceptions, we might as well decalre defeat.
         try:
-            stdout, stderr = self.check_output('stat /etc/cobalt/hooks.d/',
-                                                exc=True)
+            stdout, stderr = self.check_output('stat %s' %\
+                                                COBALT_HOOKS_DIR, exc=True)
         except Exception:
             return False
+        return True
+
+    def drop_hook(self, hookname, hookscript):
+        if not self.check_supports_hooks():
+            log.warn("Asked to drop a hook on host %s but it doesn't "
+                     "support hooks." % self.id)
+            return False
+        filename = os.path.join(COBALT_HOOKS_DIR, hookname)
+        try:
+            self.check_output('touch %s' % filename, exc=True)
+            self.check_output('chmod +x %s' % filename, exc=True)
+            self.check_output('cat >> %s' % filename, exc=True,
+                                input = hookscript)
+        except Exception, e:
+            log.exception("Dropping hook %s on host %s failed" % hookname, self.id)
+            return False
+        return True
 
