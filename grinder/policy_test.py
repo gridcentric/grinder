@@ -65,7 +65,9 @@ unmanaged = false
                                         LIMIT_UPPER_HEADROOM_PAGES):
                     # Allocate memory in the launched VM. Allocate more memory
                     # than the limit set by policy to force eviction.
+                    log.info("Calling balloon allocate.")
                     launched.allocate_balloon(int(mb2pages(memory_limit_mb)) * 2)
+                    log.info("Done balloon allocate.")
 
             launched.delete()
 

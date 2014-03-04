@@ -299,10 +299,12 @@ class Background(object):
                 self.verifier(self.kwargs["context"])
 
         def __enter__(self):
+            log.info("Entering background thread with func: %s", self.func.__name__)
             self.start()
 
         def __exit__(self, typ, value, traceback):
             self.join()
+            log.info("Exiting background thread with func: %s", self.func.__name__)
 
 def install_policy(gcapi, policy, timeout=60):
     # On a busy system this may timeout after the default RPC timeout, which

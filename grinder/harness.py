@@ -353,13 +353,17 @@ class TestHarness(Notifier):
             else:
                 self.installed_policy = policy
 
-            flock(self.policy_lock_fp, LOCK_EX)
+            lock_fp = open(self.config.policy_lock_path, 'a')
+            flock(lock_fp, LOCK_EX)
             try:
                 install_policy(self.gcapi, self.installed_policy,
                                self.config.ops_timeout)
+                log.info("Entering policy context.")
                 yield
+                log.info("Exiting policy context.")
             finally:
-                flock(self.policy_lock_fp, LOCK_UN)
+                flock(lock_fp, LOCK_UN)
+                lock_fp.close()
         else:
             yield
 
