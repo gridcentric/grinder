@@ -375,6 +375,8 @@ class TestHarness(Notifier):
         instance = InstanceFactory.create(self, server, image_config)
         # ensure the instance is booted, (ping-able and ssh-able for linux)
         instance.wait_for_boot()
+        if host is not None:
+            assert host.id == instance.get_host().id
         if agent:
             try:
                 instance.install_agent()
