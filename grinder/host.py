@@ -15,6 +15,7 @@
 
 import os
 import re
+import uuid
 
 from xml.dom.minidom import parseString
 
@@ -22,6 +23,22 @@ from . logger import log
 from . shell import RootShell
 
 COBALT_HOOKS_DIR = '/etc/cobalt/hooks.d/'
+
+class CobaltHook:
+    def __init__(self, hookname, hookscript, host, config):
+        self.hookname   = hookname + str(uuid.uuid4())
+        self.hookscript = hookscript
+        self.host       = host
+        self.config     = config
+
+    def __enter__(self):
+        assert self.host.drop_hook(self.hookname, self.hookscript)
+        return self
+
+    def __exit__(self, type, value, tb):
+        if type == None or not(self.config.leave_on_failure):
+            filename = os.path.join(COBALT_HOOKS_DIR, self.hookname)
+            self.host.check_output('rm -f %s' % filename)
 
 class Host(object):
 
@@ -148,13 +165,16 @@ class Host(object):
     # dir (which the cobalt packages lay out with some dumb readmes).
     def check_supports_hooks(self):
         # exc=True causes an exception if rc != 0 (no cobalt hooks dir).
-        # If we catch other exceptions, we might as well decalre defeat.
+        # If we catch other exceptions, we might as well declare defeat.
         try:
             stdout, stderr = self.check_output('stat %s' %\
                                                 COBALT_HOOKS_DIR, exc=True)
         except Exception:
             return False
         return True
+
+    def with_hook(self, hookname, hookscript):
+        return CobaltHook(hookname, hookscript, self, self.config)
 
     def drop_hook(self, hookname, hookscript):
         if not self.check_supports_hooks():
