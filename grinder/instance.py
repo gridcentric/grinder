@@ -529,6 +529,9 @@ class Instance(Notifier):
 
     ### Platform-specific functionality.
 
+    def get_debug_data(self):
+        raise NotImplementedError()
+
     def get_shell(self):
         raise NotImplementedError()
 
@@ -702,6 +705,11 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
             **kwargs)
         self.TMP_SSH_KEY_PATH   = "/tmp/curr_ssh_key"
         self.RSA_HOST_KEY_PATH  = "/etc/ssh/ssh_host_rsa_key.pub"
+
+    def get_debug_data(self):
+        log.info("Listing of /: %s", self.get_shell().check_output("ls -la /")[0])
+        log.info("df -h: %s", self.get_shell().check_output("df -h")[0])
+        log.info("ps aux: %s", self.get_shell().check_output("ps aux")[0])
 
     def get_shell(self):
         return SecureShell(self.get_address(),
@@ -912,6 +920,12 @@ class WindowsInstance(Instance):
             self, harness, server, image_config,
             breadcrumbs=(breadcrumbs or LinkBreadcrumbs(self)),
             snapshot=snapshot, **kwargs)
+
+    def get_debug_data(self):
+        log.info("Listing of SysDir %s",\
+            self.get_shell().check_output('cmd dir %SystemDrive%', expected_output=None)[0])
+        log.info("powershell Get-Process: %s",\
+            self.get_shell().check_output('ps Get-Process', expected_output=None)[0])
 
     def get_shell(self):
         return WinShell(self.get_address(),

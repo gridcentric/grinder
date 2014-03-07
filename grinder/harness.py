@@ -197,6 +197,12 @@ class BootedInstance:
 
     def __exit__(self, type, value, tb):
         if type == None or not(self.harness.config.leave_on_failure):
+            try:
+                self.master.get_debug_data()
+            except:
+                # Any errors generated inspecting the state of the system are
+                # irrelevant to the test being run
+                log.info("Failed to gather booted instance data on exit. Sorry.")
             self.master.delete(recursive=True)
 
 class BlessedInstance:
@@ -384,6 +390,12 @@ class TestHarness(Notifier):
 
             except:
                 if not(self.config.leave_on_failure):
+                    try:
+                        instance.get_debug_data()
+                    except:
+                        # Any errors generated inspecting the state of the system are
+                        # irrelevant to the test being run
+                        log.info("Failed to gather booted instance data on exit. Sorry.")
                     instance.delete()
                 raise
         return instance
