@@ -394,11 +394,28 @@ class Instance(Notifier):
             if paused_on_launch:
                 instance.pause()
             clones.append(instance)
-
+            instance.assert_pagefile_unlinked()
         # Most callers expect a singleton return value
         if num_instances is not None and num_instances != 1:
             return clones
         return clones[0]
+
+    def assert_pagefile_unlinked(self):
+        # These paging files should be unlinked immediately on creation. If
+        # they are ever here after the instance goes ACTIVE this is a bug
+        import pytest
+        instance_name = getattr(self.server, 'OS-EXT-SRV-ATTR:instance_name', None)
+        vms_store = host.check_output("grep ^VMS_STORE /etc/sysconfig/vms || grep ^VMS_SHARED_PATH /etc/sysconfig/vms")[0]
+        vms_store = vms_store.split("=")[1]
+
+        # Get the process ID of the qemu-system-x86_64-vms process
+        pid = host.check_output('ps ax | grep -v grep|grep -v python|grep ' +
+                          str(instance_name) + ' | awk "{print \$1}"')[0]
+        extra_error_message = 'Paging files found where none expected. This is likely a bug!'
+        host.check_output('ls ' + vms_store +
+                                '/paging.' + str(pid) + '.*',
+                                expected_rc=2, exc=True,
+                                extra_message=extra_error_message)
 
     def pause(self):
         self.harness.nova.servers.pause(self.server)
@@ -464,11 +481,15 @@ class Instance(Notifier):
                     break
                 for snap in snapshots:
                     wait_while_exists(snap)
+        # copy out the host and the ID before discarding so we can check that it's gone later
+        host = self.get_host()
+        instance_name = getattr(self.server, 'OS-EXT-SRV-ATTR:instance_name', None)
         self.server.delete()
         self.wait_while_exists()
         if (self.is_clone):
             for volume in self.volumes:
                 wait_while_exists(volume)
+        self.assert_delete_artifacts(instance_name, host)
 
     @Notifier.notify
     def discard(self, recursive=False):
@@ -531,6 +552,15 @@ class Instance(Notifier):
             lambda: device in self.list_devices())
 
         return device
+
+    def assert_delete_artifacts(self, instance_name, host):
+        # Asserts that the artifacts created by vms are cleaned up after the discard
+        vms_store = host.check_output("grep ^VMS_STORE /etc/sysconfig/vms || grep ^VMS_SHARED_PATH /etc/sysconfig/vms")[0]
+        vms_store = vms_store.split("=")[1]
+        extra_msg = 'VMS magic files found where none expected. This is likely a bug!'
+        host.check_output("ls " + vms_store +
+                            "/*" + instance_name + "*", expected_rc=2,\
+                            exc=True, extra_message=extra_msg)
 
     ### Platform-specific functionality.
 

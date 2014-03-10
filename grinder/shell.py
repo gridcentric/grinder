@@ -48,7 +48,7 @@ class SecureShell(object):
 
     def check_output(self, command, input=None,
                      expected_rc=0, expected_output=None,
-                     exc=False):
+                     exc=False, extra_message=None):
         # Run the given command through a shell on the other end.
         command = self.ssh_args() + ['sh', '-c', "'%s'" % command]
         ssh = subprocess.Popen(command,
@@ -63,7 +63,10 @@ class SecureShell(object):
         (stdout, stderr) = (stdout.strip(), stderr.strip())
         if (expected_rc != None and expected_rc != ssh.returncode) or \
            (expected_output != None and stdout != expected_output):
-            errormsg = 'Command failed: %s\n' \
+            errormsg = ""
+            if extra_message:
+                errormsg += extra_message + '\n'
+            errormsg += 'Command failed: %s\n' \
                        'returncode: %d\n' \
                        '-------------------------\n' \
                        'stdout:\n%s\n' \
