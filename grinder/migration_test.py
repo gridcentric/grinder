@@ -120,3 +120,42 @@ kill -9 $PID
                           master.assert_alive,
                           dest_host)
 
+    @harness.requires(requirements.AVAILABILITY_ZONE)
+    def test_migration_delaunch(self, image_finder):
+        if self.harness.config.skip_migration_tests:
+            py.test.skip('Skipping migration tests')
+        if len(self.harness.config.hosts) < 2:
+            py.test.skip('Need at least 2 hosts to do migration.')
+        dest_host_name  = self.config.hosts[0]
+        dest_host       = Host(dest_host_name, self.config)
+        if not dest_host.check_supports_hooks():
+            py.test.skip("Host %s does not have cobalt hooks enabled." %\
+                         dest_host_name)
+        source_host = Host(self.config.hosts[1], self.harness.config)
+        assert source_host.id != dest_host.id
+        log.debug("Migration delaunch source host %s" % source_host.id)
+        log.debug("Migration delaunch dest host %s" % dest_host_name)
+        with self.harness.booted(image_finder, agent=False, host=source_host) as master:
+            filter_rule_tag = "Grinder rollback %s" % master.id
+            with dest_host.with_hook("01_pre_launch", """#!/bin/bash
+set -e
+echo "Pre launch hook args: $@" >&2
+[ $# -eq 7 ]
+[ $1 == %s ]
+[ $7 == migration ]
+[[ $6 == mcdist://* ]]
+URL=${6#mcdist://}
+ADDR=$(echo $URL | cut -d '|' -f 1)
+IP=$(echo $ADDR | cut -d ':' -f 1)
+PORT=$(echo $ADDR | cut -d ':' -f 2)
+/sbin/iptables -A OUTPUT -p udp --dport $PORT -d $IP -j DROP -m comment --comment "%s"
+""" % (master.id, filter_rule_tag),
+# Clean up hook
+"""/sbin/iptables -D OUTPUT $(/sbin/iptables -L -n --line-numbers | grep "%s" | awk "{print \$1}")""" % filter_rule_tag) as hook:
+                e = assert_raises(AssertionError,
+                          master.migrate,
+                          source_host, dest_host)
+                master.assert_alive(source_host)
+                e = assert_raises(AssertionError,
+                          master.assert_alive,
+                          dest_host)

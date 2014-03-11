@@ -25,11 +25,12 @@ from . shell import RootShell
 COBALT_HOOKS_DIR = '/etc/cobalt/hooks.d/'
 
 class CobaltHook:
-    def __init__(self, hookname, hookscript, host, config):
+    def __init__(self, hookname, hookscript, host, config, cleanup = None):
         self.hookname   = hookname + str(uuid.uuid4())
         self.hookscript = hookscript
         self.host       = host
         self.config     = config
+        self.cleanup    = cleanup
 
     def __enter__(self):
         assert self.host.drop_hook(self.hookname, self.hookscript)
@@ -39,6 +40,8 @@ class CobaltHook:
         if type == None or not(self.config.leave_on_failure):
             filename = os.path.join(COBALT_HOOKS_DIR, self.hookname)
             self.host.check_output('rm -f %s' % filename)
+            if self.cleanup is not None:
+                self.host.check_output(self.cleanup)
 
 class Host(object):
 
@@ -173,8 +176,8 @@ class Host(object):
             return False
         return True
 
-    def with_hook(self, hookname, hookscript):
-        return CobaltHook(hookname, hookscript, self, self.config)
+    def with_hook(self, hookname, hookscript, cleanup=None):
+        return CobaltHook(hookname, hookscript, self, self.config, cleanup)
 
     def drop_hook(self, hookname, hookscript):
         if not self.check_supports_hooks():
