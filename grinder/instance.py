@@ -184,7 +184,7 @@ class Instance(Notifier):
             host.check_output('ps aux | grep qemu-system | grep %s | grep -v ssh | grep -v ssh' % osid)
         return int(stdout.split('\n')[0].strip().split()[1])
 
-    def get_iptables_rules(self, host=None):
+    def get_iptables_rules(self, host=None, libvirt_interface_id=None):
         if host == None:
             host = self.get_host()
 
@@ -193,7 +193,7 @@ class Instance(Notifier):
         if self.harness.config.network_name is not None:
             # Quantum/Neutron uses the "tap-NNNNNN" as the chain identifer
             # They use "most" of the interface_id - 10 of the 11 digits
-            interface_id = host.get_dom_interface_id(server_id)[:10]
+            interface_id = libvirt_interface_id[:10]
             if 'neutron' in self.harness.network.list_agents()['agents'][0]['binary']:
                 #Neutron
                 # Neutron uses "most" of the interface_id - 10 of the 11 digits
@@ -426,14 +426,19 @@ class Instance(Notifier):
     def migrate(self, host, dest):
         log.info('Migrating %s from %s to %s', self, host, dest)
         self.assert_alive(host)
-        pre_migrate_iptables = self.get_iptables_rules(host)
+        self.libvirt_interface_id = self.get_host().get_dom_interface_id(
+                        self.get_raw_id())
+        pre_migrate_iptables = self.get_iptables_rules(host,
+                        self.libvirt_interface_id)
         self.breadcrumbs.add('pre migration to %s' % dest.id)
         self.harness.gcapi.migrate_instance(self.server, dest.id)
         self.wait_for_migrate(host, dest)
         # Assert that the iptables rules have been cleaned up.
         time.sleep(1.0)
-        assert (False, []) == self.get_iptables_rules(host)
-        assert pre_migrate_iptables == self.get_iptables_rules(dest)
+        assert (False, []) == self.get_iptables_rules(host=host,
+                        libvirt_interface_id=self.libvirt_interface_id)
+        assert pre_migrate_iptables == self.get_iptables_rules(host=dest,
+                        libvirt_interface_id=self.libvirt_interface_id)
 
     @Notifier.notify
     def delete(self, recursive=False):
