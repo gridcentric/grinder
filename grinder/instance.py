@@ -96,12 +96,12 @@ class Instance(Notifier):
             wait_for_shell(self.get_shell())
             self.ensure_cloudinit_done()
 
-    def wait_while_host(self, host):
+    def wait_while_host(self, host, duration=None):
         wait_for('%s to not be on host %s' % (self, host),
-                 lambda: self.get_host().id != host.id)
+                 lambda: self.get_host().id != host.id, duration=duration)
 
-    def wait_for_migrate(self, host, dest):
-        self.wait_while_host(host)
+    def wait_for_migrate(self, host, dest, duration):
+        self.wait_while_host(host, duration)
         self.wait_while_status('MIGRATING')
         self.assert_alive(dest)
         self.breadcrumbs.add('post migration to %s' % dest.id)
@@ -440,7 +440,9 @@ class Instance(Notifier):
             self.breadcrumbs.add('alive')
 
     @Notifier.notify
-    def migrate(self, host, dest):
+    def migrate(self, host, dest, duration=None):
+        if duration is None and 'windows' in self.image_config.platform.lower():
+            duration = int(1.5 * int(self.harness.config.ops_timeout))
         log.info('Migrating %s from %s to %s', self, host, dest)
         self.assert_alive(host)
         self.libvirt_interface_id = self.get_host().get_dom_interface_id(
@@ -449,7 +451,7 @@ class Instance(Notifier):
                         self.libvirt_interface_id)
         self.breadcrumbs.add('pre migration to %s' % dest.id)
         self.harness.gcapi.migrate_instance(self.server, dest.id)
-        self.wait_for_migrate(host, dest)
+        self.wait_for_migrate(host, dest, duration)
         # Assert that the iptables rules have been cleaned up.
         time.sleep(1.0)
         assert (False, []) == self.get_iptables_rules(host=host,

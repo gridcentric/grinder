@@ -98,8 +98,9 @@ def list_filter(l, exclude=None, include=None, only=None):
         only = l
     return [e for e in l if e not in exclude and e in only]
 
-def wait_for(message, condition, interval=1):
-    duration = int(default_config.ops_timeout)
+def wait_for(message, condition, interval=1, duration=None):
+    if duration is None:
+        duration = int(default_config.ops_timeout)
     log.info('Waiting %ss for %s', duration, message)
     start = time.time()
     while True:
