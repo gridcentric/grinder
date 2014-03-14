@@ -403,7 +403,7 @@ class Instance(Notifier):
     def assert_pagefile_unlinked(self):
         # These paging files should be unlinked immediately on creation. If
         # they are ever here after the instance goes ACTIVE this is a bug
-        import pytest
+        host = self.get_host()
         instance_name = getattr(self.server, 'OS-EXT-SRV-ATTR:instance_name', None)
         vms_store = host.check_output("grep ^VMS_STORE /etc/sysconfig/vms || grep ^VMS_SHARED_PATH /etc/sysconfig/vms")[0]
         vms_store = vms_store.split("=")[1]
