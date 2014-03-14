@@ -483,15 +483,11 @@ class Instance(Notifier):
                     break
                 for snap in snapshots:
                     wait_while_exists(snap)
-        # copy out the host and the ID before discarding so we can check that it's gone later
-        host = self.get_host()
-        instance_name = getattr(self.server, 'OS-EXT-SRV-ATTR:instance_name', None)
         self.server.delete()
         self.wait_while_exists()
         if (self.is_clone):
             for volume in self.volumes:
                 wait_while_exists(volume)
-        self.assert_delete_artifacts(instance_name, host)
 
     @Notifier.notify
     def discard(self, recursive=False):

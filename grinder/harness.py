@@ -196,6 +196,7 @@ class BootedInstance:
         return self.master
 
     def __exit__(self, type, value, tb):
+        # type != None implies an assertion has been triggered
         if type == None or not(self.harness.config.leave_on_failure):
             try:
                 self.master.get_debug_data()
@@ -203,7 +204,14 @@ class BootedInstance:
                 # Any errors generated inspecting the state of the system are
                 # irrelevant to the test being run
                 log.info("Failed to gather booted instance data on exit. Sorry.")
-            self.master.delete(recursive=True)
+            if type != None:
+                # Don't want to mask the stack trace
+                self.master.delete(recursive=True)
+            else:
+                host = self.master.get_host()
+                instance_name = getattr(self.master.server, 'OS-EXT-SRV-ATTR:instance_name', None)
+                self.master.delete(recursive=True)
+                self.master.assert_delete_artifacts(instance_name, host)
 
 class BlessedInstance:
     def __init__(self, harness, image_finder, agent, **kwargs):
