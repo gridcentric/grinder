@@ -193,7 +193,10 @@ class Instance(Notifier):
         if self.harness.config.network_name is not None:
             # Quantum/Neutron uses the "tap-NNNNNN" as the chain identifer
             # They use "most" of the interface_id - 10 of the 11 digits
-            interface_id = libvirt_interface_id[:10]
+            if libvirt_interface_id is None:
+                interface_id = host.get_dom_interface_id(server_id)[:10]
+            else:
+                interface_id = libvirt_interface_id[:10]
             if 'neutron' in self.harness.network.list_agents()['agents'][0]['binary']:
                 #Neutron
                 # Neutron uses "most" of the interface_id - 10 of the 11 digits
