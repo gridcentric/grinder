@@ -455,11 +455,17 @@ class Instance(Notifier):
         self.breadcrumbs.add('pre migration to %s' % dest.id)
         self.harness.gcapi.migrate_instance(self.server, dest.id)
         self.wait_for_migrate(host, dest, duration)
-        # Assert that the iptables rules have been cleaned up.
+        # Assert that the iptables rules are correct on source and dest hosts
         time.sleep(1.0)
         assert (False, []) == self.get_iptables_rules(host=host,
                         libvirt_interface_id=self.libvirt_interface_id)
-        assert pre_migrate_iptables == self.get_iptables_rules(host=dest,
+        if 'neutron' in self.harness.network.list_agents()['agents'][0]['binary']:
+            # Neutron bakes the ip addrs of other VMs on the host into each
+            # iptables entry. Just compare that the rule is there.
+            assert pre_migrate_iptables[0] == self.get_iptables_rules(host=dest,
+                        libvirt_interface_id=self.libvirt_interface_id)[0]
+        else:
+            assert pre_migrate_iptables == self.get_iptables_rules(host=dest,
                         libvirt_interface_id=self.libvirt_interface_id)
 
     @Notifier.notify
