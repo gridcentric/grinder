@@ -393,7 +393,8 @@ class TestHarness(Notifier):
             if host is not None:
                 assert host.id == instance.get_host().id
         except:
-            instance.delete()
+            if not(self.config.leave_on_failure):
+                instance.delete()
             raise
         if agent:
             try:
