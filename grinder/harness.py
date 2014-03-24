@@ -387,10 +387,14 @@ class TestHarness(Notifier):
         server = boot(self.nova, self.network, self.config,
                       image_config, flavor, host)
         instance = InstanceFactory.create(self, server, image_config)
-        # ensure the instance is booted, (ping-able and ssh-able for linux)
-        instance.wait_for_boot()
-        if host is not None:
-            assert host.id == instance.get_host().id
+        try:
+            # ensure the instance is booted, (ping-able and ssh-able for linux)
+            instance.wait_for_boot()
+            if host is not None:
+                assert host.id == instance.get_host().id
+        except:
+            instance.delete()
+            raise
         if agent:
             try:
                 instance.install_agent()
