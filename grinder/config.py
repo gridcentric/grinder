@@ -31,6 +31,7 @@ DEFAULT_SHARE_RATIO         = 0.8
 DEFAULT_COW_SLACK           = 1500
 DEFAULT_SSH_PORT            = 22
 DEFAULT_WINDOWS_LINK_PORT   = 9845
+DEFAULT_LIMIT_HEADROOM_PAGES = 256
 
 class Image(object):
     '''Add an image.
@@ -213,6 +214,10 @@ class Config(object):
         # pages and prevent spurious failures.
         self.test_sharing_cow_slack = DEFAULT_COW_SLACK
 
+        # Policy tests that assert a memory limit need a small headroom as the
+        # VM cools down after hitting the limit.
+        self.test_policy_headroom_pages = DEFAULT_LIMIT_HEADROOM_PAGES
+
         # Self explanatory
         self.skip_migration_tests = False
 
@@ -303,6 +308,10 @@ unmanaged = true
             handle_number_option(self.test_memory_dropall_fraction,
                                  float, "dropall fraction",
                                  DEFAULT_DROPALL_FRACTION, 0.25, 0.99)
+        self.test_policy_headroom_pages =\
+            handle_number_option(self.test_policy_headroom_pages,
+                                 int, "policy limit headroom pages",
+                                 DEFAULT_LIMIT_HEADROOM_PAGES, 0, 16 * 256)
 
     def get_images(self, distro, arch, platform):
         return filter(lambda i: i.distro == distro and \

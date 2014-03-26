@@ -25,14 +25,13 @@ from . import instance
 from . util import Background, mb2pages
 from . util import timedelta_total_seconds
 
-LIMIT_UPPER_HEADROOM_PAGES = 256
-
 # For now we only run all policy tests on linux VMs because linux VMs stabilize
 # at very small memory footprint after a launch, making it set relatively small
 # limits without accounting for the VM's initial memory usage after launch.
 
 class TestPolicy(harness.TestCase):
 
+    @harness.hosttest
     @harness.requires(requirements.INSTALL_POLICY)
     @harness.platformtest(exclude=["windows"])
     def test_memory_limit_enforcement(self, image_finder):
@@ -62,7 +61,7 @@ unmanaged = false
 
             with self.harness.policy(new_policy):
                 with check_memory_usage(vmsctl, mb2pages(memory_limit_mb) +
-                                        LIMIT_UPPER_HEADROOM_PAGES):
+                                        self.config.test_policy_headroom_pages):
                     # Allocate memory in the launched VM. Allocate more memory
                     # than the limit set by policy to force eviction.
                     log.info("Calling balloon allocate.")
@@ -143,7 +142,7 @@ unmanaged = false
                 # duration.
                 with ensure_burst(vmsctl, mb2pages(memory_limit_mb),
                                   mb2pages(memory_limit_mb + burst_size_mb) +
-                                  LIMIT_UPPER_HEADROOM_PAGES):
+                                           self.test_policy_headroom_pages):
 
                     # Allocate a large balloon which should cause bursting. We
                     # avoid allocating memory right up to the limit to avoid
