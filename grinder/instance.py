@@ -100,11 +100,14 @@ class Instance(Notifier):
         wait_for('%s to not be on host %s' % (self, host),
                  lambda: self.get_host().id != host.id, duration=duration)
 
-    def wait_for_migrate(self, host, dest, duration):
-        self.wait_while_host(host, duration)
+    def wait_for_migrate(self, host, dest, duration, willfail=False):
+        self.wait_while_status('ACTIVE')
         self.wait_while_status('MIGRATING')
-        self.assert_alive(dest)
-        self.breadcrumbs.add('post migration to %s' % dest.id)
+        if willfail:
+            self.assert_alive(host)
+        else:
+            self.assert_alive(dest)
+            self.breadcrumbs.add('post migration to %s' % dest.id)
 
     def wait_while_status(self, status):
         wait_while_status(self.server, status)
@@ -443,7 +446,7 @@ class Instance(Notifier):
             self.breadcrumbs.add('alive')
 
     @Notifier.notify
-    def migrate(self, host, dest, duration=None):
+    def migrate(self, host, dest, duration=None, willfail=False):
         if duration is None and 'windows' in self.image_config.platform.lower():
             duration = int(1.5 * int(self.harness.config.ops_timeout))
         log.info('Migrating %s from %s to %s', self, host, dest)
@@ -454,19 +457,27 @@ class Instance(Notifier):
                         self.libvirt_interface_id)
         self.breadcrumbs.add('pre migration to %s' % dest.id)
         self.harness.gcapi.migrate_instance(self.server, dest.id)
-        self.wait_for_migrate(host, dest, duration)
+        self.wait_for_migrate(host, dest, duration, willfail)
+
         # Assert that the iptables rules are correct on source and dest hosts
-        time.sleep(1.0)
-        assert (False, []) == self.get_iptables_rules(host=host,
-                        libvirt_interface_id=self.libvirt_interface_id)
-        if 'neutron' in self.harness.network.list_agents()['agents'][0]['binary']:
-            # Neutron bakes the ip addrs of other VMs on the host into each
-            # iptables entry. Just compare that the rule is there.
-            assert pre_migrate_iptables[0] == self.get_iptables_rules(host=dest,
-                        libvirt_interface_id=self.libvirt_interface_id)[0]
+        def check_iptables_post_migrate(not_host, yes_host):
+            time.sleep(1.0)
+            assert (False, []) == self.get_iptables_rules(host=not_host,
+                            libvirt_interface_id=self.libvirt_interface_id)
+            if 'neutron' in self.harness.network.list_agents()['agents'][0]['binary']:
+                # Neutron bakes the ip addrs of other VMs on the host into each
+                # iptables entry. Just compare that the rule is there.
+                assert pre_migrate_iptables[0] == self.get_iptables_rules(
+                            host=yes_host,
+                            libvirt_interface_id=self.libvirt_interface_id)[0]
+            else:
+                assert pre_migrate_iptables == self.get_iptables_rules(
+                            host=yes_host,
+                            libvirt_interface_id=self.libvirt_interface_id)
+        if willfail:
+            check_iptables_post_migrate(dest, host)
         else:
-            assert pre_migrate_iptables == self.get_iptables_rules(host=dest,
-                        libvirt_interface_id=self.libvirt_interface_id)
+            check_iptables_post_migrate(host, dest)
 
     @Notifier.notify
     def delete(self, recursive=False):

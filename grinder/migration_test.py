@@ -112,13 +112,7 @@ kill -9 $PID
 """ % master.id) as hook:
                 # The hook above will kill the memsrv after the bless phase of migration
                 # should be fun...
-                e = assert_raises(AssertionError,
-                          master.migrate,
-                          source_host, dest_host)
-                master.assert_alive(source_host)
-                e = assert_raises(AssertionError,
-                          master.assert_alive,
-                          dest_host)
+                master.migrate(source_host, dest_host, willfail=True)
 
     @harness.requires(requirements.AVAILABILITY_ZONE)
     def test_migration_delaunch(self, image_finder):
@@ -152,10 +146,4 @@ PORT=$(echo $ADDR | cut -d ':' -f 2)
 """ % (master.id, filter_rule_tag),
 # Clean up hook
 """/sbin/iptables -D OUTPUT $(/sbin/iptables -L -n --line-numbers | grep "%s" | awk "{print \$1}")""" % filter_rule_tag) as hook:
-                e = assert_raises(AssertionError,
-                          master.migrate,
-                          source_host, dest_host)
-                master.assert_alive(source_host)
-                e = assert_raises(AssertionError,
-                          master.assert_alive,
-                          dest_host)
+                master.migrate(source_host, dest_host, willfail=True)
