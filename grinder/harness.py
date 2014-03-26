@@ -388,6 +388,7 @@ class TestHarness(Notifier):
                       image_config, flavor, host)
         instance = InstanceFactory.create(self, server, image_config)
         try:
+            assert getattr(instance, 'id') is not None
             # ensure the instance is booted, (ping-able and ssh-able for linux)
             instance.wait_for_boot()
             if host is not None:

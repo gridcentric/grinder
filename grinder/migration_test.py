@@ -95,7 +95,6 @@ class TestMigration(harness.TestCase):
         log.debug("Migration rollback source host %s" % source_host_name)
         log.debug("Migration rollback dest host %s" % dest_host.id)
         with self.harness.booted(image_finder, agent=False, host=source_host) as master:
-            assert getattr(master, 'id') is not None
             with source_host.with_hook("01_post_bless", """#!/bin/bash
 set -e
 echo "Post bless hook args: $@" >&2
