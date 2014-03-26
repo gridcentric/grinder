@@ -142,7 +142,7 @@ unmanaged = false
                 # duration.
                 with ensure_burst(vmsctl, mb2pages(memory_limit_mb),
                                   mb2pages(memory_limit_mb + burst_size_mb) +
-                                           self.test_policy_headroom_pages):
+                                           self.config.test_policy_headroom_pages):
 
                     # Allocate a large balloon which should cause bursting. We
                     # avoid allocating memory right up to the limit to avoid
