@@ -299,7 +299,8 @@ def pytest_unconfigure(config):
         return
     try:
         os.unlink(default_config.policy_lock_path)
-    except OSError:
+    except OSError as e:
+        log.exception("Error occurred cleaning up the policy lock file: %s", str(e))
         pass
     try:
         default_config.policy_lock_fp.close()
