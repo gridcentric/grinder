@@ -34,6 +34,7 @@ from . util import wait_for_ping
 from . util import wait_while_status
 from . util import wait_for_status
 from . util import wait_while_exists
+from . util import NestedExceptionWrapper
 from . shell import wait_for_shell
 from . requirements import AVAILABILITY_ZONE, SCHEDULER_HINTS
 
@@ -240,7 +241,6 @@ class Instance(Notifier):
         # Get the list of snapshots that exist for master's volumes
         # to perform a diff and discern the newly created snapshots
         previous_snapshots = self.get_volume_snapshots()
-
         blessed_list = self.harness.gcapi.bless_instance(self.server, **kwargs)
         assert len(blessed_list) == 1
         blessed = blessed_list[0]
@@ -259,26 +259,33 @@ class Instance(Notifier):
         server = self.harness.nova.servers.get(blessed['id'])
         instance = self.__class__(self.harness, server, self.image_config,
                                   breadcrumbs=False, snapshot=snapshot)
+        try:
+            instance.wait_for_bless()
 
-        instance.wait_for_bless()
+            # Now get the list of snapshots afterwards to discern what was
+            # newly created.
+            # (OmgLag): Too bad we can't use python sets for these
+            # since Cinder resources don't have __eq__ overloaded
+            afterwards_snapshots = self.get_volume_snapshots()
+            created_snapshots = []
+            for afterwards_snapshot in afterwards_snapshots:
+                isnew = True
+                for previous_snapshot in previous_snapshots:
+                    if (afterwards_snapshot.id == previous_snapshot.id):
+                        isnew = False
+                        break
+                if (isnew):
+                    created_snapshots.append(afterwards_snapshot)
+            instance.volume_snapshots = created_snapshots
 
-        # Now get the list of snapshots afterwards to discern what was
-        # newly created.
-        # (OmgLag): Too bad we can't use python sets for these
-        # since Cinder resources don't have __eq__ overloaded
-        afterwards_snapshots = self.get_volume_snapshots()
-        created_snapshots = []
-        for afterwards_snapshot in afterwards_snapshots:
-            isnew = True
-            for previous_snapshot in previous_snapshots:
-                if (afterwards_snapshot.id == previous_snapshot.id):
-                    isnew = False
-                    break
-            if (isnew):
-                created_snapshots.append(afterwards_snapshot)
-        instance.volume_snapshots = created_snapshots
-
-        self.breadcrumbs.add('Post bless, child is %s' % instance.id)
+            self.breadcrumbs.add('Post bless, child is %s' % instance.id)
+        except:
+            if not(self.harness.config.leave_on_failure):
+                # Don't change the stacktrace of the original failure
+                # seperate to make sure Delete is called no matter what
+                with NestedExceptionWrapper() as wrapper:
+                    instance.discard(recursive=True)
+            raise
         return instance
 
     @Notifier.notify
