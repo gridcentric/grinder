@@ -47,7 +47,6 @@ ghost = true
                     vmsctl.clear_flag("eviction.enabled")
                     # check that the plumbing worked and vmsd got a
                     # preshared mem object.
-                    ispreshared = vmsctl.get_param("share.preshared")
                     assert str(vmsctl.get_param("share.preshared")) == '1'
                     # check that we've got just the ghost and the launch
                     stats = target_host.get_vmsfs_stats(generation)
