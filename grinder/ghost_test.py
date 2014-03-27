@@ -20,6 +20,38 @@ from . import requirements
 
 class TestGhostLaunch(harness.TestCase):
 
+
+    @harness.hosttest
+    @harness.requires(requirements.INSTALL_POLICY)
+    def test_ghost_create(self, image_finder):
+        with self.harness.blessed(image_finder) as blessed:
+            new_policy = \
+"""
+[*;blessed=%s;*]
+unmanaged = false
+ghost = true
+""" % (blessed.id)
+            with self.harness.policy(new_policy):
+                # kick off a single launch, which should bring up a
+                # ghost to go with it.
+                launched = blessed.launch()
+                target_host = None
+                try:
+                    vmsctl = launched.vmsctl()
+                    generation = vmsctl.generation()
+                    target_host = launched.get_host()
+                    # if the policy worked, policyd should have made a
+                    # ghost for this launch, and policyd should
+                    # succeed in our request to nuke that ghost.
+                    target_host.check_output("vmsctl ghostdel %s" % (generation))
+                    # check the domain isn't dead if we yank the ghost.
+                    launched.assert_guest_running()
+                finally:
+                    if not(self.harness.config.leave_on_failure):
+                        if launched:
+                            launched.delete()
+
+
     @harness.hosttest
     @harness.requires(requirements.INSTALL_POLICY)
     def test_ghost_clone(self, image_finder):
