@@ -43,6 +43,8 @@ ghost = true
                     # if the policy worked, policyd should have made a
                     # ghost for this launch, and policyd should
                     # succeed in our request to nuke that ghost.
+                    outstr, _ = target_host.check_output("vmsctl ghostid %s" % (generation))
+                    assert int(outstr) != 0
                     target_host.check_output("vmsctl ghostdel %s" % (generation))
                     # check the domain isn't dead if we yank the ghost.
                     launched.assert_guest_running()
@@ -77,6 +79,9 @@ ghost = true
                     target_host = launched.get_host()
                     # turn off eviction to prevent VM unpause
                     vmsctl.clear_flag("eviction.enabled")
+                    # ensure that a ghost got brought up.
+                    outstr, _ = target_host.check_output("vmsctl ghostid %s" % (generation))
+                    assert int(outstr) != 0
                     # check that the plumbing worked and vmsd got a
                     # preshared mem object.
                     assert str(vmsctl.get_param("share.preshared")) == '1'
