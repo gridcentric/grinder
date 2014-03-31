@@ -48,7 +48,7 @@ class SecureShell(object):
 
     def check_output(self, command, input=None,
                      expected_rc=0, expected_output=None,
-                     exc=False, extra_message=None):
+                     exc=False, extra_message=None, returnrc=False):
         # Run the given command through a shell on the other end.
         command = self.ssh_args() + ['sh', '-c', "'%s'" % command]
         ssh = subprocess.Popen(command,
@@ -78,7 +78,10 @@ class SecureShell(object):
             assert (expected_rc == None or expected_rc == ssh.returncode)
             assert (expected_output == None or expected_output == stdout)
 
-        return (stdout, stderr)
+        if returnrc:
+            return (stdout, stderr, ssh.returncode)
+        else:
+            return (stdout, stderr)
 
     def is_alive(self):
         '''Runs a dummy command through the shell. Returns True if the

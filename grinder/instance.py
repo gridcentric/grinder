@@ -1134,3 +1134,60 @@ class WindowsInstance(Instance):
             "balloon-release",
             timeout=self.harness.config.ops_timeout,
             expected_output=None)
+
+class Ghost(object):
+
+    @staticmethod
+    def wait_for_death(ghostid, target_host, generation,
+                        sendkill = False, sendvmsctlkill = False):
+        '''
+        @param sendkill : set to True and this function will send the
+        policyd ghost destroy command.  Otherwise this will just watch
+        policyd for the ghost removal.
+
+        @param sendvmsctlkill : set to True and this function will
+        send the vmsctl kill directly to the ghost vmsctl.
+        '''
+        def condition():
+            _, _, rc = target_host.check_output("vmsctl info %d" % (ghostid), expected_rc=None, returnrc=True)
+            if rc == 3:
+                return True
+            elif rc == 0:
+                return False
+            else:
+                raise Exception('unexpected RC waiting for ghost death. got rc=%d' % rc)
+
+        if sendkill:
+            target_host.check_output("vmsctl ghostdel %s" % (generation), expected_rc=None)
+
+        if sendvmsctlkill:
+            # send the kill; we don't care if the domain doesn't exist;
+            # that's what we want.
+            target_host.check_output("vmsctl destroy %d" % (ghostid), expected_rc=None)
+
+        wait_for('ghostid %s on %s to not exist' % (str(ghostid), str(target_host)),
+                 condition)
+
+class Policyd(object):
+
+    @staticmethod
+    def get_ghostid(generation, target_host, must_exist=True):
+        '''
+        Given a generation, query policyd for its tracked ghost for
+        that generation.
+
+        @param must_exist : if true, will assert we get a valid ghostid.
+
+        @return vmsid (int) for the ghost. Always > 0.
+        @return None if policyd has no tracked ghost for that generation.
+        '''
+        outstr, _ = target_host.check_output("vmsctl ghostid %s" % (generation))
+        if not outstr:
+            ghostid = None
+        else:
+            ghostid = int(outstr)
+            assert ghostid > 0
+
+        if must_exist:
+            assert ghostid
+        return ghostid
