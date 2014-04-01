@@ -28,7 +28,6 @@ from . util import wait_while_status
 from . util import wait_for_status
 from . util import wait_while_exists
 from . util import install_policy
-from . util import NestedExceptionWrapper
 from . client import create_client
 from . instance import InstanceFactory
 from . host import Host
@@ -199,13 +198,16 @@ class BootedInstance:
     def __exit__(self, type, value, tb):
         # type != None implies an assertion has been triggered
         if type == None or not(self.harness.config.leave_on_failure):
-            with NestedExceptionWrapper() as wrapper:
-                try:
-                    self.master.get_debug_data()
-                except:
-                    # Any errors generated inspecting the state of the system are
-                    # irrelevant to the test being run
-                    log.info("Failed to gather booted instance data on exit. Sorry.")
+            try:
+                self.master.get_debug_data()
+            except:
+                # Any errors generated inspecting the state of the system are
+                # irrelevant to the test being run
+                log.info("Failed to gather booted instance data on exit. Sorry.")
+            if type != None:
+                # Don't want to mask the stack trace
+                self.master.delete(recursive=True)
+            else:
                 host = self.master.get_host()
                 instance_name = getattr(self.master.server, 'OS-EXT-SRV-ATTR:instance_name', None)
                 self.master.delete(recursive=True)
@@ -221,12 +223,7 @@ class BlessedInstance:
     def __enter__(self):
         self.master = self.harness.boot(self.image_finder,
                                         agent=self.agent, **self.kwargs)
-        try:
-            self.blessed = self.master.bless()
-        except:
-            if not(self.harness.config.leave_on_failure):
-                with NestedExceptionWrapper() as wrapper:
-                    self.master.delete(recursive=True)
+        self.blessed = self.master.bless()
         return self.blessed
 
     def __exit__(self, type, value, tb):
