@@ -1,8 +1,7 @@
 #!/bin/bash
-
+set -x
 # Delete the grinder lock file that corresponds to the grinder run about to happen
-policy_lock=/tmp/grinder-policy-lock.\
-            $(echo $OS_AUTH_URL |sed "s|http://||g" | sed s/:/_/g | sed "s|/|_|g")
+policy_lock=/tmp/grinder-policy-lock.$(echo $OS_AUTH_URL |sed "s|http://||g" | sed s/:/_/g | sed "s|/|_|g")_
 echo "Cleaning up lock file: ${policy_lock}"
 rm -f ${policy_lock}
 
