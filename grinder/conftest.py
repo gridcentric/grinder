@@ -68,18 +68,22 @@ def parse_option(value, argspec):
             raise Exception("Unknown --image argument %s." % kwarg)
     return args, kwargs
 
+def add_encoding_to_stdin():
+    # The pytest capture plugin replaces sys.stdin with an object missing an
+    # 'encoding' attribute. The client apis needs sys.stdin.encoding. This will
+    # ensure that stdin has the encoding attribute.
+    if not hasattr(sys.stdin, 'encoding'):
+        sys.stdin.encoding = sys.getdefaultencoding()
+
 def pytest_runtest_setup(item):
     # Can't import harness earlier because pytest screws up importing logger.
     from . import harness
     harness.test_name = item.reportinfo()[2]
 
+    add_encoding_to_stdin()
+
 def pytest_runtest_call(item):
-    # The pytest capture plugin replaces sys.stdin with an object missing an
-    # 'encoding' attribute.
-    # The nova api needs sys.stdin.encoding. For each test we add the encoding
-    # attribute to sys.stdin.
-    if not hasattr(sys.stdin, 'encoding'):
-        sys.stdin.encoding = sys.getdefaultencoding()
+    add_encoding_to_stdin()
 
 def pytest_addoption(parser):
     # Add options for each of the default_config fields.
