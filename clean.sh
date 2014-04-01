@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# Delete grinder lockfiles.
-rm -f /tmp/grinder-policy-lock.*
+# Delete the grinder lock file that corresponds to the grinder run about to happen
+policy_lock=/tmp/grinder-policy-lock.\
+            $(echo $OS_AUTH_URL |sed "s|http://||g" | sed s/:/_/g | sed "s|/|_|g")
+echo "Cleaning up lock file: ${policy_lock}"
+rm -f ${policy_lock}
 
 stall=0
 for uuid in $(nova list | grep -v 'BLESSED' | tail -n +4 | head -n -1 | awk '{print $2;}'); do
