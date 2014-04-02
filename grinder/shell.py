@@ -29,22 +29,24 @@ class SecureShell(object):
         self.user = user
         self.port = port
         assert self.host
-        assert self.key_path
         assert self.user
         assert self.port
 
     def ssh_args(self):
-        return [
+        ssh_args = [
                 'ssh',
                 '-p', str(self.port),
                 '-o', 'UserKnownHostsFile=/dev/null',
                 '-o', 'StrictHostKeyChecking=no',
                 "-o", "PasswordAuthentication=no",
                 "-o", "TCPKeepAlive=yes",
-                "-o", "ServerAliveInterval=30",
-                "-i", self.key_path,
-                "%s@%s" % (self.user, self.host),
-               ]
+                "-o", "ServerAliveInterval=30"]
+        if self.key_path is not None:
+            ssh_args += ["-i", self.key_path]
+
+        ssh_args += ["%s@%s" % (self.user, self.host)]
+
+        return ssh_args
 
     def check_output(self, command, input=None,
                      expected_rc=0, expected_output=None,

@@ -24,7 +24,7 @@ import random
 from getpass import getuser
 from socket import gethostname
 
-DEFAULT_KEY_PATH = os.path.join(os.getenv('HOME'), '.ssh', 'id_rsa')
+DEFAULT_KEY_PATH = None
 DEFAULT_DROPALL_FRACTION    = 0.5
 DEFAULT_SHARING_CLONES      = 2
 DEFAULT_SHARE_RATIO         = 0.8
@@ -67,7 +67,6 @@ e.g. --image 11.10-a1-64,distro=ubuntu,user=ubuntu,arch=64
         assert self.arch
         assert self.platform
         assert self.user
-        assert self.key_path
 
     def __repr__(self):
         return 'Image(name=%s, distro=%s, ' % (self.name, self.distro) + \
