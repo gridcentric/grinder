@@ -760,9 +760,16 @@ open("/tmp/clone.log", "w").write(sys.argv[2])
         self.RSA_HOST_KEY_PATH  = "/etc/ssh/ssh_host_rsa_key.pub"
 
     def get_debug_data(self):
-        log.info("Listing of /: %s", self.get_shell().check_output("ls -la /")[0])
-        log.info("df -h: %s", self.get_shell().check_output("df -h")[0])
-        log.info("ps aux: %s", self.get_shell().check_output("ps aux")[0])
+        log.info("Listing of /: %s", self.get_shell().check_output("ls -la /", expected_rc=None)[0])
+        log.info("df -h: %s", self.get_shell().check_output("df -h", expected_rc=None)[0])
+        log.info("ps aux: %s", self.get_shell().check_output("ps aux", expected_rc=None)[0])
+        log.info("ifconfig -a: %s", self.get_shell().check_output("ifconfig -a", expected_rc=None)[0])
+        log.info("route -n: %s", self.get_shell().check_output("route -n", expected_rc=None)[0])
+        log.info("cat /proc/mounts: %s", self.get_shell().check_output("cat /proc/mounts", expected_rc=None)[0])
+        log.info("cat /etc/resolv.conf: %s", self.get_shell().check_output("cat /etc/resolv.conf", expected_rc=None)[0])
+        log.info("cat /proc/modules: %s", self.get_shell().check_output("cat /proc/modules", expected_rc=None)[0])
+        log.info("iptables -L -n: %s", self.get_shell().check_output("iptables -L -n", expected_rc=None)[0])
+        log.info("netstat -nap: %s", self.get_shell().check_output("netstat -nap", expected_rc=None)[0])
 
     def get_shell(self):
         return SecureShell(self.get_address(),
