@@ -17,6 +17,7 @@
 
 from . import harness
 from . import requirements
+from . host import Host
 from . instance import Ghost
 from . instance import Policyd
 from . logger import log
@@ -72,76 +73,86 @@ ghost = true
     @harness.requires(requirements.INSTALL_POLICY)
     def test_ghost_clone(self, image_finder):
         with self.harness.blessed(image_finder) as blessed:
-            new_policy = \
+            allhosts = [Host(h, self.harness.config) for h in self.config.hosts]
+            try:
+                # for this test, turn up policyd's logging verbosity
+                for h in allhosts:
+                    h.check_output('vmsctl set 0 debuglevel 2')
+                new_policy = \
 """
 [*;blessed=%s;*]
 unmanaged = false
 ghost = true
 """ % (blessed.id)
-            with self.harness.policy(new_policy):
-                flavor_used  = self.harness.nova.flavors.find(
-                    name=blessed.image_config.flavor)
-                max_pages = flavor_used.ram * 256
+                with self.harness.policy(new_policy):
+                    flavor_used  = self.harness.nova.flavors.find(
+                        name=blessed.image_config.flavor)
+                    max_pages = flavor_used.ram * 256
 
-                # kick off a single launch, which should bring up a
-                # ghost to go with it.
-                launched = blessed.launch(paused_on_launch=True)
-                success = False
-                try:
-                    vmsctl = launched.vmsctl()
-                    generation = vmsctl.generation()
-                    log.info('Launched with ghost generation %s', generation)
-                    target_host = launched.get_host()
-                    # turn off eviction to prevent VM unpause
-                    vmsctl.clear_flag("eviction.enabled")
-                    # ensure that a ghost got brought up.
-                    ghostid = Policyd.get_ghostid(generation, target_host)
-                    log.info('ghost id %d for generation %s', ghostid, generation)
-                    # check that the plumbing worked and vmsd got a
-                    # preshared mem object.
-                    assert str(vmsctl.get_param("share.preshared")) == '1'
-                    # check that we've got just the ghost and the launch
-                    stats = target_host.get_vmsfs_stats(generation)
-                    assert stats['cur_memory_objects'] == 2
-                    # check the number of p2m mappings.  because the
-                    # ghost is fully mapped and the launch should've
-                    # been cloned from the ghost, we should have
-                    # exactly 2x the p2m mappings.
-                    assert stats['cur_resident'] == (2 * max_pages)
-                    # the ghost should still be fully shared and
-                    # untouched. The launched clone will have some
-                    # dirty pages due to replacements and some runtime
-                    # allocation, but most of it should still be
-                    # pretty clean and in a shared state.
-                    assert stats['cur_shared'] > ((2 * max_pages) *
-                                                  self.config.test_sharing_share_ratio)
-                    # The actual number of allocated page should be
-                    # less than max_pages + dirty.
-                    assert stats['cur_allocated'] < (max_pages + stats['cur_dirty'])
+                    # kick off a single launch, which should bring up a
+                    # ghost to go with it.
+                    launched = blessed.launch(paused_on_launch=True)
+                    success = False
+                    try:
+                        vmsctl = launched.vmsctl()
+                        generation = vmsctl.generation()
+                        log.info('Launched with ghost generation %s', generation)
+                        target_host = launched.get_host()
+                        # turn off eviction to prevent VM unpause
+                        vmsctl.clear_flag("eviction.enabled")
+                        # ensure that a ghost got brought up.
+                        ghostid = Policyd.get_ghostid(generation, target_host)
+                        log.info('ghost id %d for generation %s', ghostid, generation)
+                        # check that the plumbing worked and vmsd got a
+                        # preshared mem object.
+                        assert str(vmsctl.get_param("share.preshared")) == '1'
+                        # check that we've got just the ghost and the launch
+                        stats = target_host.get_vmsfs_stats(generation)
+                        assert stats['cur_memory_objects'] == 2
+                        # check the number of p2m mappings.  because the
+                        # ghost is fully mapped and the launch should've
+                        # been cloned from the ghost, we should have
+                        # exactly 2x the p2m mappings.
+                        assert stats['cur_resident'] == (2 * max_pages)
+                        # the ghost should still be fully shared and
+                        # untouched. The launched clone will have some
+                        # dirty pages due to replacements and some runtime
+                        # allocation, but most of it should still be
+                        # pretty clean and in a shared state.
+                        assert stats['cur_shared'] > ((2 * max_pages) *
+                                                      self.config.test_sharing_share_ratio)
+                        # The actual number of allocated page should be
+                        # less than max_pages + dirty.
+                        assert stats['cur_allocated'] < (max_pages + stats['cur_dirty'])
 
-                    # let the guest run to make sure it's live.
-                    launched.unpause()
-                    launched.assert_guest_running()
+                        # let the guest run to make sure it's live.
+                        launched.unpause()
+                        launched.assert_guest_running()
 
-                    success = True
-                finally:
-                    if not success:
-                        if ghostid:
-                            stdout, _ = target_host.check_output("vmsctl info %s" % (ghostid),
-                                                                 expected_rc = None)
-                            log.error('test failed. ghost info: %s', stdout)
+                        success = True
+                    finally:
+                        if not success:
+                            if ghostid:
+                                stdout, _ = target_host.check_output("vmsctl info %s" % (ghostid),
+                                                                     expected_rc = None)
+                                log.error('test failed. ghost info: %s', stdout)
 
-                        stdout = vmsctl.call('info')
-                        log.error('test failed. launched info: %s', stdout)
+                            stdout = vmsctl.call('info')
+                            log.error('test failed. launched info: %s', stdout)
 
-                    # the launched instance gets auto-cleaned when the
-                    # bless cleans up.
-                    if success or not(self.harness.config.leave_on_failure):
-                        # try to ensure that the ghost gets destroyed
-                        # and cleaned up.  At this point the ghost
-                        # SHOULD have been made.  If the delete
-                        # operation returns an error RC, it means the
-                        # ghost didn't get made and that's an error.
-                        if ghostid and target_host:
-                            Ghost.wait_for_death(ghostid, target_host, generation,
-                                                 sendkill=True, sendvmsctlkill=True)
+                        # the launched instance gets auto-cleaned when the
+                        # bless cleans up.
+                        if success or not(self.harness.config.leave_on_failure):
+                            # try to ensure that the ghost gets destroyed
+                            # and cleaned up.  At this point the ghost
+                            # SHOULD have been made.  If the delete
+                            # operation returns an error RC, it means the
+                            # ghost didn't get made and that's an error.
+                            if ghostid and target_host:
+                                Ghost.wait_for_death(ghostid, target_host, generation,
+                                                     sendkill=True, sendvmsctlkill=True)
+            finally:
+                # turn their policyd debuglevel back down.
+                for h in allhosts:
+                    h.check_output("vmsctl set 0 debuglevel 1")
+
