@@ -23,13 +23,26 @@ for uuid in $(nova secgroup-list | grep -i 'created by grinder' | awk '{print $2
     nova secgroup-delete $uuid;
 done
 
-for snap in $(cinder snapshot-list | grep 'snapshot for ' | awk '{print $2}'); do
-    cinder snapshot-delete $snap;
-done
-
+stall=0
 for disk in $(cinder list | grep 'grindervol-' | awk '{print $2}'); do
     cinder delete $disk;
+    stall=$(($stall+3))
 done
+sleep $stall
+
+stall=0
+for snap in $(cinder snapshot-list | grep 'snapshot for ' | awk '{print $2}'); do
+    cinder snapshot-delete $snap;
+    stall=$(($stall+3))
+done
+sleep $stall
+
+stall=0
+for disk in $(cinder list | grep 'grindervol-' | awk '{print $2}'); do
+    cinder delete $disk;
+    stall=$(($stall+3))
+done
+sleep $stall
 
 # Instances in ERROR state that remain after all of the above, are probably failed
 # live-image-create entries
