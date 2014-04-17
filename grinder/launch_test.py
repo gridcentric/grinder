@@ -67,8 +67,35 @@ class TestLaunch(harness.TestCase):
             launched.delete()
             blessed.discard()
 
-    @harness.requires(requirements.SECURITY_GROUPS)
+    # requirements.SECURITY_GROUPS is a capability that when true
+    # means that security groups can be inherited. If it does not
+    # exist security groups must be specified, or the default
+    # security group will be applied.
     def test_launch_secgroup(self, image_finder):
+        if self.harness.satisfies([requirements.SECURITY_GROUPS]):
+            pytest.skip('This test assumes no security_group inheritance')
+        with self.harness.security_group() as sg:
+            with self.harness.security_group() as unassigned_sg:
+                with self.harness.booted(image_finder) as master:
+                    master.add_security_group(sg.name)
+                    blessed = master.bless()
+                    # Test no security group specified
+                    launched = blessed.launch()
+                    assert 'default' in launched.list_security_groups()[0]['name']
+                    assert len(launched.list_security_groups()) == 1
+                    launched.delete()
+                    # Test specifying a security group
+                    launched = blessed.launch(security_groups=[sg.name])
+                    assert sg.name in launched.list_security_groups()[1]['name']
+                    assert len(launched.list_security_groups()) == 2
+                    blessed.discard()
+
+    # requirements.SECURITY_GROUPS is a capability that when true
+    # means that security groups can be inherited. If it does not
+    # exist security groups must be specified, or the default
+    # security group will be applied.
+    @harness.requires(requirements.SECURITY_GROUPS)
+    def test_launch_secgroup_inherited(self, image_finder):
         with self.harness.security_group() as sg:
             with self.harness.security_group() as unassigned_sg:
                 with self.harness.booted(image_finder) as master:

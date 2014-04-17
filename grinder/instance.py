@@ -286,8 +286,8 @@ class Instance(Notifier):
                user_data=None, security_groups=None, availability_zone=None,
                num_instances=None, keypair=None, scheduler_hints=None,
                paused_on_launch=False):
-        log.info("Launching from %s with target=%s guest_params=%s status=%s"
-                  % (self, target, guest_params, status))
+        log.info("Launching from %s with target=%s guest_params=%s status=%s
+                 security_groups=%s" % (self, target, guest_params, status, secity_groups))
         params = {}
         if target != None:
             params['target'] = target
@@ -548,6 +548,9 @@ class Instance(Notifier):
 
     def remove_security_group(self, *args, **kwargs):
         return self.server.remove_security_group(*args, **kwargs)
+
+    def list_security_groups(self):
+        return self.server.security_groups
 
     def attach_volume(self, volume):
         # Figure out a decent name for a volume.
