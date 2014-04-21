@@ -21,6 +21,7 @@ import time
 import types
 import urllib
 import urlparse
+import traceback
 
 from . logger import log
 from . config import default_config
@@ -41,6 +42,22 @@ def assert_raises(exception_type, command, *args, **kwargs):
             raise
         log.debug('Got expected exception %s', e)
         return e
+
+class NestedExceptionWrapper(object):
+    def __init__(self):
+        pass
+
+    def __enter__(self):
+        self.type_, self.value, self.tb = sys.exc_info()
+
+    def __exit__(self, exception_type, exception_value, tb):
+        # If there is an exception while this object is alive we want to log the
+        # original exception as it is why the test failed.
+        if exception_type is not None:
+            log.error("An exception occurred cleaning up from this test." +
+                          "The real reason the test failed was: ")
+            log.error(' '.join(traceback.format_exception(self.type_, self.value, self.tb)))
+            return False
 
 class Notifier(object):
 

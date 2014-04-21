@@ -28,6 +28,7 @@ from . util import wait_while_status
 from . util import wait_for_status
 from . util import wait_while_exists
 from . util import install_policy
+from . util import NestedExceptionWrapper
 from . client import create_client
 from . instance import InstanceFactory
 from . host import Host
@@ -196,22 +197,26 @@ class BootedInstance:
         return self.master
 
     def __exit__(self, type, value, tb):
-        # type != None implies an assertion has been triggered
-        if type == None or not(self.harness.config.leave_on_failure):
+        if type == None:
             try:
                 self.master.get_debug_data()
             except:
                 # Any errors generated inspecting the state of the system are
                 # irrelevant to the test being run
                 log.info("Failed to gather booted instance data on exit. Sorry.")
-            if type != None:
-                # Don't want to mask the stack trace
-                self.master.delete(recursive=True)
-            else:
-                host = self.master.get_host()
-                instance_name = getattr(self.master.server, 'OS-EXT-SRV-ATTR:instance_name', None)
-                self.master.delete(recursive=True)
-                self.master.assert_delete_artifacts(instance_name, host)
+            self.__assert_delete_artifacts()
+        else:
+            if not(self.harness.config.leave_on_failure):
+                with NestedExceptionWrapper() as wrapper:
+                    self.__assert_delete_artifacts()
+            return False
+
+    def __assert_delete_artifacts(self):
+        host = self.master.get_host()
+        instance_name = getattr(self.master.server, 'OS-EXT-SRV-ATTR:instance_name', None)
+        self.master.delete(recursive=True)
+        self.master.assert_delete_artifacts(instance_name, host)
+
 
 class BlessedInstance:
     def __init__(self, harness, image_finder, agent, **kwargs):
@@ -223,7 +228,13 @@ class BlessedInstance:
     def __enter__(self):
         self.master = self.harness.boot(self.image_finder,
                                         agent=self.agent, **self.kwargs)
-        self.blessed = self.master.bless()
+        try:
+            self.blessed = self.master.bless()
+        except:
+            if not(self.harness.config.leave_on_failure):
+                with NestedExceptionWrapper() as wrapper:
+                    self.master.delete(recursive=True)
+            raise
         return self.blessed
 
     def __exit__(self, type, value, tb):
