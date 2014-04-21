@@ -293,8 +293,8 @@ class Instance(Notifier):
                user_data=None, security_groups=None, availability_zone=None,
                num_instances=None, keypair=None, scheduler_hints=None,
                paused_on_launch=False):
-        log.info("Launching from %s with target=%s guest_params=%s status=%s
-                 security_groups=%s" % (self, target, guest_params, status, secity_groups))
+        log.info("Launching from %s with target=%s guest_params=%s status=%s security_groups=%s"
+                 % (self, target, guest_params, status, secity_groups))
         params = {}
         if target != None:
             params['target'] = target
