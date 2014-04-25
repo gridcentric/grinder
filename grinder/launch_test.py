@@ -75,20 +75,20 @@ class TestLaunch(harness.TestCase):
         if self.harness.satisfies([requirements.SECURITY_GROUPS]):
             pytest.skip('This test assumes no security_group inheritance')
         with self.harness.security_group() as sg:
-            with self.harness.security_group() as unassigned_sg:
-                with self.harness.booted(image_finder) as master:
-                    master.add_security_group(sg.name)
-                    blessed = master.bless()
-                    # Test no security group specified
-                    launched = blessed.launch()
-                    assert 'default' in launched.list_security_groups()[0]['name']
-                    assert len(launched.list_security_groups()) == 1
-                    launched.delete()
-                    # Test specifying a security group
-                    launched = blessed.launch(security_groups=[sg.name])
-                    assert sg.name in launched.list_security_groups()[1]['name']
-                    assert len(launched.list_security_groups()) == 2
-                    blessed.discard()
+            with self.harness.booted(image_finder) as master:
+                master.add_security_group(sg.name)
+                blessed = master.bless()
+                # Test no security group specified
+                launched = blessed.launch()
+                assert len(launched.list_security_groups()) == 1
+                assert 'default' in launched.list_security_groups()[0]['name']
+                launched.delete()
+                # Test specifying a security group
+                launched = blessed.launch(security_groups=[sg.name])
+                assert len(launched.list_security_groups()) == 1
+                assert sg.name in launched.list_security_groups()[0]['name']
+                launched.delete()
+                blessed.discard()
 
     # requirements.SECURITY_GROUPS is a capability that when true
     # means that security groups can be inherited. If it does not
