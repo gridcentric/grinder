@@ -89,13 +89,14 @@ class Instance(Notifier):
         else:
             self.privkey_path = self.image_config.key_path
 
-    def wait_for_boot(self, status='ACTIVE'):
+    def wait_for_boot(self, status='ACTIVE', wait_for_cloudinit=True):
         self.wait_while_status('BUILD')
         assert self.get_status() == status
         if status == 'ACTIVE':
             self.instance_wait_for_ping()
             wait_for_shell(self.get_shell())
-            self.ensure_cloudinit_done()
+            if wait_for_cloudinit:
+                self.ensure_cloudinit_done()
 
     def wait_while_host(self, host, duration=None):
         wait_for('%s to not be on host %s' % (self, host),
@@ -437,6 +438,7 @@ class Instance(Notifier):
     def unpause(self):
         self.harness.nova.servers.unpause(self.server)
         self.wait_while_status('PAUSED')
+        self.wait_for_boot(wait_for_cloudinit=False)
 
     def instance_wait_for_ping(self):
         wait_for_ping([self.get_address()])
