@@ -301,6 +301,54 @@ class Volume:
             self.volume.delete()
             wait_while_exists(self.volume)
 
+class Policy:
+    """
+    Modifies the vmspolicyd policy on the host. If extend is True,
+    the currently defined policy is extended with new policy (new
+    policy is prepended) rather than replaced by it.
+    """
+    def __init__(self, harness, policy, extend=True):
+        self.harness = harness
+        if extend:
+            self.harness.installed_policy += policy
+        else:
+            self.harness.installed_policy = policy
+
+    def __enter__(self):
+        if INSTALL_POLICY.check(self.harness.nova):
+            # Since we always flock on the same file pointer within a single
+            # grinder process, recursive calls to flock will not block. This
+            # allows any callers of install_policy to grab the lock around the
+            # install_policy() call if they want a large critical section around
+            # the policy being installed, without having to worry about
+            # deadlocks.
+            self.lock_fp = open(self.harness.config.policy_lock_path, 'a')
+            flock(self.lock_fp, LOCK_EX)
+            self.previous_policy = self._get_hostpolicy()
+            log.debug("Replacing policy\n%s\nWith policy\n%s"%
+                      (self.previous_policy, self.harness.installed_policy))
+            install_policy(self.harness.gcapi, self.harness.installed_policy,
+                           self.harness.config.ops_timeout)
+            log.info("Entering policy context.")
+    def __exit__(self, exception_type, exception_value, tb):
+        log.debug("Restoring previous policy")
+        install_policy(self.harness.gcapi, self.previous_policy,
+               self.harness.config.ops_timeout)
+        log.info("Exiting policy context.")
+        flock(self.lock_fp, LOCK_UN)
+        self.lock_fp.close()
+
+    def _get_hostpolicy(self):
+        hostpolicy = None
+        for host in [Host(h, self.harness.config) for h in self.harness.config.hosts]:
+            outstr, _ = host.check_output("vmsctl hostpolicy")
+            if hostpolicy is None:
+                hostpolicy = outstr
+            else:
+                assert outstr == hostpolicy
+        return hostpolicy
+
+
 class TestHarness(Notifier):
     '''There's one instance of TestHarness per test function that runs.'''
     def __init__(self, config, test_name):
@@ -358,40 +406,6 @@ class TestHarness(Notifier):
     def teardown(self):
         pass
 
-    @contextmanager
-    def policy(self, policy, extend=True):
-        """
-        Modifies the vmspolicyd policy on the host. If extend is True,
-        the currently defined policy is extended with new policy (new
-        policy is prepended) rather than replaced by it.
-        """
-
-        if INSTALL_POLICY.check(self.nova):
-            # Since we always flock on the same file pointer within a single
-            # grinder process, recursive calls to flock will not block. This
-            # allows any callers of install_policy to grab the lock around the
-            # install_policy() call if they want a large critical section around
-            # the policy being installed, without having to worry about
-            # deadlocks.
-            if extend:
-                self.installed_policy += policy
-            else:
-                self.installed_policy = policy
-
-            lock_fp = open(self.config.policy_lock_path, 'a')
-            flock(lock_fp, LOCK_EX)
-            try:
-                install_policy(self.gcapi, self.installed_policy,
-                               self.config.ops_timeout)
-                log.info("Entering policy context.")
-                yield
-                log.info("Exiting policy context.")
-            finally:
-                flock(lock_fp, LOCK_UN)
-                lock_fp.close()
-        else:
-            yield
-
     @Notifier.notify
     def boot(self, image_finder, agent=True, flavor=None, host=None):
         image_config = image_finder.find(self.nova, self.config)
@@ -439,6 +453,9 @@ class TestHarness(Notifier):
 
     def volume(self, size=None, **kwargs):
         return Volume(self, size=size, **kwargs)
+
+    def Policy(self, policy, **kwargs):
+        return Policy(self, policy, **kwargs)
 
     def fake_id(self):
         # Generate a fake id (ensure it's fake).
