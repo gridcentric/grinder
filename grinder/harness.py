@@ -454,7 +454,7 @@ class TestHarness(Notifier):
     def volume(self, size=None, **kwargs):
         return Volume(self, size=size, **kwargs)
 
-    def Policy(self, policy, **kwargs):
+    def policy(self, policy, **kwargs):
         return Policy(self, policy, **kwargs)
 
     def fake_id(self):
